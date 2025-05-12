@@ -6,14 +6,14 @@ config := --account katana-0 \
 build := ./target/dev/controller_
 sierra := .contract_class.json
 compiled := .compiled_contract_class.json
-store := ./packages/account_sdk/artifacts/classes/
+store := ./account_sdk/artifacts/classes/
 
 # Contract params for deploy.
 test_pubkey = 0x1234
 katana_0 = 0x517ececd29116499f4a1b64b094da79ba08dfd54a3edaa316134c41f8160973
 
 generate_artifacts:
-	scarb --manifest-path ./packages/contracts/controller/Scarb.toml build
+	scarb --manifest-path ./contracts/controller/Scarb.toml build
 	mkdir -p ${store}
 
 	jq . ${build}CartridgeAccount${sierra} > ${store}controller.latest.contract_class.json
