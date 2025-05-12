@@ -31,24 +31,23 @@ jobs:
 
       - name: Build WASM Package
         run: |
-          cd packages/account-wasm
+          cd account-wasm
           wasm-pack build --target nodejs
-
       - name: Prepare NPM Package
         run: |
-          cd packages/account-wasm/pkg
-          npm pkg set name="@cartridge/controller-wasm"
-          npm pkg set version="${{ github.event.client_payload.version }}"
-          npm pkg set files=["*.js", "*.wasm", "*.d.ts"]
-          npm pkg set main="account_wasm.js"
-          npm pkg set types="account_wasm.d.ts"
-          npm pkg set repository="https://github.com/cartridge-gg/controller-rs"
-          npm pkg set license="MIT"
+          cd account-wasm/pkg
+          npm pkg set name=@cartridge/controller-wasm
+          npm pkg set version=${{ github.event.client_payload.version }}
+          npm pkg set files='["*.js", "*.wasm", "*.d.ts"]'
+          npm pkg set main=account_wasm.js
+          npm pkg set types=account_wasm.d.ts
+          npm pkg set repository=https://github.com/cartridge-gg/controller-rs
+          npm pkg set license=MIT
 
       - name: Publish to NPM
         if: ${{ !github.event.client_payload.dry_run }}
         run: |
-          cd packages/account-wasm/pkg
+          cd account-wasm/pkg
           npm publish --access public
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
@@ -60,8 +59,8 @@ jobs:
           name: v${{ github.event.client_payload.version }}
           tag_name: v${{ github.event.client_payload.version }}
           files: |
-            packages/account-wasm/pkg/*.wasm
-            packages/account-wasm/pkg/*.js
-            packages/account-wasm/pkg/*.d.ts
+            account-wasm/pkg/*.wasm
+            account-wasm/pkg/*.js
+            account-wasm/pkg/*.d.ts
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
