@@ -1,5 +1,5 @@
 [workspace]
-members = ["packages/contracts/controller", "packages/contracts/resolver"]
+members = ["contracts/controller", "contracts/resolver"]
 
 [workspace.package]
 version = "0.1.0"

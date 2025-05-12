@@ -1,23 +1,19 @@
-name: release
+name: Release
 
 on:
-  workflow_dispatch:
-  pull_request:
-    types: [closed]
-    branches:
-      - main
+  repository_dispatch:
+    types: [release]
 
 jobs:
-  publish:
-    if:
-      (github.event.pull_request.merged == true &&
-      (github.event.pull_request.head.ref == 'prepare-release' ||
-      github.event.pull_request.head.ref == 'prepare-prerelease')) ||
-      github.event_name == 'workflow_dispatch'
+  release:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Configure Git
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
@@ -25,24 +21,47 @@ jobs:
           node-version: "20.x"
           registry-url: "https://registry.npmjs.org/"
 
-      - uses: pnpm/action-setup@v4
-      - run: pnpm install
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
 
-      - name: Get version
-        id: get_version
-        run: |
-          echo "VERSION=$(jq -r '.version' packages/controller/package.json)" >> $GITHUB_OUTPUT
+      - name: Install wasm-pack
+        run: cargo install wasm-pack
 
-      - name: Publish release to npm
-        if: ${{ github.event.pull_request.head.ref == 'prepare-release' }}
+      - name: Build WASM Package
         run: |
-          pnpm release
+          cd packages/account-wasm
+          wasm-pack build --target nodejs
+
+      - name: Prepare NPM Package
+        run: |
+          cd packages/account-wasm/pkg
+          npm pkg set name="@cartridge/controller-wasm"
+          npm pkg set version="${{ github.event.client_payload.version }}"
+          npm pkg set files=["*.js", "*.wasm", "*.d.ts"]
+          npm pkg set main="account_wasm.js"
+          npm pkg set types="account_wasm.d.ts"
+          npm pkg set repository="https://github.com/cartridge-gg/controller-rs"
+          npm pkg set license="MIT"
+
+      - name: Publish to NPM
+        if: ${{ !github.event.client_payload.dry_run }}
+        run: |
+          cd packages/account-wasm/pkg
+          npm publish --access public
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
-      - name: Publish prerelease to npm
-        if: ${{ github.event.pull_request.head.ref == 'prepare-prerelease' }}
-        run: |
-          pnpm release:prerelease
+      - name: Create GitHub Release
+        if: ${{ !github.event.client_payload.dry_run }}
+        uses: softprops/action-gh-release@v1
+        with:
+          name: v${{ github.event.client_payload.version }}
+          tag_name: v${{ github.event.client_payload.version }}
+          files: |
+            packages/account-wasm/pkg/*.wasm
+            packages/account-wasm/pkg/*.js
+            packages/account-wasm/pkg/*.d.ts
         env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
