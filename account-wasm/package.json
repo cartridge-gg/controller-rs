@@ -1,5 +1,5 @@
 {
-  "name": "@cartridge/account-wasm",
+  "name": "@cartridge/controller-wasm",
   "version": "0.7.14-alpha.3",
   "description": "Wasm bindings for Cartridge Controller and Session Account",
   "type": "module",
@@ -15,10 +15,10 @@
     "./pkg-controller/account_wasm_bg.js",
     "./pkg-controller/account_wasm.d.ts",
     "./pkg-controller/snippets/**/*",
-    "./pkg-session/account_wasm_bg.wasm",
-    "./pkg-session/account_wasm.js",
-    "./pkg-session/account_wasm_bg.js",
-    "./pkg-session/account_wasm.d.ts",
+    "./pkg-session/session_wasm_bg.wasm",
+    "./pkg-session/session_wasm.js",
+    "./pkg-session/session_wasm_bg.js",
+    "./pkg-session/session_wasm.d.ts",
     "./pkg-session/snippets/**/*"
   ],
   "exports": {
