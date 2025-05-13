@@ -24,3 +24,6 @@ RUSTFLAGS='-C link-arg=-s -C opt-level=z -C codegen-units=1' \
 
 # Optimize session bundle
 wasm-opt -Oz --enable-bulk-memory -o ./pkg-session/session_wasm_bg.wasm ./pkg-session/session_wasm_bg.wasm
+
+rm -f pkg-controller/.gitignore
+rm -f pkg-session/.gitignore
