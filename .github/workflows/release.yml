@@ -33,24 +33,28 @@ jobs:
         run: |
           cd account-wasm
           ./build.sh
-          - name: Update package.json version and metadata
-          run: |
+
+      - name: Update package.json version and metadata
+        run: |
           cd account-wasm
           npm pkg set version=${{ github.event.client_payload.version }}
           npm pkg set repository=https://github.com/cartridge-gg/controller-rs
           npm pkg set license=MIT
-          - name: Publish to NPM
-          if: ${{ !github.event.client_payload.dry_run }}
-          run: |
+
+      - name: Publish to NPM
+        if: ${{ !github.event.client_payload.dry_run }}
+        run: |
           cd account-wasm
           npm publish --access public
-          env:
-            NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
       - name: Create tarballs for release
         run: |
           cd account-wasm
           tar -czf pkg-controller.tar.gz pkg-controller
           tar -czf pkg-session.tar.gz    pkg-session
+
       - name: Create GitHub Release
         if: ${{ !github.event.client_payload.dry_run }}
         uses: softprops/action-gh-release@v1
