@@ -29,29 +29,23 @@ jobs:
       - name: Install wasm-pack
         run: cargo install wasm-pack
 
-      - name: Build WASM Package
+      - name: Build WASM Bundles
         run: |
           cd account-wasm
-          wasm-pack build --target nodejs
-      - name: Prepare NPM Package
+          ./build.sh
+      - name: Update package.json version and metadata
         run: |
-          cd account-wasm/pkg
-          npm pkg set name=@cartridge/controller-wasm
+          cd account-wasm
           npm pkg set version=${{ github.event.client_payload.version }}
-          npm pkg set files='["*.js", "*.wasm", "*.d.ts"]'
-          npm pkg set main=account_wasm.js
-          npm pkg set types=account_wasm.d.ts
           npm pkg set repository=https://github.com/cartridge-gg/controller-rs
           npm pkg set license=MIT
-
       - name: Publish to NPM
         if: ${{ !github.event.client_payload.dry_run }}
         run: |
-          cd account-wasm/pkg
+          cd account-wasm
           npm publish --access public
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-
       - name: Create GitHub Release
         if: ${{ !github.event.client_payload.dry_run }}
         uses: softprops/action-gh-release@v1
@@ -59,8 +53,11 @@ jobs:
           name: v${{ github.event.client_payload.version }}
           tag_name: v${{ github.event.client_payload.version }}
           files: |
-            account-wasm/pkg/*.wasm
-            account-wasm/pkg/*.js
-            account-wasm/pkg/*.d.ts
+            account-wasm/pkg-controller/*.wasm
+            account-wasm/pkg-controller/*.js
+            account-wasm/pkg-controller/*.d.ts
+            account-wasm/pkg-session/*.wasm
+            account-wasm/pkg-session/*.js
+            account-wasm/pkg-session/*.d.ts
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
