@@ -33,14 +33,14 @@
       "require": "./pkg-controller/account_wasm.js"
     },
     "./session": {
-      "types": "./pkg-session/account_wasm.d.ts",
-      "import": "./pkg-session/account_wasm.js",
-      "require": "./pkg-session/account_wasm.js"
+      "types": "./pkg-session/session_wasm.d.ts",
+      "import": "./pkg-session/session_wasm.js",
+      "require": "./pkg-session/session_wasm.js"
     }
   },
   "sideEffects": [
     "./pkg-controller/account_wasm.js",
-    "./pkg-session/account_wasm.js",
+    "./pkg-session/session_wasm.js",
     "./pkg-controller/snippets/*",
     "./pkg-session/snippets/*"
   ],
