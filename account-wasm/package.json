@@ -3,46 +3,44 @@
   "version": "0.7.14-alpha.3",
   "description": "Wasm bindings for Cartridge Controller and Session Account",
   "type": "module",
-  "main": "./pkg-controller/account_wasm.js",
-  "module": "./pkg-controller/account_wasm.js",
-  "types": "./pkg-controller/account_wasm.d.ts",
+  "files": [
+    "pkg-controller/esm/**/*",
+    "pkg-controller/cjs/**/*",
+    "pkg-controller/snippets/**/*",
+    "pkg-session/esm/**/*",
+    "pkg-session/cjs/**/*",
+    "pkg-session/snippets/**/*"
+  ],
+  "main": "./pkg-controller/cjs/index.js",
+  "module": "./pkg-controller/esm/index.js",
+  "types": "./pkg-controller/esm/index.d.ts",
   "scripts": {
     "build:deps": "./build.sh"
   },
-  "files": [
-    "pkg-controller/account_wasm_bg.wasm",
-    "pkg-controller/account_wasm.js",
-    "pkg-controller/account_wasm_bg.js",
-    "pkg-controller/account_wasm.d.ts",
-    "pkg-controller/snippets/**/*",
-    "pkg-session/session_wasm_bg.wasm",
-    "pkg-session/session_wasm.js",
-    "pkg-session/session_wasm_bg.js",
-    "pkg-session/session_wasm.d.ts",
-    "pkg-session/snippets/**/*"
-  ],
   "exports": {
     ".": {
-      "types": "./pkg-controller/account_wasm.d.ts",
-      "import": "./pkg-controller/account_wasm.js",
-      "require": "./pkg-controller/account_wasm.js"
+      "types": "./pkg-controller/esm/index.d.ts",
+      "import": "./pkg-controller/esm/index.js",
+      "require": "./pkg-controller/cjs/index.js"
     },
     "./controller": {
-      "types": "./pkg-controller/account_wasm.d.ts",
-      "import": "./pkg-controller/account_wasm.js",
-      "require": "./pkg-controller/account_wasm.js"
+      "types": "./pkg-controller/esm/index.d.ts",
+      "import": "./pkg-controller/esm/index.js",
+      "require": "./pkg-controller/cjs/index.js"
     },
     "./session": {
-      "types": "./pkg-session/session_wasm.d.ts",
-      "import": "./pkg-session/session_wasm.js",
-      "require": "./pkg-session/session_wasm.js"
+      "types": "./pkg-session/esm/index.d.ts",
+      "import": "./pkg-session/esm/index.js",
+      "require": "./pkg-session/cjs/index.js"
     }
   },
   "sideEffects": [
-    "pkg-controller/account_wasm.js",
-    "pkg-session/session_wasm.js",
-    "pkg-controller/snippets/*",
-    "pkg-session/snippets/*"
+    "./pkg-controller/esm/index.js",
+    "./pkg-controller/cjs/index.js",
+    "./pkg-session/esm/index.js",
+    "./pkg-session/cjs/index.js",
+    "./pkg-controller/snippets/**/*",
+    "./pkg-session/snippets/**/*"
   ],
   "devDependencies": {
     "wasm-pack": "^0.13.0"
