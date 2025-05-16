@@ -254,7 +254,7 @@ pub async fn test_session_off_chain_sig_via_controller() {
     let wildcard_hashes = typed_data.encode(wildcard_controller.address).unwrap();
 
     wildcard_controller
-        .create_wildcard_session(u64::MAX)
+        .create_wildcard_session(u64::MAX, None)
         .await
         .unwrap();
 

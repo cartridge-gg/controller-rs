@@ -159,14 +159,14 @@ impl CartridgeAccount {
     pub async fn login(
         &self,
         expires_at: u64,
+        account_creation: Option<bool>,
     ) -> std::result::Result<AuthorizedSession, JsControllerError> {
         set_panic_hook();
-
         let account = self
             .controller
             .lock()
             .await
-            .create_wildcard_session(expires_at)
+            .create_wildcard_session(expires_at, account_creation)
             .await?;
 
         let session_metadata = AuthorizedSession {
@@ -206,7 +206,7 @@ impl CartridgeAccount {
             .is_some();
 
         let session = if !wildcard_exists {
-            let account = controller.create_wildcard_session(expires_at).await?;
+            let account = controller.create_wildcard_session(expires_at, None).await?;
             let session_metadata = AuthorizedSession {
                 session: account.session.clone().into(),
                 authorization: Some(
