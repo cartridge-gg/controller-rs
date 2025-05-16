@@ -414,7 +414,7 @@ async fn test_verify_execute_session_wildcard() {
     let session = Session::new_wildcard(u64::MAX, &session_signer.into(), Felt::ZERO).unwrap();
 
     let session_account = controller
-        .create_with_session(signer, session)
+        .create_with_session(signer, session, None)
         .await
         .unwrap();
 
