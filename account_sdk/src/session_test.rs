@@ -490,7 +490,7 @@ async fn test_verify_eip191_session_signature_valid() {
         .await;
 
     // Create a session
-    let session_account = controller.create_wildcard_session(u64::MAX).await.unwrap();
+    let session_account = controller.create_wildcard_session(u64::MAX, None).await.unwrap();
 
     // Get the session hash
     let session_hash = session_account
