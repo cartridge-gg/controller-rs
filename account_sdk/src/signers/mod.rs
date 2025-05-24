@@ -8,7 +8,11 @@ pub mod webauthn;
 pub mod external;
 
 use ::starknet::{
-    core::{crypto::EcdsaSignError, types::Felt, utils::NonAsciiNameError},
+    core::{
+        crypto::EcdsaSignError,
+        types::{typed_data::TypedDataError, Felt},
+        utils::NonAsciiNameError,
+    },
     macros::{selector, short_string},
     signers::SigningKey,
 };
@@ -225,3 +229,9 @@ pub trait NewOwnerSigner: HashSigner {
 #[cfg_attr(not(target_arch = "wasm32"), async_trait)]
 #[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
 impl<T> NewOwnerSigner for T where T: HashSigner {}
+
+impl From<TypedDataError> for SignError {
+    fn from(value: TypedDataError) -> Self {
+        Self::InvalidMessageError(value.to_string())
+    }
+}
