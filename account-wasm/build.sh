@@ -3,10 +3,7 @@
 set -ex
 
 # Ensure wasm-opt is installed
-if
-    ! command -v wasm-opt &
-    >/dev/null
-then
+if ! command -v wasm-opt &>/dev/null; then
     echo "Installing wasm-opt..."
     npm install -g wasm-opt
 fi
