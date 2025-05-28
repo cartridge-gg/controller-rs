@@ -1,8 +1,10 @@
 use cainome::cairo_serde::{CairoSerde, NonZero};
+use serde::{Deserialize, Serialize};
 use starknet::accounts::ConnectedAccount;
 use starknet::core::types::{Call, FeeEstimate, Felt, InvokeTransactionResult};
 use starknet::core::utils::parse_cairo_short_string;
 use starknet::signers::{SigningKey, VerifyingKey};
+use tsify_next::Tsify;
 
 use crate::abigen::controller::{Signer as AbigenSigner, SignerSignature, StarknetSigner};
 use crate::account::session::account::SessionAccount;
@@ -10,7 +12,9 @@ use crate::account::session::hash::Session;
 use crate::account::session::policy::Policy;
 use crate::controller::Controller;
 use crate::errors::ControllerError;
+use crate::execute_from_outside::FeeSource;
 use crate::graphql::session;
+use crate::graphql::session::revoke_sessions::RevokeSessionInput;
 use crate::hash::MessageHashRev1;
 use crate::signers::{HashSigner, Signer};
 use crate::storage::StorageBackend;
@@ -19,6 +23,15 @@ use crate::storage::{selectors::Selectors, Credentials, SessionMetadata};
 #[cfg(all(test, not(target_arch = "wasm32")))]
 #[path = "session_test.rs"]
 mod session_test;
+
+#[allow(non_snake_case)]
+#[derive(Tsify, Serialize, Deserialize, Debug, Clone, PartialEq)]
+#[tsify(into_wasm_abi, from_wasm_abi)]
+pub struct RevokableSession {
+    pub app_id: String,
+    pub chain_id: Felt,
+    pub session_hash: Felt,
+}
 
 impl Controller {
     pub async fn create_session(
@@ -171,6 +184,48 @@ impl Controller {
                 is_registered: true,
             },
         )?;
+
+        Ok(txn)
+    }
+
+    pub async fn revoke_sessions(
+        &mut self,
+        sessions: Vec<RevokableSession>,
+    ) -> Result<InvokeTransactionResult, ControllerError> {
+        let calls = sessions
+            .iter()
+            .map(|session| {
+                self.contract()
+                    .revoke_session_getcall(&session.session_hash)
+            })
+            .collect();
+        let txn = self
+            .execute_from_outside_v3(calls, Some(FeeSource::Paymaster))
+            .await?;
+
+        let res = session::revoke_sessions(
+            sessions
+                .clone()
+                .into_iter()
+                .map(|s| RevokeSessionInput {
+                    session_hash: s.session_hash,
+                    username: self.username.clone(),
+                    chain_id: parse_cairo_short_string(&self.chain_id).unwrap(),
+                })
+                .collect(),
+        )
+        .await;
+        if let Err(e) = res {
+            web_sys::console::error_1(&format!("Error revoking session: {:?}", e).into());
+        }
+
+        for session in sessions {
+            self.storage.remove(&Selectors::session(
+                &self.address,
+                &session.app_id,
+                &session.chain_id,
+            ))?;
+        }
 
         Ok(txn)
     }

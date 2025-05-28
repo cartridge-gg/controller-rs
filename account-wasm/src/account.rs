@@ -2,6 +2,7 @@ use std::borrow::BorrowMut;
 
 use account_sdk::controller::{compute_gas_and_price, Controller};
 use account_sdk::errors::ControllerError;
+use account_sdk::session::RevokableSession;
 use account_sdk::typed_data::TypedData;
 use serde_wasm_bindgen::to_value;
 use starknet::accounts::ConnectedAccount;
@@ -393,8 +394,19 @@ impl CartridgeAccount {
     }
 
     #[wasm_bindgen(js_name = revokeSession)]
-    pub fn revoke_session(&self) -> Result<()> {
-        unimplemented!("Revoke Session not implemented");
+    pub async fn revoke_session(&self, session: RevokableSession) -> Result<()> {
+        self.revoke_sessions(vec![session]).await?;
+        Ok(())
+    }
+
+    #[wasm_bindgen(js_name = revokeSessions)]
+    pub async fn revoke_sessions(&self, sessions: Vec<RevokableSession>) -> Result<()> {
+        self.controller
+            .lock()
+            .await
+            .revoke_sessions(sessions)
+            .await?;
+        Ok(())
     }
 
     #[wasm_bindgen(js_name = signMessage)]

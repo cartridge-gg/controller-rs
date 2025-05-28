@@ -1,4 +1,5 @@
 use crate::api::Client;
+use crate::graphql::session::revoke_sessions::RevokeSessionInput;
 use anyhow::Result;
 use create_session::ResponseData;
 use graphql_client::GraphQLQuery;
@@ -13,6 +14,14 @@ type Long = u64;
     response_derives = "Debug, Clone, Serialize, PartialEq, Eq, Deserialize"
 )]
 pub struct CreateSession;
+
+#[derive(GraphQLQuery)]
+#[graphql(
+    schema_path = "schema.json",
+    query_path = "src/graphql/session/revoke-sessions.graphql",
+    response_derives = "Debug, Clone, Serialize, PartialEq, Eq, Deserialize"
+)]
+pub struct RevokeSessions;
 
 pub struct SessionInput {
     pub expires_at: Long,
@@ -44,10 +53,22 @@ pub async fn create_session(input: CreateSessionInput) -> Result<create_session:
             session_key_guid: input.session.session_key_guid,
             guardian_key_guid: input.session.guardian_key_guid,
             authorization: input.session.authorization,
+            app_id: None,
         },
     });
 
     let res: ResponseData = client.query(&request_body).await?;
 
+    Ok(res)
+}
+
+pub async fn revoke_sessions(
+    sessions: Vec<RevokeSessionInput>,
+) -> Result<revoke_sessions::ResponseData> {
+    let client = Client::new();
+
+    let request_body = RevokeSessions::build_query(revoke_sessions::Variables { sessions });
+
+    let res: revoke_sessions::ResponseData = client.query(&request_body).await?;
     Ok(res)
 }
