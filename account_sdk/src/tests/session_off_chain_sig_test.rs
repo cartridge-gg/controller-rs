@@ -1,7 +1,10 @@
 use core::panic;
 
 use starknet::{
-    core::{types::StarknetError, utils::get_selector_from_name},
+    core::{
+        types::{StarknetError, TypedData},
+        utils::get_selector_from_name,
+    },
     macros::{selector, short_string},
     providers::ProviderError,
 };
@@ -13,7 +16,7 @@ use crate::{
     artifacts::Version,
     signers::{Owner, Signer},
     tests::runners::katana::KatanaRunner,
-    typed_data::{Domain, Field, PrimitiveType, SimpleField, TypedData},
+    typed_data::hash_components,
 };
 
 const SESSION_TYPED_DATA_MAGIC: Felt = short_string!("session-typed-data");
@@ -119,112 +122,49 @@ pub async fn test_session_off_chain_sig_via_controller() {
         .deploy_controller("username".to_owned(), owner.clone(), Version::LATEST)
         .await;
 
-    let typed_data = TypedData {
-        types: [
-            (
-                "StarknetDomain".into(),
-                vec![
-                    Field::SimpleType(SimpleField {
-                        name: "name".into(),
-                        r#type: "shortstring".into(),
-                    }),
-                    Field::SimpleType(SimpleField {
-                        name: "version".into(),
-                        r#type: "shortstring".into(),
-                    }),
-                    Field::SimpleType(SimpleField {
-                        name: "chainId".into(),
-                        r#type: "shortstring".into(),
-                    }),
-                    Field::SimpleType(SimpleField {
-                        name: "revision".into(),
-                        r#type: "shortstring".into(),
-                    }),
-                ],
-            ),
-            (
-                "Person".into(),
-                vec![
-                    Field::SimpleType(SimpleField {
-                        name: "name".into(),
-                        r#type: "felt".into(),
-                    }),
-                    Field::SimpleType(SimpleField {
-                        name: "wallet".into(),
-                        r#type: "felt".into(),
-                    }),
-                ],
-            ),
-            (
-                "Mail".into(),
-                vec![
-                    Field::SimpleType(SimpleField {
-                        name: "from".into(),
-                        r#type: "Person".into(),
-                    }),
-                    Field::SimpleType(SimpleField {
-                        name: "to".into(),
-                        r#type: "Person".into(),
-                    }),
-                    Field::SimpleType(SimpleField {
-                        name: "contents".into(),
-                        r#type: "felt".into(),
-                    }),
-                ],
-            ),
-        ]
-        .into_iter()
-        .collect(),
-        primary_type: "Mail".into(),
-        domain: Domain {
-            name: "StarkNet Mail".into(),
-            version: "1".into(),
-            chain_id: "1".into(),
-            revision: Some("1".into()),
-        },
-        message: [
-            (
-                "from".into(),
-                PrimitiveType::Object(
-                    [
-                        ("name".into(), PrimitiveType::String("Cow".into())),
-                        (
-                            "wallet".into(),
-                            PrimitiveType::String(
-                                "0xCD2a3d9F938E13CD947Ec05AbC7FE734Df8DD826".into(),
-                            ),
-                        ),
-                    ]
-                    .into_iter()
-                    .collect(),
-                ),
-            ),
-            (
-                "to".into(),
-                PrimitiveType::Object(
-                    [
-                        ("name".into(), PrimitiveType::String("Bob".into())),
-                        (
-                            "wallet".into(),
-                            PrimitiveType::String(
-                                "0xbBbBBBBbbBBBbbbBbbBbbbbBBbBbbbbBbBbbBBbB".into(),
-                            ),
-                        ),
-                    ]
-                    .into_iter()
-                    .collect(),
-                ),
-            ),
-            (
-                "contents".into(),
-                PrimitiveType::String("Hello, Bob!".into()),
-            ),
-        ]
-        .into_iter()
-        .collect(),
-    };
+    let typed_data = serde_json::from_str::<TypedData>(
+        r###"{
+  "types": {
+    "StarknetDomain": [
+      { "name": "name", "type": "shortstring" },
+      { "name": "version", "type": "shortstring" },
+      { "name": "chainId", "type": "shortstring" },
+      { "name": "revision", "type": "shortstring" }
+    ],
+    "Person": [
+      { "name": "name", "type": "felt" },
+      { "name": "wallet", "type": "felt" }
+    ],
+    "Mail": [
+      { "name": "from", "type": "Person" },
+      { "name": "to", "type": "Person" },
+      { "name": "contents", "type": "felt" }
+    ]
+  },
+  "primaryType": "Mail",
+  "domain": {
+    "name": "StarkNet Mail",
+    "version": "1",
+    "chainId": "1",
+    "revision": "1"
+  },
+  "message": {
+    "from": {
+      "name": "Cow",
+      "wallet": "0xCD2a3d9F938E13CD947Ec05AbC7FE734Df8DD826"
+    },
+    "to": {
+      "name": "Bob",
+      "wallet": "0xbBbBBBBbbBBBbbbBbbBbbbbBBbBbbbbBbBbbBBbB"
+    },
+    "contents": "Hello, Bob!"
+  }
+}"###,
+    )
+    .unwrap();
 
-    let hashes = typed_data.encode(controller.address).unwrap();
+    let hashes = hash_components(&typed_data).unwrap();
+    let final_hash = typed_data.message_hash(controller.address).unwrap();
     controller
         .create_session(
             vec![Policy::new_typed_data(poseidon_hash(
@@ -236,12 +176,12 @@ pub async fn test_session_off_chain_sig_via_controller() {
         .await
         .unwrap();
 
-    let signature = controller.sign_message(typed_data.clone()).await.unwrap();
+    let signature = controller.sign_message(&typed_data).await.unwrap();
     assert_eq!(signature[0], SESSION_TYPED_DATA_MAGIC);
 
     let contract_reader = ControllerReader::new(controller.address, runner.client());
     let is_valid = contract_reader
-        .is_valid_signature(&hashes.hash, &signature)
+        .is_valid_signature(&final_hash, &signature)
         .call()
         .await
         .unwrap();
@@ -251,19 +191,21 @@ pub async fn test_session_off_chain_sig_via_controller() {
     let mut wildcard_controller = runner
         .deploy_controller("wildcard".to_owned(), owner, Version::LATEST)
         .await;
-    let wildcard_hashes = typed_data.encode(wildcard_controller.address).unwrap();
+    let wildcard_hash = typed_data
+        .message_hash(wildcard_controller.address)
+        .unwrap();
 
     wildcard_controller
         .create_wildcard_session(u64::MAX, None)
         .await
         .unwrap();
 
-    let signature = wildcard_controller.sign_message(typed_data).await.unwrap();
+    let signature = wildcard_controller.sign_message(&typed_data).await.unwrap();
     assert_eq!(signature[0], SESSION_TYPED_DATA_MAGIC);
 
     let contract_reader = ControllerReader::new(wildcard_controller.address, runner.client());
     let is_valid = contract_reader
-        .is_valid_signature(&wildcard_hashes.hash, &signature)
+        .is_valid_signature(&wildcard_hash, &signature)
         .call()
         .await
         .unwrap();

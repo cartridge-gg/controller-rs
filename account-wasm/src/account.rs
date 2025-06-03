@@ -2,11 +2,10 @@ use std::borrow::BorrowMut;
 
 use account_sdk::controller::{compute_gas_and_price, Controller};
 use account_sdk::errors::ControllerError;
-use account_sdk::session::RevokableSession;
-use account_sdk::typed_data::TypedData;
 use serde_wasm_bindgen::to_value;
+use account_sdk::session::RevokableSession;
 use starknet::accounts::ConnectedAccount;
-use starknet::core::types::Call;
+use starknet::core::types::{Call, TypedData};
 
 use starknet_types_core::felt::Felt;
 use url::Url;
@@ -417,7 +416,7 @@ impl CartridgeAccount {
             .controller
             .lock()
             .await
-            .sign_message(serde_json::from_str(&typed_data)?)
+            .sign_message(&serde_json::from_str(&typed_data)?)
             .await
             .map_err(|e| JsControllerError::from(ControllerError::SignError(e)))?;
 
