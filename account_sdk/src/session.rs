@@ -17,8 +17,8 @@ use crate::graphql::session;
 use crate::graphql::session::revoke_sessions::RevokeSessionInput;
 use crate::hash::MessageHashRev1;
 use crate::signers::{HashSigner, Signer};
-use crate::storage::StorageBackend;
 use crate::storage::{selectors::Selectors, Credentials, SessionMetadata};
+use crate::storage::{StorageBackend, StorageError};
 
 #[cfg(all(test, not(target_arch = "wasm32")))]
 #[path = "session_test.rs"]
@@ -294,5 +294,40 @@ impl Controller {
         );
 
         Some(session_account)
+    }
+
+    pub async fn clear_session_if_revoked(&mut self) -> Result<(), StorageError> {
+        let key = self.session_key();
+        let session = self.storage.session(&key).ok().flatten();
+
+        if session.is_none() {
+            return Ok(());
+        }
+
+        let session = session.unwrap();
+
+        let session_hash = session
+            .session
+            .inner
+            .get_message_hash_rev_1(self.chain_id, self.address);
+
+        let is_revoked = self
+            .contract()
+            .is_session_revoked(&session_hash)
+            .call()
+            .await;
+
+        if let Err(e) = &is_revoked {
+            web_sys::console::error_1(
+                &format!("Error checking if session is revoked: {:?}", e).into(),
+            );
+            return Ok(());
+        }
+
+        if is_revoked.unwrap() {
+            self.storage.remove(&key)?;
+        }
+
+        Ok(())
     }
 }

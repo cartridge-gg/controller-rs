@@ -106,7 +106,25 @@ impl Controller {
             )
             .expect("Should store controller");
 
+        controller.start_session_revocation();
+
         controller
+    }
+
+    pub fn start_session_revocation(&self) {
+        let mut controller_clone = self.clone();
+
+        #[cfg(target_arch = "wasm32")]
+        wasm_bindgen_futures::spawn_local(async move {
+            let _ = controller_clone.clear_session_if_revoked().await;
+        });
+
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            let _ = std::thread::spawn(move || {
+                let _ = futures::executor::block_on(controller_clone.clear_session_if_revoked());
+            });
+        }
     }
 
     pub fn from_storage(app_id: String) -> Result<Option<Self>, ControllerError> {
