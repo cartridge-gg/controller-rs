@@ -1,4 +1,5 @@
 use crate::api::Client;
+use crate::errors::ControllerError;
 use crate::graphql::session::revoke_sessions::RevokeSessionInput;
 use anyhow::Result;
 use create_session::ResponseData;
@@ -23,20 +24,11 @@ pub struct CreateSession;
 )]
 pub struct RevokeSessions;
 
-pub struct SessionInput {
-    pub expires_at: Long,
-    pub allowed_policies_root: Felt,
-    pub metadata_hash: Felt,
-    pub session_key_guid: Felt,
-    pub guardian_key_guid: Felt,
-    pub authorization: Vec<Felt>,
-}
-
 pub struct CreateSessionInput {
     pub username: String,
     pub app_id: String,
     pub chain_id: String,
-    pub session: SessionInput,
+    pub session: create_session::SessionInput,
 }
 
 pub async fn create_session(input: CreateSessionInput) -> Result<create_session::ResponseData> {
@@ -64,11 +56,10 @@ pub async fn create_session(input: CreateSessionInput) -> Result<create_session:
 
 pub async fn revoke_sessions(
     sessions: Vec<RevokeSessionInput>,
-) -> Result<revoke_sessions::ResponseData> {
+) -> Result<revoke_sessions::ResponseData, ControllerError> {
     let client = Client::new();
 
     let request_body = RevokeSessions::build_query(revoke_sessions::Variables { sessions });
 
-    let res: revoke_sessions::ResponseData = client.query(&request_body).await?;
-    Ok(res)
+    client.query(&request_body).await
 }

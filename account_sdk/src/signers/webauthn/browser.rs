@@ -43,8 +43,7 @@ impl WebauthnOperations for BrowserOperations {
                     let result =
                         PublicKeyCredential::from(web_sys::PublicKeyCredential::from(jsval));
 
-                    let value = to_value(&result.response.client_data_json).unwrap_throw();
-                    console::debug_1(&format!("client_data_json: {:#?}", value).into());
+                    let _ = to_value(&result.response.client_data_json).unwrap_throw();
                     let _ = tx.send(Ok(result));
                 }
                 Err(e) => {

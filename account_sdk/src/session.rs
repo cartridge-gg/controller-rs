@@ -4,7 +4,10 @@ use starknet::accounts::ConnectedAccount;
 use starknet::core::types::{Call, FeeEstimate, Felt, InvokeTransactionResult};
 use starknet::core::utils::parse_cairo_short_string;
 use starknet::signers::{SigningKey, VerifyingKey};
+#[cfg(target_arch = "wasm32")]
 use tsify_next::Tsify;
+#[cfg(target_arch = "wasm32")]
+use wasm_bindgen::prelude::*;
 
 use crate::abigen::controller::{Signer as AbigenSigner, SignerSignature, StarknetSigner};
 use crate::account::session::account::SessionAccount;
@@ -23,15 +26,6 @@ use crate::storage::{StorageBackend, StorageError};
 #[cfg(all(test, not(target_arch = "wasm32")))]
 #[path = "session_test.rs"]
 mod session_test;
-
-#[allow(non_snake_case)]
-#[derive(Tsify, Serialize, Deserialize, Debug, Clone, PartialEq)]
-#[tsify(into_wasm_abi, from_wasm_abi)]
-pub struct RevokableSession {
-    pub app_id: String,
-    pub chain_id: Felt,
-    pub session_hash: Felt,
-}
 
 impl Controller {
     pub async fn create_session(
@@ -115,13 +109,14 @@ impl Controller {
                 username: self.username.clone(),
                 app_id: self.app_id.clone(),
                 chain_id: parse_cairo_short_string(&self.chain_id).unwrap(),
-                session: session::SessionInput {
+                session: session::create_session::SessionInput {
                     expires_at: session.inner.expires_at,
                     allowed_policies_root: session.inner.allowed_policies_root,
                     metadata_hash: session.inner.metadata_hash,
                     session_key_guid: session.inner.session_key_guid,
                     guardian_key_guid: session.inner.guardian_key_guid,
                     authorization,
+                    app_id: None,
                 },
             };
 
@@ -203,7 +198,7 @@ impl Controller {
             .execute_from_outside_v3(calls, Some(FeeSource::Paymaster))
             .await?;
 
-        let res = session::revoke_sessions(
+        let _ = session::revoke_sessions(
             sessions
                 .clone()
                 .into_iter()
@@ -214,10 +209,7 @@ impl Controller {
                 })
                 .collect(),
         )
-        .await;
-        if let Err(e) = res {
-            web_sys::console::error_1(&format!("Error revoking session: {:?}", e).into());
-        }
+        .await?;
 
         for session in sessions {
             self.storage.remove(&Selectors::session(
@@ -315,19 +307,23 @@ impl Controller {
             .contract()
             .is_session_revoked(&session_hash)
             .call()
-            .await;
+            .await
+            .map_err(|e| StorageError::OperationFailed(e.to_string()))?;
 
-        if let Err(e) = &is_revoked {
-            web_sys::console::error_1(
-                &format!("Error checking if session is revoked: {:?}", e).into(),
-            );
-            return Ok(());
-        }
-
-        if is_revoked.unwrap() {
+        if is_revoked {
             self.storage.remove(&key)?;
         }
 
         Ok(())
     }
+}
+
+#[cfg_attr(target_arch = "wasm32", derive(Tsify))]
+#[cfg_attr(target_arch = "wasm32", tsify(into_wasm_abi, from_wasm_abi))]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
+#[allow(non_snake_case)]
+pub struct RevokableSession {
+    pub app_id: String,
+    pub chain_id: Felt,
+    pub session_hash: Felt,
 }
