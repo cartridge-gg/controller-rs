@@ -3,7 +3,6 @@ use std::borrow::BorrowMut;
 use account_sdk::controller::{compute_gas_and_price, Controller};
 use account_sdk::errors::ControllerError;
 use serde_wasm_bindgen::to_value;
-use account_sdk::session::RevokableSession;
 use starknet::accounts::ConnectedAccount;
 use starknet::core::types::{Call, TypedData};
 
@@ -18,7 +17,7 @@ use crate::types::call::JsCall;
 use crate::types::estimate::JsFeeEstimate;
 use crate::types::owner::Owner;
 use crate::types::policy::{CallPolicy, Policy, TypedDataPolicy};
-use crate::types::session::AuthorizedSession;
+use crate::types::session::{AuthorizedSession, JsRevokableSession};
 use crate::types::{Felts, JsFeeSource, JsFelt};
 use crate::utils::set_panic_hook;
 
@@ -393,17 +392,17 @@ impl CartridgeAccount {
     }
 
     #[wasm_bindgen(js_name = revokeSession)]
-    pub async fn revoke_session(&self, session: RevokableSession) -> Result<()> {
+    pub async fn revoke_session(&self, session: JsRevokableSession) -> Result<()> {
         self.revoke_sessions(vec![session]).await?;
         Ok(())
     }
 
     #[wasm_bindgen(js_name = revokeSessions)]
-    pub async fn revoke_sessions(&self, sessions: Vec<RevokableSession>) -> Result<()> {
+    pub async fn revoke_sessions(&self, sessions: Vec<JsRevokableSession>) -> Result<()> {
         self.controller
             .lock()
             .await
-            .revoke_sessions(sessions)
+            .revoke_sessions(sessions.into_iter().map(Into::into).collect())
             .await?;
         Ok(())
     }

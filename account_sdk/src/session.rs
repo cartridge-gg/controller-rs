@@ -4,10 +4,6 @@ use starknet::accounts::ConnectedAccount;
 use starknet::core::types::{Call, FeeEstimate, Felt, InvokeTransactionResult};
 use starknet::core::utils::parse_cairo_short_string;
 use starknet::signers::{SigningKey, VerifyingKey};
-#[cfg(target_arch = "wasm32")]
-use tsify_next::Tsify;
-#[cfg(target_arch = "wasm32")]
-use wasm_bindgen::prelude::*;
 
 use crate::abigen::controller::{Signer as AbigenSigner, SignerSignature, StarknetSigner};
 use crate::account::session::account::SessionAccount;
@@ -318,8 +314,6 @@ impl Controller {
     }
 }
 
-#[cfg_attr(target_arch = "wasm32", derive(Tsify))]
-#[cfg_attr(target_arch = "wasm32", tsify(into_wasm_abi, from_wasm_abi))]
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 #[allow(non_snake_case)]
 pub struct RevokableSession {
