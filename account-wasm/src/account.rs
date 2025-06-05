@@ -158,15 +158,14 @@ impl CartridgeAccount {
     pub async fn login(
         &self,
         expires_at: u64,
-        account_creation: Option<bool>,
     ) -> std::result::Result<AuthorizedSession, JsControllerError> {
         set_panic_hook();
-        let account = self
-            .controller
-            .lock()
-            .await
-            .create_wildcard_session(expires_at, account_creation)
-            .await?;
+        let mut controller = self.controller.lock().await;
+        let account = controller.create_wildcard_session(expires_at).await?;
+
+        let _ = controller
+            .register_session_with_cartridge(&account.session, &account.session_authorization)
+            .await;
 
         let session_metadata = AuthorizedSession {
             session: account.session.clone().into(),
@@ -205,7 +204,12 @@ impl CartridgeAccount {
             .is_some();
 
         let session = if !wildcard_exists {
-            let account = controller.create_wildcard_session(expires_at, None).await?;
+            let account = controller.create_wildcard_session(expires_at).await?;
+
+            let _ = controller
+                .register_session_with_cartridge(&account.session, &account.session_authorization)
+                .await;
+
             let session_metadata = AuthorizedSession {
                 session: account.session.clone().into(),
                 authorization: Some(
@@ -393,17 +397,17 @@ impl CartridgeAccount {
 
     #[wasm_bindgen(js_name = revokeSession)]
     pub async fn revoke_session(&self, session: JsRevokableSession) -> Result<()> {
-        self.revoke_sessions(vec![session]).await?;
-        Ok(())
+        self.revoke_sessions(vec![session]).await
     }
 
     #[wasm_bindgen(js_name = revokeSessions)]
     pub async fn revoke_sessions(&self, sessions: Vec<JsRevokableSession>) -> Result<()> {
-        self.controller
-            .lock()
-            .await
-            .revoke_sessions(sessions.into_iter().map(Into::into).collect())
-            .await?;
+        let sessions: Vec<_> = sessions.into_iter().map(Into::into).collect();
+        let mut controller = self.controller.lock().await;
+
+        controller.revoke_sessions(sessions.clone()).await?;
+
+        let _ = controller.revoke_sessions_with_cartridge(&sessions).await;
         Ok(())
     }
 

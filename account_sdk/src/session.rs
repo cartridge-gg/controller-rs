@@ -50,13 +50,12 @@ impl Controller {
             guardian,
         )?;
 
-        self.create_with_session(signer, session, None).await
+        self.create_with_session(signer, session).await
     }
 
     pub async fn create_wildcard_session(
         &mut self,
         expires_at: u64,
-        account_creation: Option<bool>,
     ) -> Result<SessionAccount, ControllerError> {
         let signer = SigningKey::from_random();
         let session_signer = Signer::Starknet(signer.clone());
@@ -64,15 +63,13 @@ impl Controller {
         let session =
             Session::new_wildcard(expires_at, &session_signer.clone().into(), Felt::ZERO)?;
 
-        self.create_with_session(signer, session, account_creation)
-            .await
+        self.create_with_session(signer, session).await
     }
 
     pub async fn create_with_session(
         &mut self,
         session_signer: SigningKey,
         session: Session,
-        account_creation: Option<bool>,
     ) -> Result<SessionAccount, ControllerError> {
         let hash = session
             .inner
@@ -101,27 +98,49 @@ impl Controller {
             session.clone(),
         );
 
-        if !account_creation.unwrap_or(false) {
-            let session_props = session::CreateSessionInput {
-                username: self.username.clone(),
-                app_id: self.app_id.clone(),
-                chain_id: parse_cairo_short_string(&self.chain_id).unwrap(),
-                session: session::create_session::SessionInput {
-                    expires_at: session.inner.expires_at,
-                    allowed_policies_root: session.inner.allowed_policies_root,
-                    metadata_hash: session.inner.metadata_hash,
-                    session_key_guid: session.inner.session_key_guid,
-                    guardian_key_guid: session.inner.guardian_key_guid,
-                    authorization,
-                    app_id: None,
-                },
-            };
-
-            let _session = session::create_session(session_props).await;
-
-        }
-
         Ok(session_account)
+    }
+
+    pub async fn register_session_with_cartridge(
+        &self,
+        session: &Session,
+        authorization: &[Felt],
+    ) -> Result<(), ControllerError> {
+        let session_props = session::CreateSessionInput {
+            username: self.username.clone(),
+            app_id: self.app_id.clone(),
+            chain_id: parse_cairo_short_string(&self.chain_id).unwrap(),
+            session: session::create_session::SessionInput {
+                expires_at: session.inner.expires_at,
+                allowed_policies_root: session.inner.allowed_policies_root,
+                metadata_hash: session.inner.metadata_hash,
+                session_key_guid: session.inner.session_key_guid,
+                guardian_key_guid: session.inner.guardian_key_guid,
+                authorization: authorization.to_vec(),
+                app_id: None,
+            },
+        };
+
+        let _ = session::create_session(session_props).await?;
+        Ok(())
+    }
+
+    pub async fn revoke_sessions_with_cartridge(
+        &self,
+        sessions: &[RevokableSession],
+    ) -> Result<(), ControllerError> {
+        let _ = session::revoke_sessions(
+            sessions
+                .iter()
+                .map(|s| RevokeSessionInput {
+                    session_hash: s.session_hash,
+                    username: self.username.clone(),
+                    chain_id: parse_cairo_short_string(&self.chain_id).unwrap(),
+                })
+                .collect(),
+        )
+        .await?;
+        Ok(())
     }
 
     pub fn register_session_call(
@@ -192,19 +211,6 @@ impl Controller {
         let txn = self
             .execute_from_outside_v3(calls, Some(FeeSource::Paymaster))
             .await?;
-
-        let _ = session::revoke_sessions(
-            sessions
-                .clone()
-                .into_iter()
-                .map(|s| RevokeSessionInput {
-                    session_hash: s.session_hash,
-                    username: self.username.clone(),
-                    chain_id: parse_cairo_short_string(&self.chain_id).unwrap(),
-                })
-                .collect(),
-        )
-        .await?;
 
         for session in sessions {
             self.storage.remove(&Selectors::session(

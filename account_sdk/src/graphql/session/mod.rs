@@ -2,7 +2,6 @@ use crate::api::Client;
 use crate::errors::ControllerError;
 use crate::graphql::session::revoke_sessions::RevokeSessionInput;
 use anyhow::Result;
-use create_session::ResponseData;
 use graphql_client::GraphQLQuery;
 use starknet_crypto::Felt;
 
@@ -31,7 +30,9 @@ pub struct CreateSessionInput {
     pub session: create_session::SessionInput,
 }
 
-pub async fn create_session(input: CreateSessionInput) -> Result<create_session::ResponseData> {
+pub async fn create_session(
+    input: CreateSessionInput,
+) -> Result<create_session::ResponseData, ControllerError> {
     let client = Client::new();
 
     let request_body = CreateSession::build_query(create_session::Variables {
@@ -49,9 +50,7 @@ pub async fn create_session(input: CreateSessionInput) -> Result<create_session:
         },
     });
 
-    let res: ResponseData = client.query(&request_body).await?;
-
-    Ok(res)
+    client.query(&request_body).await
 }
 
 pub async fn revoke_sessions(

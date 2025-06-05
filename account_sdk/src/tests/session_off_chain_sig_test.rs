@@ -196,7 +196,7 @@ pub async fn test_session_off_chain_sig_via_controller() {
         .unwrap();
 
     wildcard_controller
-        .create_wildcard_session(u64::MAX, None)
+        .create_wildcard_session(u64::MAX)
         .await
         .unwrap();
 
