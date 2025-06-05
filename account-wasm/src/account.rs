@@ -2,6 +2,8 @@ use std::borrow::BorrowMut;
 
 use account_sdk::controller::{compute_gas_and_price, Controller};
 use account_sdk::errors::ControllerError;
+use account_sdk::storage::selectors::Selectors;
+use account_sdk::storage::StorageBackend;
 use serde_wasm_bindgen::to_value;
 use starknet::accounts::ConnectedAccount;
 use starknet::core::types::{Call, TypedData};
@@ -163,9 +165,22 @@ impl CartridgeAccount {
         let mut controller = self.controller.lock().await;
         let account = controller.create_wildcard_session(expires_at).await?;
 
-        let _ = controller
+        let controller_response = controller
             .register_session_with_cartridge(&account.session, &account.session_authorization)
             .await;
+
+        if let Err(e) = controller_response {
+            let address = controller.address;
+            let app_id = controller.app_id.clone();
+            let chain_id = controller.chain_id;
+
+            controller
+                .storage
+                .remove(&Selectors::session(&address, &app_id, &chain_id))
+                .map_err(|e| JsControllerError::from(ControllerError::StorageError(e)))?;
+
+            return Err(JsControllerError::from(e));
+        }
 
         let session_metadata = AuthorizedSession {
             session: account.session.clone().into(),
@@ -206,9 +221,22 @@ impl CartridgeAccount {
         let session = if !wildcard_exists {
             let account = controller.create_wildcard_session(expires_at).await?;
 
-            let _ = controller
+            let controller_response = controller
                 .register_session_with_cartridge(&account.session, &account.session_authorization)
                 .await;
+
+            if let Err(e) = controller_response {
+                let address = controller.address;
+                let app_id = controller.app_id.clone();
+                let chain_id = controller.chain_id;
+
+                controller
+                    .storage
+                    .remove(&Selectors::session(&address, &app_id, &chain_id))
+                    .map_err(|e| JsControllerError::from(ControllerError::StorageError(e)))?;
+
+                return Err(JsControllerError::from(e));
+            }
 
             let session_metadata = AuthorizedSession {
                 session: account.session.clone().into(),
