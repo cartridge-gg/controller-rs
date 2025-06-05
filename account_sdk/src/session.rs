@@ -119,8 +119,6 @@ impl Controller {
 
             let _session = session::create_session(session_props).await;
 
-            #[cfg(target_arch = "wasm32")]
-            web_sys::console::debug_1(&format!("Created session: {:?}", _session).into());
         }
 
         Ok(session_account)
