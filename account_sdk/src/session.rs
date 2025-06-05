@@ -16,8 +16,9 @@ use crate::graphql::session;
 use crate::graphql::session::revoke_sessions::RevokeSessionInput;
 use crate::hash::MessageHashRev1;
 use crate::signers::{HashSigner, Signer};
-use crate::storage::{selectors::Selectors, Credentials, SessionMetadata};
-use crate::storage::{StorageBackend, StorageError};
+use crate::storage::{
+    selectors::Selectors, Credentials, SessionMetadata, StorageBackend, StorageError,
+};
 
 #[cfg(all(test, not(target_arch = "wasm32")))]
 #[path = "session_test.rs"]
@@ -284,7 +285,23 @@ impl Controller {
         Some(session_account)
     }
 
-    pub async fn clear_session_if_revoked(&mut self) -> Result<(), StorageError> {
+    pub fn clear_revoked_session(&self) {
+        let mut controller_clone = self.clone();
+
+        #[cfg(target_arch = "wasm32")]
+        wasm_bindgen_futures::spawn_local(async move {
+            let _ = controller_clone.clear_session_if_revoked().await;
+        });
+
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            let _ = std::thread::spawn(move || {
+                let _ = futures::executor::block_on(controller_clone.clear_session_if_revoked());
+            });
+        }
+    }
+
+    async fn clear_session_if_revoked(&mut self) -> Result<(), StorageError> {
         let key = self.session_key();
         let session = self.storage.session(&key).ok().flatten();
 
