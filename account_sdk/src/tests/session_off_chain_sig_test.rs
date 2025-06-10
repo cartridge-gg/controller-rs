@@ -108,7 +108,8 @@ pub async fn test_verify_session_off_chain_sig_invalid_policy() {
         .call()
         .await
     {
-        assert!(c.revert_error.contains("session/policy-check-failed"))
+        let error_msg = format!("{:?}", c.revert_error);
+        assert!(error_msg.contains("session/policy-check-failed"))
     } else {
         panic!("Expected ContractErrorData");
     }

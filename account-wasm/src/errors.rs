@@ -86,7 +86,6 @@ pub enum ErrorCode {
     AccountSigning = 124,
     AccountProvider = 125,
     AccountClassHashCalculation = 126,
-    AccountClassCompression = 127,
     AccountFeeOutOfRange = 128,
     ProviderRateLimited = 129,
     ProviderArrayLengthMismatch = 130,
@@ -254,10 +253,6 @@ impl From<AccountError<account_sdk::signers::SignError>> for JsControllerError {
                 ErrorCode::AccountClassHashCalculation,
                 calc_error.to_string(),
             ),
-            AccountError::ClassCompression(compression_error) => (
-                ErrorCode::AccountClassCompression,
-                compression_error.to_string(),
-            ),
             AccountError::FeeOutOfRange => (
                 ErrorCode::AccountFeeOutOfRange,
                 "Fee calculation overflow".to_string(),
@@ -307,6 +302,11 @@ impl From<StarknetError> for JsControllerError {
                 "Contract not found",
                 None,
             ),
+            StarknetError::EntrypointNotFound => (
+                ErrorCode::StarknetUnexpectedError,
+                "Entrypoint not found",
+                None,
+            ),
             StarknetError::BlockNotFound => {
                 (ErrorCode::StarknetBlockNotFound, "Block not found", None)
             }
@@ -344,12 +344,17 @@ impl From<StarknetError> for JsControllerError {
             StarknetError::ContractError(data) => (
                 ErrorCode::StarknetContractError,
                 "Contract error",
-                Some(data.revert_error),
+                Some(serde_json::to_string(&data.revert_error).unwrap_or_default()),
             ),
             StarknetError::TransactionExecutionError(data) => (
                 ErrorCode::StarknetTransactionExecutionError,
                 "Transaction execution error",
                 Some(serde_json::to_string(&data).unwrap_or_default()),
+            ),
+            StarknetError::StorageProofNotSupported => (
+                ErrorCode::StarknetUnexpectedError,
+                "Storage proof not supported",
+                None,
             ),
             StarknetError::ClassAlreadyDeclared => (
                 ErrorCode::StarknetClassAlreadyDeclared,
@@ -361,9 +366,9 @@ impl From<StarknetError> for JsControllerError {
                 "Invalid transaction nonce",
                 None,
             ),
-            StarknetError::InsufficientMaxFee => (
+            StarknetError::InsufficientResourcesForValidate => (
                 ErrorCode::StarknetInsufficientMaxFee,
-                "Max fee is smaller than the minimal transaction cost",
+                "Insufficient resources for validation",
                 None,
             ),
             StarknetError::InsufficientAccountBalance => (
@@ -376,10 +381,10 @@ impl From<StarknetError> for JsControllerError {
                 "Validation failure",
                 Some(msg),
             ),
-            StarknetError::CompilationFailed => (
+            StarknetError::CompilationFailed(msg) => (
                 ErrorCode::StarknetCompilationFailed,
                 "Compilation failed",
-                None,
+                Some(msg),
             ),
             StarknetError::ContractClassSizeIsTooLarge => (
                 ErrorCode::StarknetContractClassSizeIsTooLarge,
@@ -420,6 +425,21 @@ impl From<StarknetError> for JsControllerError {
                 ErrorCode::StarknetNoTraceAvailable,
                 "No trace available",
                 Some(serde_json::to_string(&data).unwrap()),
+            ),
+            StarknetError::InvalidSubscriptionId => (
+                ErrorCode::StarknetUnexpectedError,
+                "Invalid subscription ID",
+                None,
+            ),
+            StarknetError::TooManyAddressesInFilter => (
+                ErrorCode::StarknetTooManyKeysInFilter,
+                "Too many addresses in filter",
+                None,
+            ),
+            StarknetError::TooManyBlocksBack => (
+                ErrorCode::StarknetUnexpectedError,
+                "Too many blocks back",
+                None,
             ),
         };
 
