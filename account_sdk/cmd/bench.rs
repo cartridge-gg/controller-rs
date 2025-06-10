@@ -6,6 +6,7 @@ use account_sdk::account::session::policy::Policy;
 use account_sdk::artifacts::{Version, CONTROLLERS};
 use account_sdk::controller::Controller;
 use account_sdk::factory::ControllerFactory;
+use account_sdk::find_error_message_in_execution_error;
 use account_sdk::provider::{
     CartridgeJsonRpcProvider, CartridgeProvider, ExecuteFromOutsideError,
     ExecuteFromOutsideResponse,
@@ -77,10 +78,10 @@ async fn main() {
                 StarknetError::TransactionExecutionError(ref error_data),
             )) = e
             {
-                if !error_data
-                    .execution_error
-                    .contains("is unavailable for deployment")
-                {
+                if !find_error_message_in_execution_error(
+                    &error_data.execution_error,
+                    "is unavailable for deployment",
+                ) {
                     println!("Deployment failed: {:?}", e);
                 }
             } else {
