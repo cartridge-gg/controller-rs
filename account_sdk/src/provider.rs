@@ -4,7 +4,7 @@ use starknet::core::types::{
     BlockHashAndNumber, BlockId, BroadcastedDeclareTransaction,
     BroadcastedDeployAccountTransaction, BroadcastedInvokeTransaction, BroadcastedTransaction,
     ContractClass, DeclareTransactionResult, DeployAccountTransactionResult, EventFilter,
-    EventsPage, FeeEstimate, Felt, FunctionCall, InvokeTransactionResult,
+    EventsPage, FeeEstimate, Felt, FunctionCall, Hash256, InvokeTransactionResult,
     MaybePendingBlockWithReceipts, MaybePendingBlockWithTxHashes, MaybePendingBlockWithTxs,
     MaybePendingStateUpdate, MsgFromL1, SimulatedTransaction, SimulationFlag,
     SimulationFlagForEstimateFee, SyncStatusType, Transaction, TransactionReceiptWithBlockInfo,
@@ -401,6 +401,36 @@ impl Provider for CartridgeJsonRpcProvider {
         R: AsRef<[ProviderRequestData]> + Send + Sync,
     {
         self.inner.batch_requests(requests).await
+    }
+
+    async fn get_messages_status(
+        &self,
+        transaction_hash: Hash256,
+    ) -> Result<Vec<starknet::core::types::MessageWithStatus>, ProviderError> {
+        self.inner.get_messages_status(transaction_hash).await
+    }
+
+    async fn get_storage_proof<B, H, A, K>(
+        &self,
+        block_id: B,
+        class_hashes: H,
+        contract_addresses: A,
+        contracts_storage_keys: K,
+    ) -> Result<starknet::core::types::StorageProof, ProviderError>
+    where
+        B: AsRef<starknet::core::types::ConfirmedBlockId> + Send + Sync,
+        H: AsRef<[Felt]> + Send + Sync,
+        A: AsRef<[Felt]> + Send + Sync,
+        K: AsRef<[starknet::core::types::ContractStorageKeys]> + Send + Sync,
+    {
+        self.inner
+            .get_storage_proof(
+                block_id,
+                class_hashes,
+                contract_addresses,
+                contracts_storage_keys,
+            )
+            .await
     }
 }
 

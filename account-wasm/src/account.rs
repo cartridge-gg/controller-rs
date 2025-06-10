@@ -108,7 +108,7 @@ impl CartridgeAccount {
             .map(TryFrom::try_from)
             .collect::<std::result::Result<Vec<_>, _>>()?;
 
-        let max_fee = max_fee.map(|fee| fee.try_into()).transpose()?;
+        let max_fee = max_fee.map(Into::into);
         let res = self
             .controller
             .lock()
@@ -351,7 +351,7 @@ impl CartridgeAccount {
         let result = Controller::execute(
             self.controller.lock().await.borrow_mut(),
             calls,
-            max_fee.map(|fee| fee.try_into()).transpose()?,
+            max_fee.map(Into::into),
             fee_source.map(|fs| fs.try_into()).transpose()?,
         )
         .await?;
@@ -496,7 +496,8 @@ impl CartridgeAccount {
             let gas_estimate_multiplier = 1.5;
             let (gas, gas_price) =
                 compute_gas_and_price(&max_fee.try_into()?, gas_estimate_multiplier)?;
-            deployment = deployment.gas(gas).gas_price(gas_price);
+            // TODO: Add others
+            deployment = deployment.l1_gas(gas).l1_gas_price(gas_price);
         }
 
         let res = deployment
