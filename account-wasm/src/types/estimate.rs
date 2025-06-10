@@ -27,37 +27,41 @@ pub struct JsEstimateFeeDetails {
 #[derive(Tsify, Serialize, Deserialize, Debug, Clone)]
 #[tsify(into_wasm_abi, from_wasm_abi)]
 pub struct JsFeeEstimate {
-    pub gas_consumed: JsFelt,
-    pub gas_price: JsFelt,
-    pub overall_fee: JsFelt,
+    pub l1_gas_consumed: u64,
+    pub l1_gas_price: u128,
+    pub l2_gas_consumed: u64,
+    pub l2_gas_price: u128,
+    pub l1_data_gas_consumed: u64,
+    pub l1_data_gas_price: u128,
+    pub overall_fee: u128,
     pub unit: JsPriceUnit,
-    pub data_gas_consumed: JsFelt,
-    pub data_gas_price: JsFelt,
 }
 
-impl TryFrom<JsFeeEstimate> for FeeEstimate {
-    type Error = super::EncodingError;
-
-    fn try_from(estimate: JsFeeEstimate) -> Result<Self, Self::Error> {
-        Ok(Self {
-            gas_consumed: estimate.gas_consumed.try_into()?,
-            gas_price: estimate.gas_price.try_into()?,
-            overall_fee: estimate.overall_fee.try_into()?,
-            data_gas_consumed: estimate.data_gas_consumed.try_into()?,
-            data_gas_price: estimate.data_gas_price.try_into()?,
+impl From<JsFeeEstimate> for FeeEstimate {
+    fn from(estimate: JsFeeEstimate) -> Self {
+        Self {
+            l1_gas_consumed: estimate.l1_gas_consumed,
+            l1_gas_price: estimate.l1_gas_price,
+            l2_gas_consumed: estimate.l2_gas_consumed,
+            l2_gas_price: estimate.l2_gas_price,
+            l1_data_gas_consumed: estimate.l1_data_gas_consumed,
+            l1_data_gas_price: estimate.l1_data_gas_price,
+            overall_fee: estimate.overall_fee,
             unit: estimate.unit.into(),
-        })
+        }
     }
 }
 
 impl From<FeeEstimate> for JsFeeEstimate {
     fn from(estimate: FeeEstimate) -> Self {
         Self {
-            gas_consumed: estimate.gas_consumed.into(),
-            gas_price: estimate.gas_price.into(),
-            overall_fee: estimate.overall_fee.into(),
-            data_gas_consumed: estimate.data_gas_consumed.into(),
-            data_gas_price: estimate.data_gas_price.into(),
+            l1_gas_consumed: estimate.l1_gas_consumed,
+            l1_gas_price: estimate.l1_gas_price,
+            l2_gas_consumed: estimate.l2_gas_consumed,
+            l2_gas_price: estimate.l2_gas_price,
+            l1_data_gas_consumed: estimate.l1_data_gas_consumed,
+            l1_data_gas_price: estimate.l1_data_gas_price,
+            overall_fee: estimate.overall_fee,
             unit: estimate.unit.into(),
         }
     }
@@ -85,40 +89,44 @@ impl From<PriceUnit> for JsPriceUnit {
 mod tests {
     use super::*;
     use starknet::core::types::PriceUnit;
-    use starknet_crypto::Felt;
 
     #[test]
     fn test_fee_estimate_conversion() {
         // Create a JsFeeEstimate that matches the JS structure
         let js_estimate = JsFeeEstimate {
-            gas_consumed: Felt::ZERO.into(),
-            gas_price: Felt::ZERO.into(),
-            overall_fee: Felt::ZERO.into(),
+            l1_gas_consumed: 0,
+            l1_gas_price: 0,
+            l2_gas_consumed: 0,
+            l2_gas_price: 0,
+            l1_data_gas_consumed: 0,
+            l1_data_gas_price: 0,
+            overall_fee: 0,
             unit: JsPriceUnit::Fri,
-            data_gas_consumed: Felt::ZERO.into(),
-            data_gas_price: Felt::ZERO.into(),
         };
 
         // Test conversion to FeeEstimate
-        let fee_estimate: FeeEstimate =
-            js_estimate.try_into().expect("Should convert successfully");
+        let fee_estimate: FeeEstimate = js_estimate.into();
 
-        assert_eq!(fee_estimate.gas_consumed, Felt::ZERO);
-        assert_eq!(fee_estimate.gas_price, Felt::ZERO);
-        assert_eq!(fee_estimate.overall_fee, Felt::ZERO);
+        assert_eq!(fee_estimate.l1_gas_consumed, 0);
+        assert_eq!(fee_estimate.l1_gas_price, 0);
+        assert_eq!(fee_estimate.l2_gas_consumed, 0);
+        assert_eq!(fee_estimate.l2_gas_price, 0);
+        assert_eq!(fee_estimate.l1_data_gas_consumed, 0);
+        assert_eq!(fee_estimate.l1_data_gas_price, 0);
+        assert_eq!(fee_estimate.overall_fee, 0);
         assert_eq!(fee_estimate.unit, PriceUnit::Fri);
-        assert_eq!(fee_estimate.data_gas_consumed, Felt::ZERO);
-        assert_eq!(fee_estimate.data_gas_price, Felt::ZERO);
 
         // Test conversion back to JsFeeEstimate
         let converted_back: JsFeeEstimate = fee_estimate.into();
 
-        assert_eq!(converted_back.gas_consumed.0, Felt::ZERO);
-        assert_eq!(converted_back.gas_price.0, Felt::ZERO);
-        assert_eq!(converted_back.overall_fee.0, Felt::ZERO);
+        assert_eq!(converted_back.l1_gas_consumed, 0);
+        assert_eq!(converted_back.l1_gas_price, 0);
+        assert_eq!(converted_back.l2_gas_consumed, 0);
+        assert_eq!(converted_back.l2_gas_price, 0);
+        assert_eq!(converted_back.l1_data_gas_consumed, 0);
+        assert_eq!(converted_back.l1_data_gas_price, 0);
+        assert_eq!(converted_back.overall_fee, 0);
         assert_eq!(converted_back.unit, JsPriceUnit::Fri);
-        assert_eq!(converted_back.data_gas_consumed.0, Felt::ZERO);
-        assert_eq!(converted_back.data_gas_price.0, Felt::ZERO);
     }
 
     #[test]

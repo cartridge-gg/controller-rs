@@ -5,7 +5,6 @@ use crate::constants::{STRK_CONTRACT_ADDRESS, WEBAUTHN_GAS};
 use crate::errors::ControllerError;
 use crate::execute_from_outside::FeeSource;
 use crate::factory::ControllerFactory;
-use crate::impl_account;
 use crate::provider::CartridgeJsonRpcProvider;
 use crate::signers::Owner;
 use crate::storage::{ControllerMetadata, Storage, StorageBackend, StorageError};
@@ -14,6 +13,7 @@ use crate::{
     abigen::{self},
     signers::{HashSigner, SignError},
 };
+use crate::{find_error_message_in_execution_error, impl_account};
 use async_trait::async_trait;
 use cainome::cairo_serde::{CairoSerde, U256};
 use starknet::accounts::{AccountDeploymentV3, AccountError, AccountFactory, ExecutionV3};
@@ -183,7 +183,7 @@ impl Controller {
             Err(e) => return ControllerError::from(e),
         };
 
-        fee_estimate.overall_fee += WEBAUTHN_GAS * fee_estimate.gas_price;
+        fee_estimate.overall_fee += WEBAUTHN_GAS * fee_estimate.l1_gas_price;
         ControllerError::NotDeployed {
             fee_estimate: Box::new(fee_estimate),
             balance,
@@ -210,10 +210,10 @@ impl Controller {
                     .authorized_session_for_policies(&Policy::from_calls(&calls), None)
                     .is_none_or(|metadata| !metadata.is_registered)
                 {
-                    fee_estimate.overall_fee += WEBAUTHN_GAS * fee_estimate.gas_price;
+                    fee_estimate.overall_fee += WEBAUTHN_GAS * fee_estimate.l1_gas_price;
                 }
 
-                if fee_estimate.overall_fee > Felt::from(balance) {
+                if fee_estimate.overall_fee > balance {
                     Err(ControllerError::InsufficientBalance {
                         fee_estimate: Box::new(fee_estimate),
                         balance,
@@ -224,17 +224,21 @@ impl Controller {
             }
             Err(e) => {
                 if let AccountError::Provider(ProviderError::StarknetError(
-                    StarknetError::TransactionExecutionError(data),
+                    StarknetError::TransactionExecutionError(err_data),
                 )) = &e
                 {
-                    if data.execution_error.contains("session/already-registered") {
+                    // Check for specific error messages in the execution error (including nested errors)
+                    if find_error_message_in_execution_error(
+                        &err_data.execution_error,
+                        "session/already-registered",
+                    ) {
                         return Err(ControllerError::SessionAlreadyRegistered);
                     }
 
-                    if data
-                        .execution_error
-                        .contains(&format!("{:x} is not deployed.", self.address))
-                    {
+                    if find_error_message_in_execution_error(
+                        &err_data.execution_error,
+                        &format!("{:x} is not deployed.", self.address),
+                    ) {
                         return Err(self.build_not_deployed_err().await);
                     }
                 }
@@ -258,15 +262,22 @@ impl Controller {
         let mut retry_count = 0;
         let max_retries = 1;
 
-        let (gas, gas_price) = compute_gas_and_price(&max_fee, gas_estimate_multiplier)?;
+        // Compute resource bounds for all gas types
+        let l1_gas = ((max_fee.l1_gas_consumed as f64) * gas_estimate_multiplier) as u64;
+        let l2_gas = ((max_fee.l2_gas_consumed as f64) * gas_estimate_multiplier) as u64;
+        let l1_data_gas = ((max_fee.l1_data_gas_consumed as f64) * gas_estimate_multiplier) as u64;
 
         loop {
             let nonce = self.get_nonce().await?;
             let result = self
                 .execute_v3(calls.clone())
                 .nonce(nonce)
-                .gas(gas)
-                .gas_price(gas_price)
+                .l1_gas(l1_gas)
+                .l1_gas_price(max_fee.l1_gas_price)
+                .l2_gas(l2_gas)
+                .l2_gas_price(max_fee.l2_gas_price)
+                .l1_data_gas(l1_data_gas)
+                .l1_data_gas_price(max_fee.l1_data_gas_price)
                 .send()
                 .await;
 
@@ -291,12 +302,15 @@ impl Controller {
                 Err(e) => {
                     match &e {
                         AccountError::Provider(ProviderError::StarknetError(
-                            StarknetError::TransactionExecutionError(data),
-                        )) if data
-                            .execution_error
-                            .contains(&format!("{:x} is not deployed.", self.address)) =>
-                        {
-                            return Err(self.build_not_deployed_err().await);
+                            StarknetError::TransactionExecutionError(err_data),
+                        )) => {
+                            // Check for specific error messages in the execution error (including nested errors)
+                            if find_error_message_in_execution_error(
+                                &err_data.execution_error,
+                                &format!("{:x} is not deployed.", self.address),
+                            ) {
+                                return Err(self.build_not_deployed_err().await);
+                            }
                         }
                         AccountError::Provider(ProviderError::StarknetError(
                             StarknetError::InvalidTransactionNonce,
@@ -527,17 +541,17 @@ pub fn compute_gas_and_price(
     max_fee: &FeeEstimate,
     gas_estimate_multiplier: f64,
 ) -> Result<(u64, u128), ControllerError> {
-    let overall_fee_bytes = max_fee.overall_fee.to_bytes_le();
-    if overall_fee_bytes.iter().skip(8).any(|&x| x != 0) {
+    let overall_fee_bytes = max_fee.overall_fee.to_be_bytes();
+    if overall_fee_bytes.iter().take(8).any(|&x| x != 0) {
         return Err(ControllerError::AccountError(AccountError::FeeOutOfRange));
     }
-    let overall_fee = u64::from_le_bytes(overall_fee_bytes[..8].try_into().unwrap());
+    let overall_fee = u64::from_be_bytes(overall_fee_bytes[8..].try_into().unwrap());
 
-    let gas_price_bytes = max_fee.gas_price.to_bytes_le();
-    if gas_price_bytes.iter().skip(8).any(|&x| x != 0) {
+    let gas_price_bytes = max_fee.l1_gas_price.to_be_bytes();
+    if gas_price_bytes.iter().take(8).any(|&x| x != 0) {
         return Err(ControllerError::AccountError(AccountError::FeeOutOfRange));
     }
-    let gas_price = u64::from_le_bytes(gas_price_bytes[..8].try_into().unwrap());
+    let gas_price = u64::from_be_bytes(gas_price_bytes[8..].try_into().unwrap());
 
     Ok((
         ((overall_fee.div_ceil(gas_price) as f64) * gas_estimate_multiplier) as u64,

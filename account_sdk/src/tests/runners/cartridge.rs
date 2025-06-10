@@ -5,10 +5,8 @@ use hyper::{http::request::Parts, Body, Client, Request, Response, Server, Statu
 use serde_json::{json, Value};
 use starknet::accounts::single_owner::SignError;
 use starknet::accounts::{Account, AccountError, ExecutionEncoding};
-use starknet::core::crypto::compute_hash_on_elements;
 use starknet::core::types::{
-    BroadcastedInvokeTransaction, BroadcastedInvokeTransactionV1, BroadcastedTransaction, Call,
-    InvokeTransactionResult,
+    BroadcastedInvokeTransactionV3, BroadcastedTransaction, Call, InvokeTransactionResult,
 };
 use starknet::macros::selector;
 use starknet::providers::jsonrpc::HttpTransport;
@@ -115,8 +113,7 @@ impl CartridgeProxy {
             serde_json::from_value(body["params"].clone()).unwrap();
 
         for tx in &mut txs {
-            if let BroadcastedTransaction::Invoke(BroadcastedInvokeTransaction::V1(ref mut tx)) = tx
-            {
+            if let BroadcastedTransaction::Invoke(ref mut tx) = tx {
                 let tx_hash = self.transaction_hash(tx);
                 tx.signature = self
                     .add_guardian_signature(tx.sender_address, tx_hash, &tx.signature)
@@ -128,22 +125,23 @@ impl CartridgeProxy {
     }
 
     async fn handle_estimate_fee(&self, parts: &mut Parts, body: &mut Value) {
+        let body_str = serde_json::to_string_pretty(body).unwrap();
+        println!("{}", body_str);
         let mut txs: Vec<BroadcastedTransaction> =
-            serde_json::from_value(body["params"][0].clone()).unwrap();
+            serde_json::from_value(body["params"]["request"].clone()).unwrap();
 
         for tx in &mut txs {
-            if let BroadcastedTransaction::Invoke(BroadcastedInvokeTransaction::V1(ref mut tx)) = tx
-            {
+            if let BroadcastedTransaction::Invoke(ref mut tx) = tx {
                 if tx.signature.is_empty() {
                     continue;
                 }
-                let tx_hash = self.transaction_hash(tx);
-                tx.signature = self
-                    .add_guardian_signature(tx.sender_address, tx_hash, &tx.signature)
-                    .await;
+                // let tx_hash = self.transaction_hash(tx);
+                // tx.signature = self
+                //     .add_guardian_signature(tx.sender_address, tx_hash, &tx.signature)
+                //     .await;
             }
         }
-        body["params"][0] = serde_json::to_value(txs).unwrap();
+        body["params"]["request"] = serde_json::to_value(txs).unwrap();
         parts.headers.remove("content-length");
     }
 
@@ -302,36 +300,8 @@ impl CartridgeProxy {
         executor.execute_v3(vec![call]).send().await
     }
 
-    pub fn transaction_hash(&self, tx: &BroadcastedInvokeTransactionV1) -> Felt {
-        /// Cairo string for "invoke"
-        const PREFIX_INVOKE: Felt = Felt::from_raw([
-            513398556346534256,
-            18446744073709551615,
-            18446744073709551615,
-            18443034532770911073,
-        ]);
-
-        /// 2 ^ 128 + 1
-        const QUERY_VERSION_ONE: Felt = Felt::from_raw([
-            576460752142433776,
-            18446744073709551584,
-            17407,
-            18446744073700081633,
-        ]);
-        compute_hash_on_elements(&[
-            PREFIX_INVOKE,
-            if tx.is_query {
-                QUERY_VERSION_ONE
-            } else {
-                Felt::ONE
-            }, // version
-            tx.sender_address,
-            Felt::ZERO, // entry_point_selector
-            compute_hash_on_elements(&tx.calldata),
-            tx.max_fee,
-            self.chain_id,
-            tx.nonce,
-        ])
+    pub fn transaction_hash(&self, _tx: &BroadcastedInvokeTransactionV3) -> Felt {
+        Felt::ONE
     }
 }
 
