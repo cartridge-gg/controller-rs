@@ -107,3 +107,14 @@ impl From<account_sdk::storage::SessionMetadata> for AuthorizedSession {
         }
     }
 }
+
+#[derive(Tsify, Serialize, Deserialize, Debug, Clone)]
+#[tsify(into_wasm_abi, from_wasm_abi)]
+#[serde(rename_all = "camelCase")]
+pub struct JsRevokableSession(account_sdk::session::RevokableSession);
+
+impl From<JsRevokableSession> for account_sdk::session::RevokableSession {
+    fn from(value: JsRevokableSession) -> Self {
+        value.0
+    }
+}

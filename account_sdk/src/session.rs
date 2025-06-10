@@ -1,6 +1,8 @@
 use cainome::cairo_serde::{CairoSerde, NonZero};
+use serde::{Deserialize, Serialize};
 use starknet::accounts::ConnectedAccount;
 use starknet::core::types::{Call, FeeEstimate, Felt, InvokeTransactionResult};
+use starknet::core::utils::parse_cairo_short_string;
 use starknet::signers::{SigningKey, VerifyingKey};
 
 use crate::abigen::controller::{Signer as AbigenSigner, SignerSignature, StarknetSigner};
@@ -9,10 +11,14 @@ use crate::account::session::hash::Session;
 use crate::account::session::policy::Policy;
 use crate::controller::Controller;
 use crate::errors::ControllerError;
+use crate::execute_from_outside::FeeSource;
+use crate::graphql::session;
+use crate::graphql::session::revoke_sessions::RevokeSessionInput;
 use crate::hash::MessageHashRev1;
 use crate::signers::{HashSigner, Signer};
-use crate::storage::StorageBackend;
-use crate::storage::{selectors::Selectors, Credentials, SessionMetadata};
+use crate::storage::{
+    selectors::Selectors, Credentials, SessionMetadata, StorageBackend, StorageError,
+};
 
 #[cfg(all(test, not(target_arch = "wasm32")))]
 #[path = "session_test.rs"]
@@ -88,11 +94,56 @@ impl Controller {
             Signer::Starknet(session_signer),
             self.address,
             self.chain_id,
-            authorization,
-            session,
+            authorization.clone(),
+            session.clone(),
         );
 
         Ok(session_account)
+    }
+
+    pub async fn register_session_with_cartridge(
+        &self,
+        session: &Session,
+        authorization: &[Felt],
+        cartridge_api_url: String,
+    ) -> Result<(), ControllerError> {
+        let session_props = session::CreateSessionInput {
+            username: self.username.clone(),
+            app_id: self.app_id.clone(),
+            chain_id: parse_cairo_short_string(&self.chain_id).unwrap(),
+            session: session::create_session::SessionInput {
+                expires_at: session.inner.expires_at,
+                allowed_policies_root: session.inner.allowed_policies_root,
+                metadata_hash: session.inner.metadata_hash,
+                session_key_guid: session.inner.session_key_guid,
+                guardian_key_guid: session.inner.guardian_key_guid,
+                authorization: authorization.to_vec(),
+                app_id: None,
+            },
+        };
+
+        let _ = session::create_session(session_props, cartridge_api_url).await?;
+        Ok(())
+    }
+
+    pub async fn revoke_sessions_with_cartridge(
+        &self,
+        sessions: &[RevokableSession],
+        cartridge_api_url: String,
+    ) -> Result<(), ControllerError> {
+        let _ = session::revoke_sessions(
+            sessions
+                .iter()
+                .map(|s| RevokeSessionInput {
+                    session_hash: s.session_hash,
+                    username: self.username.clone(),
+                    chain_id: parse_cairo_short_string(&self.chain_id).unwrap(),
+                })
+                .collect(),
+            cartridge_api_url,
+        )
+        .await?;
+        Ok(())
     }
 
     pub fn register_session_call(
@@ -145,6 +196,32 @@ impl Controller {
                 is_registered: true,
             },
         )?;
+
+        Ok(txn)
+    }
+
+    pub async fn revoke_sessions(
+        &mut self,
+        sessions: Vec<RevokableSession>,
+    ) -> Result<InvokeTransactionResult, ControllerError> {
+        let calls = sessions
+            .iter()
+            .map(|session| {
+                self.contract()
+                    .revoke_session_getcall(&session.session_hash)
+            })
+            .collect();
+        let txn = self
+            .execute_from_outside_v3(calls, Some(FeeSource::Paymaster))
+            .await?;
+
+        for session in sessions {
+            self.storage.remove(&Selectors::session(
+                &self.address,
+                &session.app_id,
+                &session.chain_id,
+            ))?;
+        }
 
         Ok(txn)
     }
@@ -214,4 +291,57 @@ impl Controller {
 
         Some(session_account)
     }
+
+    pub fn clear_revoked_session(&self) {
+        let mut controller_clone = self.clone();
+
+        #[cfg(target_arch = "wasm32")]
+        wasm_bindgen_futures::spawn_local(async move {
+            let _ = controller_clone.clear_session_if_revoked().await;
+        });
+
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            let _ = std::thread::spawn(move || {
+                let _ = futures::executor::block_on(controller_clone.clear_session_if_revoked());
+            });
+        }
+    }
+
+    async fn clear_session_if_revoked(&mut self) -> Result<(), StorageError> {
+        let key = self.session_key();
+        let session = self.storage.session(&key).ok().flatten();
+
+        if session.is_none() {
+            return Ok(());
+        }
+
+        let session = session.unwrap();
+
+        let session_hash = session
+            .session
+            .inner
+            .get_message_hash_rev_1(self.chain_id, self.address);
+
+        let is_revoked = self
+            .contract()
+            .is_session_revoked(&session_hash)
+            .call()
+            .await
+            .map_err(|e| StorageError::OperationFailed(e.to_string()))?;
+
+        if is_revoked {
+            self.storage.remove(&key)?;
+        }
+
+        Ok(())
+    }
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
+#[allow(non_snake_case)]
+pub struct RevokableSession {
+    pub app_id: String,
+    pub chain_id: Felt,
+    pub session_hash: Felt,
 }

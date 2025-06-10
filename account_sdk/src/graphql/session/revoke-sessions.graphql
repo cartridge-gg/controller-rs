@@ -1,0 +1,3 @@
+mutation RevokeSessions($sessions: [RevokeSessionInput!]!) {
+  revokeSessions(sessions: $sessions)
+}
