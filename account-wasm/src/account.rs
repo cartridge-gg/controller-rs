@@ -29,6 +29,7 @@ type Result<T> = std::result::Result<T, JsError>;
 pub struct CartridgeAccount {
     controller: WasmMutex<Controller>,
     policy_storage: WasmMutex<PolicyStorage>,
+    cartridge_api_url: String,
 }
 
 #[wasm_bindgen]
@@ -43,7 +44,7 @@ impl CartridgeAccount {
     /// - `username`: Username associated with the account.
     /// - `owner`: A Owner struct containing the owner signer and associated data.
     ///
-    #[allow(clippy::new_ret_no_self)]
+    #[allow(clippy::new_ret_no_self, clippy::too_many_arguments)]
     pub fn new(
         app_id: String,
         class_hash: JsFelt,
@@ -52,6 +53,7 @@ impl CartridgeAccount {
         address: JsFelt,
         username: String,
         owner: Owner,
+        cartridge_api_url: String,
     ) -> Result<CartridgeAccountWithMeta> {
         set_panic_hook();
 
@@ -68,17 +70,20 @@ impl CartridgeAccount {
             chain_id.try_into()?,
         );
 
-        Ok(CartridgeAccountWithMeta::new(controller))
+        Ok(CartridgeAccountWithMeta::new(controller, cartridge_api_url))
     }
 
     #[wasm_bindgen(js_name = fromStorage)]
-    pub fn from_storage(app_id: String) -> Result<Option<CartridgeAccountWithMeta>> {
+    pub fn from_storage(
+        app_id: String,
+        cartridge_api_url: String,
+    ) -> Result<Option<CartridgeAccountWithMeta>> {
         set_panic_hook();
 
         let controller =
             Controller::from_storage(app_id).map_err(|e| JsError::new(&e.to_string()))?;
 
-        Ok(controller.map(CartridgeAccountWithMeta::new))
+        Ok(controller.map(|c| CartridgeAccountWithMeta::new(c, cartridge_api_url)))
     }
 
     #[wasm_bindgen(js_name = disconnect)]
@@ -160,26 +165,33 @@ impl CartridgeAccount {
     pub async fn login(
         &self,
         expires_at: u64,
+        is_controller_registered: Option<bool>,
     ) -> std::result::Result<AuthorizedSession, JsControllerError> {
         set_panic_hook();
         let mut controller = self.controller.lock().await;
         let account = controller.create_wildcard_session(expires_at).await?;
 
-        let controller_response = controller
-            .register_session_with_cartridge(&account.session, &account.session_authorization)
-            .await;
+        if is_controller_registered.unwrap_or(false) {
+            let controller_response = controller
+                .register_session_with_cartridge(
+                    &account.session,
+                    &account.session_authorization,
+                    self.cartridge_api_url.clone(),
+                )
+                .await;
 
-        if let Err(e) = controller_response {
-            let address = controller.address;
-            let app_id = controller.app_id.clone();
-            let chain_id = controller.chain_id;
+            if let Err(e) = controller_response {
+                let address = controller.address;
+                let app_id = controller.app_id.clone();
+                let chain_id = controller.chain_id;
 
-            controller
-                .storage
-                .remove(&Selectors::session(&address, &app_id, &chain_id))
-                .map_err(|e| JsControllerError::from(ControllerError::StorageError(e)))?;
+                controller
+                    .storage
+                    .remove(&Selectors::session(&address, &app_id, &chain_id))
+                    .map_err(|e| JsControllerError::from(ControllerError::StorageError(e)))?;
 
-            return Err(JsControllerError::from(e));
+                return Err(JsControllerError::from(e));
+            }
         }
 
         let session_metadata = AuthorizedSession {
@@ -222,7 +234,11 @@ impl CartridgeAccount {
             let account = controller.create_wildcard_session(expires_at).await?;
 
             let controller_response = controller
-                .register_session_with_cartridge(&account.session, &account.session_authorization)
+                .register_session_with_cartridge(
+                    &account.session,
+                    &account.session_authorization,
+                    self.cartridge_api_url.clone(),
+                )
                 .await;
 
             if let Err(e) = controller_response {
@@ -435,7 +451,9 @@ impl CartridgeAccount {
 
         controller.revoke_sessions(sessions.clone()).await?;
 
-        let _ = controller.revoke_sessions_with_cartridge(&sessions).await;
+        let _ = controller
+            .revoke_sessions_with_cartridge(&sessions, self.cartridge_api_url.clone())
+            .await;
         Ok(())
     }
 
@@ -631,7 +649,7 @@ pub struct CartridgeAccountWithMeta {
 }
 
 impl CartridgeAccountWithMeta {
-    fn new(controller: Controller) -> Self {
+    fn new(controller: Controller, cartridge_api_url: String) -> Self {
         let meta = CartridgeAccountMeta::new(&controller);
         let policy_storage = PolicyStorage::new(
             &controller.address,
@@ -643,6 +661,7 @@ impl CartridgeAccountWithMeta {
             account: CartridgeAccount {
                 controller: WasmMutex::new(controller),
                 policy_storage: WasmMutex::new(policy_storage),
+                cartridge_api_url,
             },
             meta,
         }

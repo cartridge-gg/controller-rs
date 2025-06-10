@@ -6,7 +6,6 @@ use serde::{de::DeserializeOwned, Serialize};
 use url::Url;
 
 use crate::errors::ControllerError;
-use crate::vars;
 
 #[derive(Debug)]
 pub struct Client {
@@ -15,10 +14,10 @@ pub struct Client {
 }
 
 impl Client {
-    pub fn new() -> Self {
+    pub fn new(base_url: String) -> Self {
         Self {
             client: reqwest::Client::new(),
-            base_url: Url::parse(vars::get_cartridge_api_url().as_str()).expect("valid url"),
+            base_url: Url::parse(&base_url).expect("valid url"),
         }
     }
 
@@ -49,12 +48,6 @@ impl Client {
         let mut url = self.base_url.clone();
         url.path_segments_mut().unwrap().extend(path.split('/'));
         url
-    }
-}
-
-impl Default for Client {
-    fn default() -> Self {
-        Self::new()
     }
 }
 

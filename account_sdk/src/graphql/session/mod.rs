@@ -32,8 +32,9 @@ pub struct CreateSessionInput {
 
 pub async fn create_session(
     input: CreateSessionInput,
+    cartridge_api_url: String,
 ) -> Result<create_session::ResponseData, ControllerError> {
-    let client = Client::new();
+    let client = Client::new(cartridge_api_url);
 
     let request_body = CreateSession::build_query(create_session::Variables {
         username: input.username,
@@ -55,8 +56,9 @@ pub async fn create_session(
 
 pub async fn revoke_sessions(
     sessions: Vec<RevokeSessionInput>,
+    cartridge_api_url: String,
 ) -> Result<revoke_sessions::ResponseData, ControllerError> {
-    let client = Client::new();
+    let client = Client::new(cartridge_api_url);
 
     let request_body = RevokeSessions::build_query(revoke_sessions::Variables { sessions });
 

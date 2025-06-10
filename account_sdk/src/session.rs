@@ -105,6 +105,7 @@ impl Controller {
         &self,
         session: &Session,
         authorization: &[Felt],
+        cartridge_api_url: String,
     ) -> Result<(), ControllerError> {
         let session_props = session::CreateSessionInput {
             username: self.username.clone(),
@@ -121,13 +122,14 @@ impl Controller {
             },
         };
 
-        let _ = session::create_session(session_props).await?;
+        let _ = session::create_session(session_props, cartridge_api_url).await?;
         Ok(())
     }
 
     pub async fn revoke_sessions_with_cartridge(
         &self,
         sessions: &[RevokableSession],
+        cartridge_api_url: String,
     ) -> Result<(), ControllerError> {
         let _ = session::revoke_sessions(
             sessions
@@ -138,6 +140,7 @@ impl Controller {
                     chain_id: parse_cairo_short_string(&self.chain_id).unwrap(),
                 })
                 .collect(),
+            cartridge_api_url,
         )
         .await?;
         Ok(())
