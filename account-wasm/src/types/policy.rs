@@ -7,8 +7,9 @@ use account_sdk::account::session::policy::{
 };
 
 use super::{EncodingError, JsFelt};
-use account_sdk::typed_data::hash_components;
-use starknet::core::types::{Call, TypedData};
+use account_sdk::typed_data::{encode_type, TypedData};
+use starknet::core::types::Call;
+use starknet::core::utils::starknet_keccak;
 use starknet_crypto::poseidon_hash;
 
 #[derive(Tsify, Serialize, Deserialize, Debug, Clone, PartialEq)]
@@ -124,8 +125,10 @@ impl Policy {
     }
 
     pub fn from_typed_data(typed_data: &TypedData) -> Result<Self, JsError> {
-        let hash_parts = hash_components(typed_data)?;
-        let scope_hash = poseidon_hash(hash_parts.domain_separator_hash, hash_parts.type_hash);
+        let domain_hash = typed_data.domain.encode(&typed_data.types)?;
+        let type_hash =
+            &starknet_keccak(encode_type(&typed_data.primary_type, &typed_data.types)?.as_bytes());
+        let scope_hash = poseidon_hash(domain_hash, *type_hash);
 
         Ok(Self::TypedData(TypedDataPolicy {
             scope_hash: scope_hash.into(),
