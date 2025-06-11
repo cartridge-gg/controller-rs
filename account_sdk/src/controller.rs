@@ -9,7 +9,7 @@ use crate::impl_account;
 use crate::provider::CartridgeJsonRpcProvider;
 use crate::signers::Owner;
 use crate::storage::{ControllerMetadata, Storage, StorageBackend, StorageError};
-use crate::typed_data::hash_components;
+use crate::typed_data::TypedData;
 use crate::{
     abigen::{self},
     signers::{HashSigner, SignError},
@@ -18,7 +18,7 @@ use async_trait::async_trait;
 use cainome::cairo_serde::{CairoSerde, U256};
 use starknet::accounts::{AccountDeploymentV3, AccountError, AccountFactory, ExecutionV3};
 use starknet::core::types::{
-    BlockTag, Call, FeeEstimate, FunctionCall, InvokeTransactionResult, StarknetError, TypedData,
+    BlockTag, Call, FeeEstimate, FunctionCall, InvokeTransactionResult, StarknetError,
 };
 use starknet::core::utils::cairo_short_string_to_felt;
 use starknet::macros::{selector, short_string};
@@ -373,8 +373,8 @@ impl Controller {
             .map(|v| v.low)
     }
 
-    pub async fn sign_message(&self, data: &TypedData) -> Result<Vec<Felt>, SignError> {
-        let hash_parts = hash_components(data)?;
+    pub async fn sign_message(&self, data: TypedData) -> Result<Vec<Felt>, SignError> {
+        let hash_parts = data.encode(self.address)?;
         let scope_hash = poseidon_hash(hash_parts.domain_separator_hash, hash_parts.type_hash);
 
         match self.session_account(&[Policy::new_typed_data(scope_hash)]) {
@@ -398,7 +398,7 @@ impl Controller {
                 .concat())
             }
             _ => {
-                let signature = self.owner.sign(&data.message_hash(self.address)?).await?;
+                let signature = self.owner.sign(&hash_parts.hash).await?;
                 Ok(Vec::<SignerSignature>::cairo_serialize(&vec![signature]))
             }
         }
