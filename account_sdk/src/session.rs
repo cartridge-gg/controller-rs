@@ -292,7 +292,7 @@ impl Controller {
         Some(session_account)
     }
 
-    pub fn clear_revoked_session(&mut self) {
+    pub fn clear_invalid_session(&mut self) {
         let mut controller_clone = self.clone();
 
         let _ = self.clear_session_if_expired();
