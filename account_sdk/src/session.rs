@@ -292,8 +292,10 @@ impl Controller {
         Some(session_account)
     }
 
-    pub fn clear_revoked_session(&self) {
+    pub fn clear_revoked_session(&mut self) {
         let mut controller_clone = self.clone();
+
+        let _ = self.clear_session_if_expired();
 
         #[cfg(target_arch = "wasm32")]
         wasm_bindgen_futures::spawn_local(async move {
@@ -306,6 +308,23 @@ impl Controller {
                 let _ = futures::executor::block_on(controller_clone.clear_session_if_revoked());
             });
         }
+    }
+
+    fn clear_session_if_expired(&mut self) -> Result<(), StorageError> {
+        let key = self.session_key();
+        let session = self.storage.session(&key).ok().flatten();
+
+        if session.is_none() {
+            return Ok(());
+        }
+
+        let session = session.unwrap();
+
+        if session.session.is_expired() {
+            self.storage.remove(&key)?;
+        }
+
+        Ok(())
     }
 
     async fn clear_session_if_revoked(&mut self) -> Result<(), StorageError> {
