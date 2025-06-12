@@ -109,7 +109,7 @@ impl Controller {
         // Clears the stored session if it's been revoked in a fire-and-forget style when the controller is created (with fromStorage for example).
         // Avoids needing to change the constructor to an async function
         // If we do it when we use the session, we need to change a lot of functions to take a mutable reference to the controller and to be async
-        controller.clear_revoked_session();
+        controller.clear_invalid_session();
 
         controller
     }
