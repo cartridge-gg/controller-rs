@@ -11,6 +11,7 @@ pub(crate) mod call;
 pub(crate) mod estimate;
 pub(crate) mod owner;
 pub(crate) mod policy;
+pub(crate) mod register;
 pub(crate) mod session;
 pub(crate) mod signer;
 
