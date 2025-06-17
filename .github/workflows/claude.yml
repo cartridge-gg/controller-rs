@@ -34,26 +34,32 @@ jobs:
         uses: anthropics/claude-code-action@beta
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-          
+
           # Optional: Specify model (defaults to Claude Sonnet 4, uncomment for Claude Opus 4)
           # model: "claude-opus-4-20250514"
-          
+
           # Optional: Customize the trigger phrase (default: @claude)
           # trigger_phrase: "/claude"
-          
+
           # Optional: Trigger when specific user is assigned to an issue
           # assignee_trigger: "claude-bot"
-          
-          # Optional: Allow Claude to run specific commands
-          # allowed_tools: "Bash(npm install),Bash(npm run build),Bash(npm run test:*),Bash(npm run lint:*)"
-          
-          # Optional: Add custom instructions for Claude to customize its behavior for your project
-          # custom_instructions: |
-          #   Follow our coding standards
-          #   Ensure all new code has tests
-          #   Use TypeScript for new files
-          
-          # Optional: Custom environment variables for Claude
-          # claude_env: |
-          #   NODE_ENV: test
 
+          # Allow Claude to run Rust/Cairo development commands
+          allowed_tools: "Bash(cargo build),Bash(cargo test),Bash(cargo test *),Bash(cargo clippy),Bash(cargo fmt),Bash(scarb build),Bash(scarb test),Bash(make generate_artifacts),Bash(make test-session),Bash(make clean)"
+
+          # Custom instructions for this Rust/Cairo controller project
+          custom_instructions: |
+            This is a Starknet account controller project with Rust SDK, Cairo contracts, and WASM bindings.
+
+            - Use `cargo` commands for Rust development (account_sdk, account-wasm)
+            - Use `scarb` commands for Cairo contract development (contracts/)
+            - Run `make generate_artifacts` before testing to ensure Cairo contracts are built
+            - Use `cargo test -- --nocapture` to see test output during debugging
+            - For WASM builds, use the build.sh script in account-wasm/
+            - Follow existing code patterns and conventions
+            - Tests are in account_sdk/src/tests/ with integration test runners
+
+          # Environment variables for Rust/Cairo development
+          claude_env: |
+            CARGO_TERM_COLOR: always
+            RUST_VERSION: 1.85.0
