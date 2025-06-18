@@ -20,6 +20,7 @@ use crate::types::call::JsCall;
 use crate::types::estimate::JsFeeEstimate;
 use crate::types::owner::Owner;
 use crate::types::policy::{CallPolicy, Policy, TypedDataPolicy};
+use crate::types::register::{JsRegister, JsRegisterResponse};
 use crate::types::session::{AuthorizedSession, JsRevokableSession};
 use crate::types::{Felts, JsFeeSource, JsFelt};
 use crate::utils::set_panic_hook;
@@ -214,6 +215,22 @@ impl CartridgeAccount {
         };
 
         Ok(session_metadata)
+    }
+
+    #[wasm_bindgen(js_name = register)]
+    pub async fn register(
+        &self,
+        register: JsRegister,
+    ) -> std::result::Result<JsRegisterResponse, JsControllerError> {
+        set_panic_hook();
+
+        let register: account_sdk::graphql::register::RegisterInput = register.into();
+
+        let res =
+            account_sdk::graphql::register::register(register, self.cartridge_api_url.clone())
+                .await?;
+
+        Ok(res.into())
     }
 
     #[wasm_bindgen(js_name = createSession)]
