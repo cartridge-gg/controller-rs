@@ -318,7 +318,7 @@ impl Controller {
             return Ok(());
         }
 
-        let session = session.unwrap();
+        let session = session.expect("Checked for None above");
 
         if session.session.is_expired() {
             self.storage.remove(&key)?;
@@ -335,7 +335,7 @@ impl Controller {
             return Ok(());
         }
 
-        let session = session.unwrap();
+        let session = session.expect("Checked for None above");
 
         let session_hash = session
             .session
