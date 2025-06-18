@@ -292,20 +292,48 @@ impl Controller {
         Some(session_account)
     }
 
-    pub fn clear_revoked_session(&self) {
+    pub fn clear_invalid_session(&mut self) {
         let mut controller_clone = self.clone();
+
+        let _ = self.clear_session_if_expired();
 
         #[cfg(target_arch = "wasm32")]
         wasm_bindgen_futures::spawn_local(async move {
-            let _ = controller_clone.clear_session_if_revoked().await;
+            let result = controller_clone.clear_session_if_revoked().await;
+            if let Err(e) = result {
+                web_sys::console::error_1(
+                    &format!("Error clearing session if revoked: {}", e).into(),
+                );
+            }
         });
 
         #[cfg(not(target_arch = "wasm32"))]
         {
             let _ = std::thread::spawn(move || {
-                let _ = futures::executor::block_on(controller_clone.clear_session_if_revoked());
+                if let Err(e) =
+                    futures::executor::block_on(controller_clone.clear_session_if_revoked())
+                {
+                    println!("Error clearing session if revoked: {}", e);
+                }
             });
         }
+    }
+
+    fn clear_session_if_expired(&mut self) -> Result<(), StorageError> {
+        let key = self.session_key();
+        let session = self.storage.session(&key).ok().flatten();
+
+        if session.is_none() {
+            return Ok(());
+        }
+
+        let session = session.expect("Checked for None above");
+
+        if session.session.is_expired() {
+            self.storage.remove(&key)?;
+        }
+
+        Ok(())
     }
 
     async fn clear_session_if_revoked(&mut self) -> Result<(), StorageError> {
@@ -316,7 +344,7 @@ impl Controller {
             return Ok(());
         }
 
-        let session = session.unwrap();
+        let session = session.expect("Checked for None above");
 
         let session_hash = session
             .session
