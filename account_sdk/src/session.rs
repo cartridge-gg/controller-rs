@@ -299,13 +299,22 @@ impl Controller {
 
         #[cfg(target_arch = "wasm32")]
         wasm_bindgen_futures::spawn_local(async move {
-            let _ = controller_clone.clear_session_if_revoked().await;
+            let result = controller_clone.clear_session_if_revoked().await;
+            if let Err(e) = result {
+                web_sys::console::error_1(
+                    &format!("Error clearing session if revoked: {}", e).into(),
+                );
+            }
         });
 
         #[cfg(not(target_arch = "wasm32"))]
         {
             let _ = std::thread::spawn(move || {
-                let _ = futures::executor::block_on(controller_clone.clear_session_if_revoked());
+                if let Err(e) =
+                    futures::executor::block_on(controller_clone.clear_session_if_revoked())
+                {
+                    println!("Error clearing session if revoked: {}", e);
+                }
             });
         }
     }
