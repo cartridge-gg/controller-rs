@@ -58,7 +58,7 @@ async fn test_deploy_controller() {
     // Deploy the controller
     let deploy_result = factory
         .deploy_v3(salt)
-        .gas_estimate_multiplier(1.5)
+        .gas_estimate_multiplier(3.0)
         .send()
         .await
         .unwrap();

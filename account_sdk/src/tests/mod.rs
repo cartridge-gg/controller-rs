@@ -37,7 +37,7 @@ where
     P: Provider + Sync + Send,
 {
     let tx = execution
-        .gas_price_estimate_multiplier(1.6)
+        .gas_price_estimate_multiplier(20.0)
         .send()
         .await
         .map_err(EnsureTxnError::from)?;

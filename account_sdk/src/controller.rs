@@ -183,7 +183,7 @@ impl Controller {
             Err(e) => return ControllerError::from(e),
         };
 
-        fee_estimate.overall_fee += WEBAUTHN_GAS * fee_estimate.l1_gas_price;
+        fee_estimate.l2_gas_consumed += WEBAUTHN_GAS;
         ControllerError::NotDeployed {
             fee_estimate: Box::new(fee_estimate),
             balance,
@@ -210,7 +210,9 @@ impl Controller {
                     .authorized_session_for_policies(&Policy::from_calls(&calls), None)
                     .is_none_or(|metadata| !metadata.is_registered)
                 {
-                    fee_estimate.overall_fee += WEBAUTHN_GAS * fee_estimate.l1_gas_price;
+                    fee_estimate.l2_gas_consumed += WEBAUTHN_GAS;
+                } else {
+                    fee_estimate.l2_gas_consumed += WEBAUTHN_GAS;
                 }
 
                 if fee_estimate.overall_fee > balance {
@@ -535,26 +537,4 @@ impl CairoSerde for DetailedTypedData {
     ) -> cainome_cairo_serde::Result<Self::RustType> {
         unimplemented!()
     }
-}
-
-pub fn compute_gas_and_price(
-    max_fee: &FeeEstimate,
-    gas_estimate_multiplier: f64,
-) -> Result<(u64, u128), ControllerError> {
-    let overall_fee_bytes = max_fee.overall_fee.to_be_bytes();
-    if overall_fee_bytes.iter().take(8).any(|&x| x != 0) {
-        return Err(ControllerError::AccountError(AccountError::FeeOutOfRange));
-    }
-    let overall_fee = u64::from_be_bytes(overall_fee_bytes[8..].try_into().unwrap());
-
-    let gas_price_bytes = max_fee.l1_gas_price.to_be_bytes();
-    if gas_price_bytes.iter().take(8).any(|&x| x != 0) {
-        return Err(ControllerError::AccountError(AccountError::FeeOutOfRange));
-    }
-    let gas_price = u64::from_be_bytes(gas_price_bytes[8..].try_into().unwrap());
-
-    Ok((
-        ((overall_fee.div_ceil(gas_price) as f64) * gas_estimate_multiplier) as u64,
-        gas_price as u128,
-    ))
 }

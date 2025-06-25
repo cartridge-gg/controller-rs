@@ -109,24 +109,21 @@ impl CartridgeProxy {
     }
 
     async fn handle_add_invoke_transaction(&self, parts: &mut Parts, body: &mut Value) {
-        let mut txs: Vec<BroadcastedTransaction> =
-            serde_json::from_value(body["params"].clone()).unwrap();
+        let mut tx: BroadcastedTransaction =
+            serde_json::from_value(body["params"]["invoke_transaction"].clone()).unwrap();
 
-        for tx in &mut txs {
-            if let BroadcastedTransaction::Invoke(ref mut tx) = tx {
-                let tx_hash = self.transaction_hash(tx);
-                tx.signature = self
-                    .add_guardian_signature(tx.sender_address, tx_hash, &tx.signature)
-                    .await;
-            }
+        if let BroadcastedTransaction::Invoke(ref mut tx) = tx {
+            let tx_hash = self.transaction_hash(tx);
+            tx.signature = self
+                .add_guardian_signature(tx.sender_address, tx_hash, &tx.signature)
+                .await;
         }
-        body["params"] = serde_json::to_value(txs).unwrap();
+
+        body["params"]["invoke_transaction"] = serde_json::to_value(tx).unwrap();
         parts.headers.remove("content-length");
     }
 
     async fn handle_estimate_fee(&self, parts: &mut Parts, body: &mut Value) {
-        let body_str = serde_json::to_string_pretty(body).unwrap();
-        println!("{}", body_str);
         let mut txs: Vec<BroadcastedTransaction> =
             serde_json::from_value(body["params"]["request"].clone()).unwrap();
 
@@ -135,10 +132,10 @@ impl CartridgeProxy {
                 if tx.signature.is_empty() {
                     continue;
                 }
-                // let tx_hash = self.transaction_hash(tx);
-                // tx.signature = self
-                //     .add_guardian_signature(tx.sender_address, tx_hash, &tx.signature)
-                //     .await;
+                let tx_hash = self.transaction_hash(tx);
+                tx.signature = self
+                    .add_guardian_signature(tx.sender_address, tx_hash, &tx.signature)
+                    .await;
             }
         }
         body["params"]["request"] = serde_json::to_value(txs).unwrap();
