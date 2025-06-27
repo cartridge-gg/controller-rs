@@ -171,6 +171,18 @@ impl From<account_sdk::signers::eip191::Eip191Signer> for Eip191Signer {
     }
 }
 
+#[allow(non_snake_case)]
+#[derive(Tsify, Serialize, Deserialize, Debug, Clone)]
+#[tsify(into_wasm_abi, from_wasm_abi)]
+#[serde(rename_all = "camelCase")]
+pub struct JsSignerInput(account_sdk::graphql::owner::add_owner::SignerInput);
+
+impl From<JsSignerInput> for account_sdk::graphql::owner::add_owner::SignerInput {
+    fn from(value: JsSignerInput) -> Self {
+        value.0
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

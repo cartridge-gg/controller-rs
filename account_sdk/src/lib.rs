@@ -9,6 +9,7 @@ pub mod execute_from_outside;
 pub mod factory;
 pub mod graphql;
 pub mod hash;
+pub mod owner;
 pub mod provider;
 pub mod session;
 pub mod signers;
