@@ -12,7 +12,7 @@ type JSON = String;
     schema_path = "schema.json",
     query_path = "src/graphql/owner/add-owner.graphql",
     variables_derives = "Debug, Clone, PartialEq, Eq, Deserialize",
-	response_derives = "Debug, Clone, PartialEq, Eq, Deserialize"
+    response_derives = "Debug, Clone, PartialEq, Eq, Deserialize"
 )]
 pub struct AddOwner;
 
