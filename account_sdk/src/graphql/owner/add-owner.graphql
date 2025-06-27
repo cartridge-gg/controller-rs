@@ -1,0 +1,8 @@
+mutation AddOwner(
+  $username: String!
+  $chainID: String!
+  $signerGuid: Felt!
+  $owner: SignerInput!
+) {
+  addOwner(username: $username, chainID: $chainID, signerGuid: $signerGuid, owner: $owner)
+}

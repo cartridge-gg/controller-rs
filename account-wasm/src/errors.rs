@@ -95,11 +95,17 @@ pub enum ErrorCode {
     Base64DecodeError = 134,
     CoseError = 135,
     PolicyChainIdMismatch = 136,
+    InvalidOwner = 137,
 }
 
 impl From<ControllerError> for JsControllerError {
     fn from(error: ControllerError) -> Self {
         match error {
+            ControllerError::InvalidOwner(e) => JsControllerError {
+                code: ErrorCode::InvalidOwner,
+                message: e,
+                data: None,
+            },
             ControllerError::SignError(e) => JsControllerError {
                 code: ErrorCode::SignError,
                 message: e.to_string(),
@@ -179,6 +185,11 @@ impl From<ControllerError> for JsControllerError {
             ControllerError::ReqwestError(e) => JsControllerError {
                 code: ErrorCode::ProviderOther,
                 message: format!("Reqwest error: {:?}", e),
+                data: None,
+            },
+            ControllerError::TransactionReverted(e) => JsControllerError {
+                code: ErrorCode::StarknetUnexpectedError,
+                message: e.to_string(),
                 data: None,
             },
         }
