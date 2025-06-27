@@ -117,7 +117,7 @@ impl KatanaRunner {
             .transfer(
                 &ContractAddress(*address),
                 &U256 {
-                    low: 0x8944000000000000_u128,
+                    low: 0x89440000000000000_u128,
                     high: 0,
                 },
             )

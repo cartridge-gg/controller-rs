@@ -19,10 +19,9 @@ jobs:
   rust:
     runs-on: ubuntu-latest
     container:
-      image: ghcr.io/dojoengine/dojo-dev:v1.0.9
+      image: ghcr.io/dojoengine/katana:v1.6.0-alpha.1
     steps:
       - uses: actions/checkout@v4
-      - run: git config --global --add safe.directory '*'
       - uses: dorny/paths-filter@v3
         id: changes
         with:
@@ -37,11 +36,15 @@ jobs:
           components: llvm-tools-preview
       - uses: Swatinem/rust-cache@v2
         if: steps.changes.outputs.rust == 'true'
+      - name: Install build dependencies
+        if: steps.changes.outputs.rust == 'true'
+        run: |
+          apt-get update
+          apt-get install -y build-essential gcc libssl-dev pkg-config
       - uses: taiki-e/install-action@cargo-llvm-cov
         if: steps.changes.outputs.rust == 'true'
-      - run:
-          cargo llvm-cov --features webauthn --all-features --lcov --output-path
-          lcov.info
+      - run: |
+          cargo llvm-cov --features webauthn --all-features --lcov --output-path lcov.info
         if: steps.changes.outputs.rust == 'true'
       - uses: codecov/codecov-action@v3
         if: steps.changes.outputs.rust == 'true'

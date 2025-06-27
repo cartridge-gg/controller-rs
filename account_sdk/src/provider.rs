@@ -4,7 +4,7 @@ use starknet::core::types::{
     BlockHashAndNumber, BlockId, BroadcastedDeclareTransaction,
     BroadcastedDeployAccountTransaction, BroadcastedInvokeTransaction, BroadcastedTransaction,
     ContractClass, DeclareTransactionResult, DeployAccountTransactionResult, EventFilter,
-    EventsPage, FeeEstimate, Felt, FunctionCall, InvokeTransactionResult,
+    EventsPage, FeeEstimate, Felt, FunctionCall, Hash256, InvokeTransactionResult,
     MaybePendingBlockWithReceipts, MaybePendingBlockWithTxHashes, MaybePendingBlockWithTxs,
     MaybePendingStateUpdate, MsgFromL1, SimulatedTransaction, SimulationFlag,
     SimulationFlagForEstimateFee, SyncStatusType, Transaction, TransactionReceiptWithBlockInfo,
@@ -17,6 +17,7 @@ use starknet::providers::{
 use url::Url;
 
 use crate::account::outside_execution::OutsideExecution;
+use crate::constants::VALIDATION_GAS;
 use crate::execute_from_outside::FeeSource;
 
 #[cfg(test)]
@@ -271,9 +272,23 @@ impl Provider for CartridgeJsonRpcProvider {
         S: AsRef<[SimulationFlagForEstimateFee]> + Send + Sync,
         B: AsRef<BlockId> + Send + Sync,
     {
-        self.inner
-            .estimate_fee(request, simulation_flags, block_id)
-            .await
+        let mut estimates = self
+            .inner
+            .estimate_fee(request, &simulation_flags, block_id)
+            .await?;
+
+        // Add VALIDATION_GAS if skip validate is enabled
+        if simulation_flags
+            .as_ref()
+            .contains(&SimulationFlagForEstimateFee::SkipValidate)
+        {
+            // Add the L2 gas offset to each fee estimate
+            for estimate in &mut estimates {
+                estimate.l2_gas_consumed = estimate.l2_gas_consumed.saturating_add(VALIDATION_GAS);
+            }
+        }
+
+        Ok(estimates)
     }
 
     async fn estimate_message_fee<M, B>(
@@ -378,9 +393,26 @@ impl Provider for CartridgeJsonRpcProvider {
         T: AsRef<[BroadcastedTransaction]> + Send + Sync,
         S: AsRef<[SimulationFlag]> + Send + Sync,
     {
-        self.inner
-            .simulate_transactions(block_id, transactions, simulation_flags)
-            .await
+        let mut simuations = self
+            .inner
+            .simulate_transactions(block_id, transactions, &simulation_flags)
+            .await?;
+
+        // Add VALIDATION_GAS if skip validate is enabled
+        if simulation_flags
+            .as_ref()
+            .contains(&SimulationFlag::SkipValidate)
+        {
+            for simulation in &mut simuations {
+                // Add the L2 gas offset to each fee estimate
+                simulation.fee_estimation.l2_gas_consumed = simulation
+                    .fee_estimation
+                    .l2_gas_consumed
+                    .saturating_add(VALIDATION_GAS);
+            }
+        }
+
+        Ok(simuations)
     }
 
     async fn trace_block_transactions<B>(
@@ -401,6 +433,36 @@ impl Provider for CartridgeJsonRpcProvider {
         R: AsRef<[ProviderRequestData]> + Send + Sync,
     {
         self.inner.batch_requests(requests).await
+    }
+
+    async fn get_messages_status(
+        &self,
+        transaction_hash: Hash256,
+    ) -> Result<Vec<starknet::core::types::MessageWithStatus>, ProviderError> {
+        self.inner.get_messages_status(transaction_hash).await
+    }
+
+    async fn get_storage_proof<B, H, A, K>(
+        &self,
+        block_id: B,
+        class_hashes: H,
+        contract_addresses: A,
+        contracts_storage_keys: K,
+    ) -> Result<starknet::core::types::StorageProof, ProviderError>
+    where
+        B: AsRef<starknet::core::types::ConfirmedBlockId> + Send + Sync,
+        H: AsRef<[Felt]> + Send + Sync,
+        A: AsRef<[Felt]> + Send + Sync,
+        K: AsRef<[starknet::core::types::ContractStorageKeys]> + Send + Sync,
+    {
+        self.inner
+            .get_storage_proof(
+                block_id,
+                class_hashes,
+                contract_addresses,
+                contracts_storage_keys,
+            )
+            .await
     }
 }
 

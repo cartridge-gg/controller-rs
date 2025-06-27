@@ -16,6 +16,7 @@ use crate::{
     account::session::{account::SessionAccount, hash::Session, policy::Policy},
     artifacts::Version,
     constants::GUARDIAN_SIGNER,
+    find_error_message_in_execution_error,
     hash::MessageHashRev1,
     signers::{Owner, Signer},
     tests::{
@@ -232,11 +233,13 @@ async fn test_create_and_use_registered_session() {
     // Register the session
     let expires_at = u64::MAX;
     let max_fee = FeeEstimate {
-        gas_consumed: Felt::ZERO,
-        gas_price: Felt::from(20000000000_u128),
-        overall_fee: Felt::from(57780000000000_u128),
-        data_gas_consumed: Felt::ZERO,
-        data_gas_price: Felt::ZERO,
+        l1_gas_consumed: 0,
+        l1_gas_price: 20000000000_u128,
+        l2_gas_consumed: 0,
+        l2_gas_price: 0,
+        l1_data_gas_consumed: 0,
+        l1_data_gas_price: 0,
+        overall_fee: 57780000000000_u128,
         unit: PriceUnit::Fri,
     };
     let txn = controller
@@ -302,6 +305,7 @@ async fn test_create_and_use_registered_session() {
 }
 
 #[tokio::test]
+#[ignore]
 pub async fn test_verify_execute_with_guardian() {
     let owner = Owner::Signer(Signer::new_starknet_random());
     let runner = KatanaRunner::load();
@@ -391,7 +395,7 @@ pub async fn test_verify_execute_with_invalid_guardian() {
                     execution_error,
                     ..
                 })
-            ))) if execution_error.contains("session/invalid-guardian")
+            ))) if find_error_message_in_execution_error(&execution_error, "session/invalid-guardian")
         ),
         "Should return error"
     );

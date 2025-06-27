@@ -1,12 +1,12 @@
 use std::borrow::BorrowMut;
 
-use account_sdk::controller::{compute_gas_and_price, Controller};
+use account_sdk::controller::Controller;
 use account_sdk::errors::ControllerError;
 use account_sdk::storage::selectors::Selectors;
 use account_sdk::storage::StorageBackend;
 use serde_wasm_bindgen::to_value;
 use starknet::accounts::ConnectedAccount;
-use starknet::core::types::{Call, TypedData};
+use starknet::core::types::{Call, FeeEstimate, TypedData};
 
 use starknet_types_core::felt::Felt;
 use url::Url;
@@ -109,7 +109,7 @@ impl CartridgeAccount {
             .map(TryFrom::try_from)
             .collect::<std::result::Result<Vec<_>, _>>()?;
 
-        let max_fee = max_fee.map(|fee| fee.try_into()).transpose()?;
+        let max_fee = max_fee.map(Into::into);
         let res = self
             .controller
             .lock()
@@ -368,7 +368,7 @@ impl CartridgeAccount {
         let result = Controller::execute(
             self.controller.lock().await.borrow_mut(),
             calls,
-            max_fee.map(|fee| fee.try_into()).transpose()?,
+            max_fee.map(Into::into),
             fee_source.map(|fs| fs.try_into()).transpose()?,
         )
         .await?;
@@ -511,9 +511,21 @@ impl CartridgeAccount {
 
         if let Some(max_fee) = max_fee {
             let gas_estimate_multiplier = 1.5;
-            let (gas, gas_price) =
-                compute_gas_and_price(&max_fee.try_into()?, gas_estimate_multiplier)?;
-            deployment = deployment.gas(gas).gas_price(gas_price);
+            let fee_estimate: FeeEstimate = max_fee.into();
+
+            // Compute resource bounds for all gas types
+            let l1_gas = ((fee_estimate.l1_gas_consumed as f64) * gas_estimate_multiplier) as u64;
+            let l2_gas = ((fee_estimate.l2_gas_consumed as f64) * gas_estimate_multiplier) as u64;
+            let l1_data_gas =
+                ((fee_estimate.l1_data_gas_consumed as f64) * gas_estimate_multiplier) as u64;
+
+            deployment = deployment
+                .l1_gas(l1_gas)
+                .l1_gas_price(fee_estimate.l1_gas_price)
+                .l2_gas(l2_gas)
+                .l2_gas_price(fee_estimate.l2_gas_price)
+                .l1_data_gas(l1_data_gas)
+                .l1_data_gas_price(fee_estimate.l1_data_gas_price);
         }
 
         let res = deployment
