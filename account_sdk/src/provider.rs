@@ -17,6 +17,7 @@ use starknet::providers::{
 use url::Url;
 
 use crate::account::outside_execution::OutsideExecution;
+use crate::constants::VALIDATION_GAS;
 use crate::execute_from_outside::FeeSource;
 
 #[cfg(test)]
@@ -271,9 +272,23 @@ impl Provider for CartridgeJsonRpcProvider {
         S: AsRef<[SimulationFlagForEstimateFee]> + Send + Sync,
         B: AsRef<BlockId> + Send + Sync,
     {
-        self.inner
-            .estimate_fee(request, simulation_flags, block_id)
-            .await
+        let mut estimates = self
+            .inner
+            .estimate_fee(request, &simulation_flags, block_id)
+            .await?;
+
+        // Add VALIDATION_GAS if skip validate is enabled
+        if simulation_flags
+            .as_ref()
+            .contains(&SimulationFlagForEstimateFee::SkipValidate)
+        {
+            // Add the L2 gas offset to each fee estimate
+            for estimate in &mut estimates {
+                estimate.l2_gas_consumed = estimate.l2_gas_consumed.saturating_add(VALIDATION_GAS);
+            }
+        }
+
+        Ok(estimates)
     }
 
     async fn estimate_message_fee<M, B>(
@@ -378,9 +393,26 @@ impl Provider for CartridgeJsonRpcProvider {
         T: AsRef<[BroadcastedTransaction]> + Send + Sync,
         S: AsRef<[SimulationFlag]> + Send + Sync,
     {
-        self.inner
-            .simulate_transactions(block_id, transactions, simulation_flags)
-            .await
+        let mut simuations = self
+            .inner
+            .simulate_transactions(block_id, transactions, &simulation_flags)
+            .await?;
+
+        // Add VALIDATION_GAS if skip validate is enabled
+        if simulation_flags
+            .as_ref()
+            .contains(&SimulationFlag::SkipValidate)
+        {
+            for simulation in &mut simuations {
+                // Add the L2 gas offset to each fee estimate
+                simulation.fee_estimation.l2_gas_consumed = simulation
+                    .fee_estimation
+                    .l2_gas_consumed
+                    .saturating_add(VALIDATION_GAS);
+            }
+        }
+
+        Ok(simuations)
     }
 
     async fn trace_block_transactions<B>(

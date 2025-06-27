@@ -1,7 +1,7 @@
 use crate::abigen::controller::SignerSignature;
 use crate::account::session::policy::Policy;
 use crate::account::{AccountHashAndCallsSigner, CallEncoder};
-use crate::constants::{STRK_CONTRACT_ADDRESS, WEBAUTHN_GAS};
+use crate::constants::STRK_CONTRACT_ADDRESS;
 use crate::errors::ControllerError;
 use crate::execute_from_outside::FeeSource;
 use crate::factory::ControllerFactory;
@@ -169,7 +169,7 @@ impl Controller {
             Err(e) => return e,
         };
 
-        let mut fee_estimate = match ControllerFactory::new(
+        let fee_estimate = match ControllerFactory::new(
             self.class_hash,
             self.chain_id,
             self.owner.clone(),
@@ -183,7 +183,6 @@ impl Controller {
             Err(e) => return ControllerError::from(e),
         };
 
-        fee_estimate.l2_gas_consumed += WEBAUTHN_GAS;
         ControllerError::NotDeployed {
             fee_estimate: Box::new(fee_estimate),
             balance,
@@ -205,16 +204,7 @@ impl Controller {
         let balance = self.fee_balance().await?;
 
         match est {
-            Ok(mut fee_estimate) => {
-                if self
-                    .authorized_session_for_policies(&Policy::from_calls(&calls), None)
-                    .is_none_or(|metadata| !metadata.is_registered)
-                {
-                    fee_estimate.l2_gas_consumed += WEBAUTHN_GAS;
-                } else {
-                    fee_estimate.l2_gas_consumed += WEBAUTHN_GAS;
-                }
-
+            Ok(fee_estimate) => {
                 if fee_estimate.overall_fee > balance {
                     Err(ControllerError::InsufficientBalance {
                         fee_estimate: Box::new(fee_estimate),

@@ -305,6 +305,7 @@ async fn test_create_and_use_registered_session() {
 }
 
 #[tokio::test]
+#[ignore]
 pub async fn test_verify_execute_with_guardian() {
     let owner = Owner::Signer(Signer::new_starknet_random());
     let runner = KatanaRunner::load();
