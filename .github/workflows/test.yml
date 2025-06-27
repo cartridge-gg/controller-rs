@@ -22,6 +22,11 @@ jobs:
       image: ghcr.io/dojoengine/katana:v1.6.0-alpha.1
     steps:
       - uses: actions/checkout@v4
+      - name: Install dependencies
+        run: |
+          apt-get update
+          apt-get install -y git build-essential gcc libssl-dev pkg-config
+      - run: git config --global --add safe.directory '*'
       - uses: dorny/paths-filter@v3
         id: changes
         with:
@@ -36,11 +41,6 @@ jobs:
           components: llvm-tools-preview
       - uses: Swatinem/rust-cache@v2
         if: steps.changes.outputs.rust == 'true'
-      - name: Install build dependencies
-        if: steps.changes.outputs.rust == 'true'
-        run: |
-          apt-get update
-          apt-get install -y build-essential gcc libssl-dev pkg-config
       - uses: taiki-e/install-action@cargo-llvm-cov
         if: steps.changes.outputs.rust == 'true'
       - run: |
