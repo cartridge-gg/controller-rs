@@ -35,7 +35,12 @@ pub async fn wait_for_txn(
         {
             let txn_receipt = provider.get_transaction_receipt(txn_hash).await?;
             return Err(ControllerError::TransactionReverted(
-                txn_receipt.receipt.execution_result().revert_reason().unwrap().to_string(),
+                txn_receipt
+                    .receipt
+                    .execution_result()
+                    .revert_reason()
+                    .unwrap()
+                    .to_string(),
             ));
         }
 
