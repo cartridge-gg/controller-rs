@@ -88,15 +88,14 @@ pub async fn test_verify_paymaster_execute(signer: Signer, use_session: bool) {
 #[cfg(feature = "webauthn")]
 #[tokio::test]
 async fn test_verify_execute_webauthn_paymaster_starknet() {
-    let signer = Signer::Webauthn(
-        WebauthnSigner::register(
-            "cartridge.gg".to_string(),
-            "username".to_string(),
-            "challenge".as_bytes(),
-        )
-        .await
-        .unwrap(),
-    );
+    let (signer, _) = WebauthnSigner::register(
+        "cartridge.gg".to_string(),
+        "username".to_string(),
+        "challenge".as_bytes(),
+    )
+    .await
+    .unwrap();
+    let signer = Signer::Webauthn(signer);
 
     test_verify_paymaster_execute(signer, false).await;
 }
@@ -109,15 +108,14 @@ async fn test_verify_execute_starknet_paymaster_starknet() {
 #[cfg(feature = "webauthn")]
 #[tokio::test]
 async fn test_verify_execute_webauthn_paymaster_starknet_session() {
-    let signer = Signer::Webauthn(
-        WebauthnSigner::register(
-            "cartridge.gg".to_string(),
-            "username".to_string(),
-            "challenge".as_bytes(),
-        )
-        .await
-        .unwrap(),
-    );
+    let (signer, _) = WebauthnSigner::register(
+        "cartridge.gg".to_string(),
+        "username".to_string(),
+        "challenge".as_bytes(),
+    )
+    .await
+    .unwrap();
+    let signer = Signer::Webauthn(signer);
 
     test_verify_paymaster_execute(signer, true).await;
 }

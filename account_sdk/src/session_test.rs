@@ -68,15 +68,14 @@ pub async fn test_verify_execute(owner: Owner) {
 #[tokio::test]
 #[cfg(feature = "webauthn")]
 async fn test_verify_execute_session_webauthn_starknet_starknet() {
-    let signer = Signer::Webauthn(
-        crate::signers::webauthn::WebauthnSigner::register(
-            "cartridge.gg".to_string(),
-            "username".to_string(),
-            "challenge".as_bytes(),
-        )
-        .await
-        .unwrap(),
-    );
+    let (signer, _) = crate::signers::webauthn::WebauthnSigner::register(
+        "cartridge.gg".to_string(),
+        "username".to_string(),
+        "challenge".as_bytes(),
+    )
+    .await
+    .unwrap();
+    let signer = Signer::Webauthn(signer);
 
     test_verify_execute(Owner::Signer(signer)).await;
 }

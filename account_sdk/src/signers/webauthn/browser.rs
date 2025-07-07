@@ -3,7 +3,7 @@ use futures::channel::oneshot;
 use serde_json::to_value;
 use wasm_bindgen::UnwrapThrowExt;
 use wasm_bindgen_futures::{spawn_local, JsFuture};
-use web_sys::{console, Window};
+use web_sys::Window;
 use webauthn_rs_proto::{
     auth::PublicKeyCredentialRequestOptions, CreationChallengeResponse, PublicKeyCredential,
     PublicKeyCredentialCreationOptions, RegisterPublicKeyCredential, RequestChallengeResponse,
@@ -77,14 +77,9 @@ impl WebauthnOperations for BrowserOperations {
 
             match JsFuture::from(promise).await {
                 Ok(jsval) => {
-                    let result = RegisterPublicKeyCredential::from(
+                    let _ = tx.send(Ok(RegisterPublicKeyCredential::from(
                         web_sys::PublicKeyCredential::from(jsval),
-                    );
-
-                    let value = to_value(result.response.client_data_json.clone()).unwrap_throw();
-                    console::debug_1(&format!("client_data_json:{:#?}", value).into());
-
-                    let _ = tx.send(Ok(result));
+                    )));
                 }
                 Err(_e) => {
                     let _ = tx.send(Err(DeviceError::CreateCredential("".to_string())));

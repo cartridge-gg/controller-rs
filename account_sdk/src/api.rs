@@ -15,8 +15,18 @@ pub struct Client {
 
 impl Client {
     pub fn new(base_url: String) -> Self {
+        let mut client_builder = reqwest::Client::builder();
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            client_builder = client_builder.cookie_store(true);
+        }
+        #[cfg(target_arch = "wasm32")]
+        {
+            client_builder = client_builder;
+        }
+
         Self {
-            client: reqwest::Client::new(),
+            client: client_builder.build().expect("Failed to build client"),
             base_url: Url::parse(&base_url).expect("valid url"),
         }
     }
@@ -31,7 +41,6 @@ impl Client {
         let response = self.post(path).json(body).send().await?;
 
         let res: Response<R> = response.json().await?;
-
         if let Some(errors) = res.errors {
             Err(ControllerError::Api(GraphQLErrors(errors)))
         } else {
@@ -41,7 +50,15 @@ impl Client {
 
     fn post(&self, path: &str) -> RequestBuilder {
         let url = self.get_url(path);
-        self.client.post(url)
+
+        #[cfg(target_arch = "wasm32")]
+        {
+            self.client.post(url).fetch_credentials_include()
+        }
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            self.client.post(url)
+        }
     }
 
     fn get_url(&self, path: &str) -> Url {

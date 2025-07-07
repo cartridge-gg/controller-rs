@@ -1,0 +1,3 @@
+mutation BeginRegistration($username: String!) {
+  beginRegistration(username: $username)
+}

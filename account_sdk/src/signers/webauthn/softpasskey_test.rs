@@ -41,7 +41,7 @@ pub async fn test_verify_execute(owner: Owner) {
 
 #[tokio::test]
 async fn test_verify_execute_webautn() {
-    let signer = WebauthnSigner::register(
+    let (signer, _) = WebauthnSigner::register(
         "cartridge.gg".to_string(),
         "username".to_string(),
         "challenge".as_bytes(),

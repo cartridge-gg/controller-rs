@@ -192,6 +192,11 @@ impl From<ControllerError> for JsControllerError {
                 message: e.to_string(),
                 data: None,
             },
+            ControllerError::InvalidResponseData(e) => JsControllerError {
+                code: ErrorCode::StarknetUnexpectedError,
+                message: e.to_string(),
+                data: None,
+            },
         }
     }
 }

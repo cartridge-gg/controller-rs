@@ -11,7 +11,7 @@ type JSON = serde_json::Value;
 #[derive(GraphQLQuery)]
 #[graphql(
     schema_path = "schema.json",
-    query_path = "src/graphql/register/register.graphql",
+    query_path = "src/graphql/registration/register.graphql",
     variables_derives = "Debug, Clone, Deserialize",
     response_derives = "Debug, Clone, Serialize, Deserialize"
 )]

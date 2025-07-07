@@ -67,4 +67,7 @@ pub enum ControllerError {
 
     #[error("Transaction reverted: {0}")]
     TransactionReverted(String),
+
+    #[error("Invalid response data: {0}")]
+    InvalidResponseData(String),
 }

@@ -347,15 +347,14 @@ async fn test_change_owner_invalidate_old_sessions() {
 
 #[tokio::test]
 async fn test_call_unallowed_methods() {
-    let signer = Signer::Webauthn(
-        WebauthnSigner::register(
-            "cartridge.gg".to_string(),
-            "username".to_string(),
-            "challenge".as_bytes(),
-        )
-        .await
-        .unwrap(),
-    );
+    let (signer, _) = WebauthnSigner::register(
+        "cartridge.gg".to_string(),
+        "username".to_string(),
+        "challenge".as_bytes(),
+    )
+    .await
+    .unwrap();
+    let signer = Signer::Webauthn(signer);
 
     let runner = KatanaRunner::load();
     let mut controller = runner

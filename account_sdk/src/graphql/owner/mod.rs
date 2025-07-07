@@ -5,6 +5,7 @@ use anyhow::Result;
 use graphql_client::GraphQLQuery;
 use starknet_crypto::Felt;
 
+#[allow(clippy::upper_case_acronyms)]
 type JSON = String;
 
 #[derive(GraphQLQuery)]

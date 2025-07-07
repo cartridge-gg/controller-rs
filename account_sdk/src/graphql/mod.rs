@@ -1,5 +1,5 @@
 pub mod owner;
-pub mod register;
+pub mod registration;
 pub mod session;
 
 pub use graphql_client::{GraphQLQuery, Response};

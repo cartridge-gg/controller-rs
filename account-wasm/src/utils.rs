@@ -1,6 +1,6 @@
 use account_sdk::errors::ControllerError;
 use starknet::{
-    core::types::{TransactionExecutionStatus, TransactionStatus},
+    core::types::{ExecutionResult, TransactionStatus},
     providers::Provider,
 };
 use starknet_crypto::Felt;
@@ -28,20 +28,12 @@ pub async fn wait_for_txn(
     while time < start_time + chrono::Duration::seconds(timeout) {
         let txn_status = provider.get_transaction_status(txn_hash).await?;
 
-        if txn_status == TransactionStatus::AcceptedOnL2(TransactionExecutionStatus::Succeeded) {
+        if txn_status == TransactionStatus::AcceptedOnL2(ExecutionResult::Succeeded) {
             return Ok(());
-        } else if txn_status
-            == TransactionStatus::AcceptedOnL2(TransactionExecutionStatus::Reverted)
+        } else if let TransactionStatus::AcceptedOnL2(ExecutionResult::Reverted { reason }) =
+            txn_status
         {
-            let txn_receipt = provider.get_transaction_receipt(txn_hash).await?;
-            return Err(ControllerError::TransactionReverted(
-                txn_receipt
-                    .receipt
-                    .execution_result()
-                    .revert_reason()
-                    .unwrap()
-                    .to_string(),
-            ));
+            return Err(ControllerError::TransactionReverted(reason.clone()));
         }
 
         sleep(200).await;

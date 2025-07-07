@@ -53,15 +53,14 @@ pub async fn test_verify_session_off_chain_sig(owner: Owner) {
 #[tokio::test]
 #[cfg(feature = "webauthn")]
 async fn test_verify_session_off_chain_sig_webauthn() {
-    let signer = Signer::Webauthn(
-        crate::signers::webauthn::WebauthnSigner::register(
-            "cartridge.gg".to_string(),
-            "username".to_string(),
-            "challenge".as_bytes(),
-        )
-        .await
-        .unwrap(),
-    );
+    let (signer, _) = crate::signers::webauthn::WebauthnSigner::register(
+        "cartridge.gg".to_string(),
+        "username".to_string(),
+        "challenge".as_bytes(),
+    )
+    .await
+    .unwrap();
+    let signer = Signer::Webauthn(signer);
 
     test_verify_session_off_chain_sig(Owner::Signer(signer)).await;
 }
