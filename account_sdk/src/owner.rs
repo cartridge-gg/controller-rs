@@ -1,3 +1,4 @@
+use base64::{prelude::BASE64_URL_SAFE_NO_PAD, Engine};
 use starknet::core::{types::InvokeTransactionResult, utils::parse_cairo_short_string};
 use starknet_crypto::Felt;
 
@@ -5,14 +6,71 @@ use crate::{
     controller::Controller,
     errors::ControllerError,
     execute_from_outside::FeeSource,
-    signers::{NewOwnerSigner, Owner, Signer},
+    graphql::owner::add_owner::{SignerInput, SignerType},
+    signers::{webauthn::WebauthnSigner, NewOwnerSigner, Owner, Signer},
 };
 
 impl Controller {
     pub async fn add_owner(
         &mut self,
         signer: Signer,
-    ) -> Result<InvokeTransactionResult, ControllerError> {
+        cartridge_api_url: String,
+    ) -> Result<(InvokeTransactionResult, Signer, Option<SignerInput>), ControllerError> {
+        let (signer, signer_input) = match signer {
+            Signer::Webauthn(signer) => {
+                let begin_registration =
+                    crate::graphql::registration::begin_registration::begin_registration(
+                        crate::graphql::registration::begin_registration::BeginRegistrationInput {
+                            username: self.username.clone(),
+                        },
+                        cartridge_api_url,
+                    )
+                    .await?;
+
+                let challenge_str = begin_registration.begin_registration["publicKey"]["challenge"]
+                    .as_str()
+                    .ok_or(ControllerError::InvalidResponseData(
+                        "Missing challenge".to_string(),
+                    ))?;
+                let challenge_bytes =
+                    BASE64_URL_SAFE_NO_PAD.decode(challenge_str).map_err(|e| {
+                        ControllerError::InvalidResponseData(format!(
+                            "Failed to decode challenge: {}",
+                            e
+                        ))
+                    })?;
+
+                let (signer, register_ret) =
+                    WebauthnSigner::register(signer.rp_id, self.username.clone(), &challenge_bytes)
+                        .await
+                        .map_err(|e| {
+                            ControllerError::InvalidResponseData(format!(
+                                "Failed to register: {}",
+                                e
+                            ))
+                        })?;
+
+                let signer_input = Some(SignerInput {
+                    type_: SignerType::webauthn,
+                    credential: serde_json::json!({
+                        "id": signer.credential_id,
+                        "publicKey": hex::encode(signer.pub_key_bytes().map_err(|e| {
+                            ControllerError::InvalidResponseData(format!("Failed to get public key: {e}"))
+                        })?),
+                        "rawId": register_ret.raw_id,
+                        "type": register_ret.type_,
+                        "response": {
+                            "clientDataJSON": register_ret.response.client_data_json,
+                            "attestationObject": register_ret.response.attestation_object,
+                        }
+                    })
+                    .to_string(),
+                });
+                (Signer::Webauthn(signer), signer_input)
+            }
+            _ => (signer, None),
+        };
+
         let new_owner = Owner::Signer(signer.clone());
         let signature = new_owner
             .sign_new_owner(&self.chain_id, &self.address)
@@ -20,10 +78,13 @@ impl Controller {
 
         let call = self
             .contract()
-            .add_owner_getcall(&signer.into(), &signature);
+            .add_owner_getcall(&signer.clone().into(), &signature);
 
-        self.execute_from_outside_v3(vec![call], Some(FeeSource::Paymaster))
-            .await
+        let result = self
+            .execute_from_outside_v3(vec![call], Some(FeeSource::Paymaster))
+            .await?;
+
+        Ok((result, signer, signer_input))
     }
 
     pub async fn add_owner_with_cartridge(

@@ -2,12 +2,11 @@ use std::borrow::BorrowMut;
 
 use account_sdk::controller::Controller;
 use account_sdk::errors::ControllerError;
-use account_sdk::graphql::owner::add_owner::{SignerInput, SignerType};
-use account_sdk::signers::webauthn::WebauthnSigner;
+use account_sdk::signers::webauthn::CredentialID;
 use account_sdk::storage::selectors::Selectors;
 use account_sdk::storage::StorageBackend;
-use base64::prelude::BASE64_URL_SAFE_NO_PAD;
-use base64::Engine;
+
+use coset::CoseKey;
 use serde_wasm_bindgen::to_value;
 use starknet::accounts::ConnectedAccount;
 use starknet::core::types::{Call, FeeEstimate, TypedData};
@@ -26,7 +25,7 @@ use crate::types::policy::{CallPolicy, Policy, TypedDataPolicy};
 use crate::types::register::{JsRegister, JsRegisterResponse};
 use crate::types::session::{AuthorizedSession, JsRevokableSession};
 use crate::types::signer::{JsSignerInput, Signer};
-use crate::types::{Felts, JsFeeSource, JsFelt};
+use crate::types::{EncodingError, Felts, JsFeeSource, JsFelt};
 use crate::utils::{set_panic_hook, wait_for_txn};
 
 type Result<T> = std::result::Result<T, JsError>;
@@ -344,58 +343,35 @@ impl CartridgeAccount {
     ) -> std::result::Result<(), JsControllerError> {
         set_panic_hook();
 
-        let (owner, signer_input) = if signer_input.0.type_ == SignerType::webauthn {
-            let begin_registration =
-                account_sdk::graphql::registration::begin_registration::begin_registration(
-                    account_sdk::graphql::registration::begin_registration::BeginRegistrationInput {
-                        username: self.controller.lock().await.username.clone(),
-                    },
-                    self.cartridge_api_url.clone(),
-                )
-                .await?;
-
-            let challenge_str = begin_registration.begin_registration["publicKey"]["challenge"]
-                .as_str()
-                .unwrap();
-            let challenge_bytes = BASE64_URL_SAFE_NO_PAD
-                .decode(challenge_str)
-                .map_err(|e| JsError::new(&format!("Failed to decode challenge: {}", e)))?;
-
-            let (signer, register_ret) = WebauthnSigner::register(
-                owner.webauthn.unwrap().rp_id,
-                self.controller.lock().await.username.clone(),
-                &challenge_bytes,
-            )
-            .await?;
-            let signer = Signer {
-                webauthn: Some(signer.into()),
-                eip191: None,
-                starknet: None,
-            };
-            (
-                signer.clone(),
-                JsSignerInput(SignerInput {
-                    type_: SignerType::webauthn,
-                    credential: serde_json::json!({
-                        "id": signer.webauthn.as_ref().unwrap().credential_id,
-                        "publicKey": signer.webauthn.as_ref().unwrap().public_key,
-                        "rawId": register_ret.raw_id,
-                        "type": register_ret.type_,
-                        "response": {
-                            "clientDataJSON": register_ret.response.client_data_json,
-                            "attestationObject": register_ret.response.attestation_object,
-                        }
-                    })
-                    .to_string(),
-                }),
-            )
-        } else {
-            (owner, signer_input)
-        };
-
         let mut controller = self.controller.lock().await;
-        let signer: account_sdk::signers::Signer = owner.clone().try_into()?;
-        let tx_result = controller.add_owner(signer.clone()).await?;
+
+        let signer: account_sdk::signers::Signer =
+            owner
+                .clone()
+                .try_into()
+                .or_else(|err: EncodingError| match &err {
+                    EncodingError::Serialization(error) => {
+                        if error.to_string().as_str().contains("Invalid public_key") {
+                            Ok(account_sdk::signers::Signer::Webauthn(
+                                account_sdk::signers::webauthn::WebauthnSigner::new(
+                                    owner.webauthn.as_ref().unwrap().rp_id.clone(),
+                                    CredentialID::from(vec![]),
+                                    CoseKey::default(),
+                                ),
+                            ))
+                        } else {
+                            Err(err)
+                        }
+                    }
+                    _ => Err(err),
+                })?;
+        let (tx_result, signer, webauthn_signer_input) = controller
+            .add_owner(signer.clone(), self.cartridge_api_url.clone())
+            .await?;
+
+        let signer_input = webauthn_signer_input
+            .map(JsSignerInput)
+            .unwrap_or(signer_input);
 
         wait_for_txn(
             Box::new(controller.provider()),
