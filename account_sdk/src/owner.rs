@@ -1,4 +1,3 @@
-use base64::{prelude::BASE64_URL_SAFE_NO_PAD, Engine};
 use starknet::core::{types::InvokeTransactionResult, utils::parse_cairo_short_string};
 use starknet_crypto::Felt;
 
@@ -6,18 +5,26 @@ use crate::{
     controller::Controller,
     errors::ControllerError,
     execute_from_outside::FeeSource,
-    graphql::owner::add_owner::{SignerInput, SignerType},
-    signers::{webauthn::WebauthnSigner, NewOwnerSigner, Owner, Signer},
+    graphql::owner::add_owner::SignerInput,
+    signers::{NewOwnerSigner, Owner, Signer},
 };
 
 impl Controller {
     pub async fn add_owner(
         &mut self,
         signer: Signer,
-        cartridge_api_url: String,
+        #[allow(unused_variables)] cartridge_api_url: String,
     ) -> Result<(InvokeTransactionResult, Signer, Option<SignerInput>), ControllerError> {
+        #[cfg(not(feature = "webauthn"))]
+        let (signer, signer_input) = (signer, None);
+
+        #[cfg(feature = "webauthn")]
         let (signer, signer_input) = match signer {
             Signer::Webauthn(signer) => {
+                use crate::signers::webauthn::WebauthnSigner;
+                use base64::engine::general_purpose::STANDARD_NO_PAD;
+                use base64::Engine;
+
                 let begin_registration =
                     crate::graphql::registration::begin_registration::begin_registration(
                         crate::graphql::registration::begin_registration::BeginRegistrationInput {
@@ -32,13 +39,12 @@ impl Controller {
                     .ok_or(ControllerError::InvalidResponseData(
                         "Missing challenge".to_string(),
                     ))?;
-                let challenge_bytes =
-                    BASE64_URL_SAFE_NO_PAD.decode(challenge_str).map_err(|e| {
-                        ControllerError::InvalidResponseData(format!(
-                            "Failed to decode challenge: {}",
-                            e
-                        ))
-                    })?;
+                let challenge_bytes = STANDARD_NO_PAD.decode(challenge_str).map_err(|e| {
+                    ControllerError::InvalidResponseData(format!(
+                        "Failed to decode challenge: {}",
+                        e
+                    ))
+                })?;
 
                 let (signer, register_ret) =
                     WebauthnSigner::register(signer.rp_id, self.username.clone(), &challenge_bytes)
@@ -51,7 +57,7 @@ impl Controller {
                         })?;
 
                 let signer_input = Some(SignerInput {
-                    type_: SignerType::webauthn,
+                    type_: crate::graphql::owner::add_owner::SignerType::webauthn,
                     credential: serde_json::json!({
                         "id": signer.credential_id,
                         "publicKey": hex::encode(signer.pub_key_bytes().map_err(|e| {
