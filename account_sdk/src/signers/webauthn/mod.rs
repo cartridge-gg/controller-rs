@@ -446,7 +446,7 @@ impl WebauthnSigner {
         rp_id: String,
         user_name: String,
         challenge: &[u8],
-    ) -> Result<Self, DeviceError> {
+    ) -> Result<(Self, RegisterPublicKeyCredential), DeviceError> {
         let options = PublicKeyCredentialCreationOptions {
             rp: RelyingParty {
                 name: "Cartridge".to_string(),
@@ -458,10 +458,16 @@ impl WebauthnSigner {
                 display_name: "".to_string(),
             },
             challenge: Base64UrlSafeData::from(challenge),
-            pub_key_cred_params: vec![PubKeyCredParams {
-                type_: "public-key".to_string(),
-                alg: -7,
-            }],
+            pub_key_cred_params: vec![
+                PubKeyCredParams {
+                    type_: "public-key".to_string(),
+                    alg: -7,
+                },
+                PubKeyCredParams {
+                    type_: "public-key".to_string(),
+                    alg: -257,
+                },
+            ],
             timeout: Some(500),
             attestation: Some(AttestationConveyancePreference::Direct),
             exclude_credentials: None,
@@ -484,11 +490,14 @@ impl WebauthnSigner {
         let pub_key =
             CoseKey::from_slice(&serde_cbor_2::to_vec(&cred.credential_pk).unwrap()).unwrap();
 
-        Ok(Self {
-            rp_id,
-            credential_id: cred.credential_id,
-            pub_key,
-        })
+        Ok((
+            (Self {
+                rp_id,
+                credential_id: cred.credential_id,
+                pub_key,
+            }),
+            res,
+        ))
     }
 
     pub fn rp_id_hash(&self) -> [u8; 32] {

@@ -61,4 +61,13 @@ pub enum ControllerError {
 
     #[error(transparent)]
     ReqwestError(#[from] reqwest::Error),
+
+    #[error("Invalid owner data: {0}")]
+    InvalidOwner(String),
+
+    #[error("Transaction reverted: {0}")]
+    TransactionReverted(String),
+
+    #[error("Invalid response data: {0}")]
+    InvalidResponseData(String),
 }

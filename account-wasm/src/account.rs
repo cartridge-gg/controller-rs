@@ -2,8 +2,11 @@ use std::borrow::BorrowMut;
 
 use account_sdk::controller::Controller;
 use account_sdk::errors::ControllerError;
+use account_sdk::signers::webauthn::CredentialID;
 use account_sdk::storage::selectors::Selectors;
 use account_sdk::storage::StorageBackend;
+
+use coset::CoseKey;
 use serde_wasm_bindgen::to_value;
 use starknet::accounts::ConnectedAccount;
 use starknet::core::types::{Call, FeeEstimate, TypedData};
@@ -21,8 +24,9 @@ use crate::types::owner::Owner;
 use crate::types::policy::{CallPolicy, Policy, TypedDataPolicy};
 use crate::types::register::{JsRegister, JsRegisterResponse};
 use crate::types::session::{AuthorizedSession, JsRevokableSession};
-use crate::types::{Felts, JsFeeSource, JsFelt};
-use crate::utils::set_panic_hook;
+use crate::types::signer::{JsSignerInput, Signer};
+use crate::types::{EncodingError, Felts, JsFeeSource, JsFelt};
+use crate::utils::{set_panic_hook, wait_for_txn};
 
 type Result<T> = std::result::Result<T, JsError>;
 
@@ -223,11 +227,13 @@ impl CartridgeAccount {
     ) -> std::result::Result<JsRegisterResponse, JsControllerError> {
         set_panic_hook();
 
-        let register: account_sdk::graphql::register::RegisterInput = register.into();
+        let register: account_sdk::graphql::registration::register::RegisterInput = register.into();
 
-        let res =
-            account_sdk::graphql::register::register(register, self.cartridge_api_url.clone())
-                .await?;
+        let res = account_sdk::graphql::registration::register::register(
+            register,
+            self.cartridge_api_url.clone(),
+        )
+        .await?;
 
         Ok(res.into())
     }
@@ -325,6 +331,63 @@ impl CartridgeAccount {
             .lock()
             .await
             .store(unauthorized_policies)?;
+
+        Ok(())
+    }
+
+    #[wasm_bindgen(js_name = addOwner)]
+    pub async fn add_owner(
+        &mut self,
+        owner: Signer,
+        signer_input: JsSignerInput,
+    ) -> std::result::Result<(), JsControllerError> {
+        set_panic_hook();
+
+        let mut controller = self.controller.lock().await;
+
+        let signer: account_sdk::signers::Signer =
+            owner
+                .clone()
+                .try_into()
+                .or_else(|err: EncodingError| match &err {
+                    EncodingError::Serialization(error) => {
+                        if error.to_string().as_str().contains("Invalid public_key") {
+                            Ok(account_sdk::signers::Signer::Webauthn(
+                                account_sdk::signers::webauthn::WebauthnSigner::new(
+                                    owner.webauthn.as_ref().unwrap().rp_id.clone(),
+                                    CredentialID::from(vec![]),
+                                    CoseKey::default(),
+                                ),
+                            ))
+                        } else {
+                            Err(err)
+                        }
+                    }
+                    _ => Err(err),
+                })?;
+        let (tx_result, signer, webauthn_signer_input) = controller
+            .add_owner(signer.clone(), self.cartridge_api_url.clone())
+            .await?;
+
+        let signer_input = webauthn_signer_input
+            .map(JsSignerInput)
+            .unwrap_or(signer_input);
+
+        wait_for_txn(
+            Box::new(controller.provider()),
+            tx_result.transaction_hash,
+            None,
+        )
+        .await?;
+
+        let signer_guid: Felt = signer.into();
+        controller
+            .add_owner_with_cartridge(
+                signer_input.into(),
+                signer_guid,
+                self.cartridge_api_url.clone(),
+            )
+            .await?;
 
         Ok(())
     }
@@ -466,7 +529,13 @@ impl CartridgeAccount {
         let sessions: Vec<_> = sessions.into_iter().map(Into::into).collect();
         let mut controller = self.controller.lock().await;
 
-        controller.revoke_sessions(sessions.clone()).await?;
+        let tx_receipt = controller.revoke_sessions(sessions.clone()).await?;
+        wait_for_txn(
+            Box::new(controller.provider()),
+            tx_receipt.transaction_hash,
+            None,
+        )
+        .await?;
 
         let _ = controller
             .revoke_sessions_with_cartridge(&sessions, self.cartridge_api_url.clone())
@@ -664,6 +733,13 @@ impl CartridgeAccountMeta {
     pub fn owner(&self) -> Owner {
         self.owner.clone()
     }
+}
+
+#[wasm_bindgen(js_name = signerToGuid)]
+pub fn signer_to_guid(signer: Signer) -> JsFelt {
+    let signer: account_sdk::signers::Signer = signer.try_into().unwrap();
+    let felt: Felt = signer.into();
+    felt.into()
 }
 
 /// A type used as the return type for constructing `CartridgeAccount` to provide an extra,
