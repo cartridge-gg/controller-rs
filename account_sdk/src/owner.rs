@@ -23,21 +23,12 @@ impl Controller {
             Signer::Webauthn(signer) => {
                 use crate::signers::generate_add_owner_tx_hash;
                 use crate::signers::webauthn::WebauthnSigner;
-                use base64::engine::general_purpose::STANDARD_NO_PAD;
-                use base64::Engine;
 
                 let challenge =
                     generate_add_owner_tx_hash(&self.chain_id, &self.address).to_bytes_be();
-                let challenge_str = hex::encode(challenge);
-                let challenge_bytes = STANDARD_NO_PAD.decode(challenge_str).map_err(|e| {
-                    ControllerError::InvalidResponseData(format!(
-                        "Failed to decode challenge: {}",
-                        e
-                    ))
-                })?;
 
                 let (signer, register_ret) =
-                    WebauthnSigner::register(signer.rp_id, self.username.clone(), &challenge_bytes)
+                    WebauthnSigner::register(signer.rp_id, self.username.clone(), &challenge)
                         .await
                         .map_err(|e| {
                             ControllerError::InvalidResponseData(format!(
