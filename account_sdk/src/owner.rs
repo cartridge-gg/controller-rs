@@ -21,24 +21,14 @@ impl Controller {
         #[cfg(feature = "webauthn")]
         let (signer, signer_input) = match signer {
             Signer::Webauthn(signer) => {
+                use crate::signers::generate_add_owner_tx_hash;
                 use crate::signers::webauthn::WebauthnSigner;
                 use base64::engine::general_purpose::STANDARD_NO_PAD;
                 use base64::Engine;
 
-                let begin_registration =
-                    crate::graphql::registration::begin_registration::begin_registration(
-                        crate::graphql::registration::begin_registration::BeginRegistrationInput {
-                            username: self.username.clone(),
-                        },
-                        cartridge_api_url,
-                    )
-                    .await?;
-
-                let challenge_str = begin_registration.begin_registration["publicKey"]["challenge"]
-                    .as_str()
-                    .ok_or(ControllerError::InvalidResponseData(
-                        "Missing challenge".to_string(),
-                    ))?;
+                let challenge =
+                    generate_add_owner_tx_hash(&self.chain_id, &self.address).to_bytes_be();
+                let challenge_str = hex::encode(challenge);
                 let challenge_bytes = STANDARD_NO_PAD.decode(challenge_str).map_err(|e| {
                     ControllerError::InvalidResponseData(format!(
                         "Failed to decode challenge: {}",

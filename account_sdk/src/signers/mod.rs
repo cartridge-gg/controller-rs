@@ -210,6 +210,14 @@ pub trait HashSigner {
     async fn sign(&self, tx_hash: &Felt) -> Result<SignerSignature, SignError>;
 }
 
+pub fn generate_add_owner_tx_hash(chain_id: &Felt, contract_address: &Felt) -> Felt {
+    let mut hasher = PoseidonHasher::new();
+    hasher.update(selector!("add_owner"));
+    hasher.update(*chain_id);
+    hasher.update(*contract_address);
+    hasher.finalize()
+}
+
 #[cfg_attr(not(target_arch = "wasm32"), async_trait)]
 #[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
 pub trait NewOwnerSigner: HashSigner {
@@ -218,11 +226,8 @@ pub trait NewOwnerSigner: HashSigner {
         chain_id: &Felt,
         contract_address: &Felt,
     ) -> Result<SignerSignature, SignError> {
-        let mut hasher = PoseidonHasher::new();
-        hasher.update(selector!("add_owner"));
-        hasher.update(*chain_id);
-        hasher.update(*contract_address);
-        self.sign(&hasher.finalize()).await
+        self.sign(&generate_add_owner_tx_hash(chain_id, contract_address))
+            .await
     }
 }
 
