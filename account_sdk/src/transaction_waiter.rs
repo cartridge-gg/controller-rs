@@ -7,6 +7,8 @@ use starknet::core::types::{
 };
 use starknet::providers::{Provider, ProviderError};
 
+use crate::errors::ControllerError;
+
 #[derive(Debug, thiserror::Error)]
 pub enum TransactionWaitingError {
     #[error("request timed out")]
@@ -15,6 +17,18 @@ pub enum TransactionWaitingError {
     TransactionReverted(String),
     #[error(transparent)]
     Provider(ProviderError),
+}
+
+impl From<TransactionWaitingError> for ControllerError {
+    fn from(error: TransactionWaitingError) -> Self {
+        match error {
+            TransactionWaitingError::Timeout => ControllerError::TransactionTimeout,
+            TransactionWaitingError::TransactionReverted(reason) => {
+                ControllerError::TransactionReverted(reason)
+            }
+            TransactionWaitingError::Provider(error) => ControllerError::ProviderError(error),
+        }
+    }
 }
 
 /// A type that waits for a transaction to achieve the desired status. The waiter will poll for the
@@ -152,7 +166,10 @@ where
         self,
     ) -> Result<TransactionReceiptWithBlockInfo, TransactionWaitingError> {
         loop {
-            let now = std::time::Instant::now();
+            #[cfg(target_arch = "wasm32")]
+            let start = js_sys::Date::now();
+            #[cfg(not(target_arch = "wasm32"))]
+            let start = std::time::Instant::now();
             let transaction = self.provider.get_transaction_receipt(self.tx_hash).await;
             match transaction {
                 Ok(receipt) => match &receipt.block {
@@ -199,7 +216,14 @@ where
                     return Err(TransactionWaitingError::Provider(e));
                 }
             }
-            Sleeper::sleep(self.interval.checked_sub(now.elapsed()).unwrap_or_default()).await;
+            #[cfg(target_arch = "wasm32")]
+            let elapsed = {
+                let end = js_sys::Date::now();
+                Duration::from_millis((end - start) as u64)
+            };
+            #[cfg(not(target_arch = "wasm32"))]
+            let elapsed = start.elapsed();
+            Sleeper::sleep(self.interval.checked_sub(elapsed).unwrap_or_default()).await;
         }
     }
 }

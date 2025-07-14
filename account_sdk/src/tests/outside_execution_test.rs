@@ -18,10 +18,8 @@ use crate::{
     artifacts::{Version, CONTROLLERS},
     controller::Controller,
     signers::{Owner, Signer},
-    tests::{
-        account::FEE_TOKEN_ADDRESS, runners::katana::KatanaRunner,
-        transaction_waiter::TransactionWaiter,
-    },
+    tests::{account::FEE_TOKEN_ADDRESS, runners::katana::KatanaRunner},
+    transaction_waiter::TransactionWaiter,
 };
 
 #[cfg(feature = "webauthn")]

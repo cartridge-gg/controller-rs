@@ -16,6 +16,7 @@ pub mod provider;
 pub mod session;
 pub mod signers;
 pub mod storage;
+pub mod transaction_waiter;
 pub mod typed_data;
 pub mod upgrade;
 

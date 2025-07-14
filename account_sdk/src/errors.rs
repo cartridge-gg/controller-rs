@@ -70,4 +70,7 @@ pub enum ControllerError {
 
     #[error("Invalid response data: {0}")]
     InvalidResponseData(String),
+
+    #[error("Transaction timeout")]
+    TransactionTimeout,
 }

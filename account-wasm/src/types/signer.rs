@@ -194,6 +194,41 @@ impl From<JsSignerInput> for account_sdk::graphql::owner::add_owner::SignerInput
     }
 }
 
+impl From<JsSignerInput> for account_sdk::graphql::owner::remove_owner::SignerInput {
+    fn from(value: JsSignerInput) -> Self {
+        let type_ = match value.0.type_ {
+            account_sdk::graphql::owner::add_owner::SignerType::eip191 => {
+                account_sdk::graphql::owner::remove_owner::SignerType::eip191
+            }
+            account_sdk::graphql::owner::add_owner::SignerType::starknet => {
+                account_sdk::graphql::owner::remove_owner::SignerType::starknet
+            }
+            account_sdk::graphql::owner::add_owner::SignerType::webauthn => {
+                account_sdk::graphql::owner::remove_owner::SignerType::webauthn
+            }
+            account_sdk::graphql::owner::add_owner::SignerType::secp256k1 => {
+                account_sdk::graphql::owner::remove_owner::SignerType::secp256k1
+            }
+            account_sdk::graphql::owner::add_owner::SignerType::starknet_account => {
+                account_sdk::graphql::owner::remove_owner::SignerType::starknet_account
+            }
+            account_sdk::graphql::owner::add_owner::SignerType::Other(s) => {
+                account_sdk::graphql::owner::remove_owner::SignerType::Other(s)
+            }
+            account_sdk::graphql::owner::add_owner::SignerType::secp256r1 => {
+                account_sdk::graphql::owner::remove_owner::SignerType::secp256r1
+            }
+            account_sdk::graphql::owner::add_owner::SignerType::siws => {
+                account_sdk::graphql::owner::remove_owner::SignerType::siws
+            }
+        };
+        Self {
+            type_,
+            credential: value.0.credential,
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

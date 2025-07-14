@@ -19,10 +19,8 @@ use crate::{
     find_error_message_in_execution_error,
     hash::MessageHashRev1,
     signers::{Owner, Signer},
-    tests::{
-        account::FEE_TOKEN_ADDRESS, ensure_txn, runners::katana::KatanaRunner,
-        transaction_waiter::TransactionWaiter,
-    },
+    tests::{account::FEE_TOKEN_ADDRESS, ensure_txn, runners::katana::KatanaRunner},
+    transaction_waiter::TransactionWaiter,
 };
 
 pub async fn test_verify_execute(owner: Owner) {
