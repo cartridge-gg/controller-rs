@@ -410,18 +410,6 @@ impl CartridgeAccount {
         Ok(())
     }
 
-        let signer_guid: Felt = signer.into();
-        controller
-            .add_owner_with_cartridge(
-                signer_input.into(),
-                signer_guid,
-                self.cartridge_api_url.clone(),
-            )
-            .await?;
-
-        Ok(())
-    }
-
     #[wasm_bindgen(js_name = estimateInvokeFee)]
     pub async fn estimate_invoke_fee(
         &self,
