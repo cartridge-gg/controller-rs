@@ -46,6 +46,8 @@ pub struct WebauthnSigner {
     pub public_key: String,
 }
 
+type WebauthnSigners = Vec<WebauthnSigner>;
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct StarknetSigner {
     pub private_key: Felt,
@@ -61,6 +63,8 @@ pub enum Signer {
     Starknet(StarknetSigner),
     #[cfg(feature = "webauthn")]
     Webauthn(WebauthnSigner),
+    #[cfg(feature = "webauthn")]
+    Webauthns(WebauthnSigners),
     Eip191(Eip191Signer),
 }
 
@@ -112,6 +116,10 @@ impl From<&crate::signers::Signer> for Signer {
             crate::signers::Signer::Starknet(s) => Signer::Starknet(s.into()),
             #[cfg(feature = "webauthn")]
             crate::signers::Signer::Webauthn(s) => Signer::Webauthn(s.into()),
+            #[cfg(feature = "webauthn")]
+            crate::signers::Signer::Webauthns(s) => {
+                Signer::Webauthns(s.iter().map(|s| s.into()).collect())
+            }
             crate::signers::Signer::Eip191(s) => Signer::Eip191(s.into()),
         }
     }
@@ -151,6 +159,23 @@ impl From<&crate::signers::eip191::Eip191Signer> for Eip191Signer {
     }
 }
 
+impl TryFrom<WebauthnSigner> for crate::signers::webauthn::WebauthnSigner {
+    type Error = ControllerError;
+    fn try_from(signer: WebauthnSigner) -> Result<Self, Self::Error> {
+        let credential_id_bytes = general_purpose::URL_SAFE_NO_PAD.decode(signer.credential_id)?;
+        let credential_id = CredentialID::from(credential_id_bytes);
+
+        let cose_bytes = general_purpose::URL_SAFE_NO_PAD.decode(signer.public_key)?;
+        let cose = CoseKey::from_slice(&cose_bytes)?;
+
+        Ok(Self {
+            rp_id: signer.rp_id,
+            credential_id,
+            pub_key: cose,
+        })
+    }
+}
+
 impl TryFrom<Signer> for crate::signers::Signer {
     type Error = ControllerError;
 
@@ -160,19 +185,14 @@ impl TryFrom<Signer> for crate::signers::Signer {
                 s.private_key,
             ))),
             #[cfg(feature = "webauthn")]
-            Signer::Webauthn(w) => {
-                let credential_id_bytes =
-                    general_purpose::URL_SAFE_NO_PAD.decode(w.credential_id)?;
-                let credential_id = CredentialID::from(credential_id_bytes);
-
-                let cose_bytes = general_purpose::URL_SAFE_NO_PAD.decode(w.public_key)?;
-                let cose = CoseKey::from_slice(&cose_bytes)?;
-
-                Ok(Self::Webauthn(
-                    crate::signers::webauthn::WebauthnSigner::new(w.rp_id, credential_id, cose),
-                ))
-            }
-
+            Signer::Webauthn(w) => Ok(Self::Webauthn(w.try_into()?)),
+            #[cfg(feature = "webauthn")]
+            Signer::Webauthns(s) => Ok(Self::Webauthns(
+                s.iter()
+                    .map(|s| s.clone().try_into())
+                    .collect::<Result<Vec<_>, _>>()?,
+            )),
+            #[cfg(feature = "webauthn")]
             Signer::Eip191(s) => Ok(Self::Eip191(crate::signers::eip191::Eip191Signer {
                 // Storage wont work with native signer until this is fixed to properly store the private key
                 #[cfg(not(target_arch = "wasm32"))]

@@ -24,6 +24,10 @@ use starknet_crypto::PoseidonHasher;
 use webauthn::WebauthnSigner;
 
 use crate::abigen::controller::SignerSignature;
+
+#[cfg(feature = "webauthn")]
+use crate::signers::webauthn::WebauthnSigners;
+
 use async_trait::async_trait;
 
 use self::eip191::Eip191Signer;
@@ -68,6 +72,8 @@ pub enum Signer {
     Starknet(SigningKey),
     #[cfg(feature = "webauthn")]
     Webauthn(WebauthnSigner),
+    #[cfg(feature = "webauthn")]
+    Webauthns(WebauthnSigners),
     Eip191(Eip191Signer),
 }
 
@@ -91,6 +97,8 @@ impl HashSigner for Signer {
             Signer::Starknet(s) => HashSigner::sign(s, tx_hash).await,
             #[cfg(feature = "webauthn")]
             Signer::Webauthn(s) => HashSigner::sign(s, tx_hash).await,
+            #[cfg(feature = "webauthn")]
+            Signer::Webauthns(s) => HashSigner::sign(s, tx_hash).await,
             Signer::Eip191(s) => HashSigner::sign(s, tx_hash).await,
         }
     }
@@ -106,6 +114,10 @@ impl From<Signer> for crate::abigen::controller::Signer {
             ),
             #[cfg(feature = "webauthn")]
             Signer::Webauthn(s) => crate::abigen::controller::Signer::Webauthn(s.into()),
+            #[cfg(feature = "webauthn")]
+            Signer::Webauthns(s) => {
+                crate::abigen::controller::Signer::Webauthn(s[0].clone().into())
+            }
             Signer::Eip191(s) => {
                 crate::abigen::controller::Signer::Eip191(crate::abigen::controller::Eip191Signer {
                     eth_address: cainome::cairo_serde::EthAddress(s.address().into()),

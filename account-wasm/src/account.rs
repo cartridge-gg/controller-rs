@@ -171,9 +171,28 @@ impl CartridgeAccount {
         &self,
         expires_at: u64,
         is_controller_registered: Option<bool>,
+        signers: Option<Signer>,
     ) -> std::result::Result<AuthorizedSession, JsControllerError> {
         set_panic_hook();
+
         let mut controller = self.controller.lock().await;
+        if let Some(signers) = signers {
+            if let Some(webauthns) = signers.webauthns {
+                let converted_webauthns: Vec<account_sdk::signers::webauthn::WebauthnSigner> =
+                    webauthns
+                        .into_iter()
+                        .map(TryInto::try_into)
+                        .collect::<Vec<_>>()
+                        .into_iter()
+                        .flatten()
+                        .collect();
+
+                controller.owner = account_sdk::signers::Owner::Signer(
+                    account_sdk::signers::Signer::Webauthns(converted_webauthns),
+                );
+            }
+        }
+
         let account = controller.create_wildcard_session(expires_at).await?;
 
         if is_controller_registered.unwrap_or(false) {
