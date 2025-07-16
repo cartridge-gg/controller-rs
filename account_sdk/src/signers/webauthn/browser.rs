@@ -81,8 +81,8 @@ impl WebauthnOperations for BrowserOperations {
                         web_sys::PublicKeyCredential::from(jsval),
                     )));
                 }
-                Err(_e) => {
-                    let _ = tx.send(Err(DeviceError::CreateCredential("".to_string())));
+                Err(e) => {
+                    let _ = tx.send(Err(DeviceError::CreateCredential(format!("{:?}", e))));
                 }
             }
         });
