@@ -182,10 +182,7 @@ impl CartridgeAccount {
                     webauthns
                         .into_iter()
                         .map(TryInto::try_into)
-                        .collect::<Vec<_>>()
-                        .into_iter()
-                        .flatten()
-                        .collect();
+                        .collect::<std::result::Result<Vec<_>, _>>()?;
 
                 controller.owner = account_sdk::signers::Owner::Signer(
                     account_sdk::signers::Signer::Webauthns(converted_webauthns),
