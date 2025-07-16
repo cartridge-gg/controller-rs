@@ -7,10 +7,8 @@ use crate::{
     errors::ControllerError,
     factory::ControllerFactory,
     signers::{Owner, Signer},
-    tests::{
-        account::FEE_TOKEN_ADDRESS, runners::katana::KatanaRunner,
-        transaction_waiter::TransactionWaiter,
-    },
+    tests::{account::FEE_TOKEN_ADDRESS, runners::katana::KatanaRunner},
+    transaction_waiter::TransactionWaiter,
 };
 use cainome::cairo_serde::{ContractAddress, U256};
 use starknet::{

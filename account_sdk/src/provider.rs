@@ -1,14 +1,16 @@
 use async_trait::async_trait;
 use auto_impl::auto_impl;
+use nom::AsChar;
 use starknet::core::types::{
     BlockHashAndNumber, BlockId, BroadcastedDeclareTransaction,
     BroadcastedDeployAccountTransaction, BroadcastedInvokeTransaction, BroadcastedTransaction,
-    ContractClass, DeclareTransactionResult, DeployAccountTransactionResult, EventFilter,
-    EventsPage, FeeEstimate, Felt, FunctionCall, Hash256, InvokeTransactionResult,
-    MaybePendingBlockWithReceipts, MaybePendingBlockWithTxHashes, MaybePendingBlockWithTxs,
-    MaybePendingStateUpdate, MsgFromL1, SimulatedTransaction, SimulationFlag,
-    SimulationFlagForEstimateFee, SyncStatusType, Transaction, TransactionReceiptWithBlockInfo,
-    TransactionStatus, TransactionTrace, TransactionTraceWithHash,
+    ContractClass, ContractExecutionError, DeclareTransactionResult,
+    DeployAccountTransactionResult, EventFilter, EventsPage, FeeEstimate, Felt, FunctionCall,
+    Hash256, InvokeTransactionResult, MaybePendingBlockWithReceipts, MaybePendingBlockWithTxHashes,
+    MaybePendingBlockWithTxs, MaybePendingStateUpdate, MsgFromL1, SimulatedTransaction,
+    SimulationFlag, SimulationFlagForEstimateFee, SyncStatusType, Transaction,
+    TransactionExecutionErrorData, TransactionReceiptWithBlockInfo, TransactionStatus,
+    TransactionTrace, TransactionTraceWithHash,
 };
 use starknet::providers::jsonrpc::HttpTransport;
 use starknet::providers::{
@@ -535,7 +537,7 @@ pub enum ExecuteFromOutsideError {
 
 impl From<JsonRpcError> for ExecuteFromOutsideError {
     fn from(error: JsonRpcError) -> Self {
-        match error {
+        match error.clone() {
             err if err.message.contains("execution time not yet reached") => {
                 ExecuteFromOutsideError::ExecutionTimeNotReached
             }
@@ -543,6 +545,9 @@ impl From<JsonRpcError> for ExecuteFromOutsideError {
                 ExecuteFromOutsideError::ExecutionTimePassed
             }
             err if err.message.contains("invalid caller") => ExecuteFromOutsideError::InvalidCaller,
+            err if err.message.contains("Transaction execution error") => {
+                parse_transaction_execution_error(&err)
+            }
             err if err.code == -32005 => ExecuteFromOutsideError::RateLimitExceeded,
             err if err.code == -32003 || err.code == -32004 => {
                 ExecuteFromOutsideError::ExecuteFromOutsideNotSupported(err.message)
@@ -564,5 +569,106 @@ impl From<reqwest::Error> for ExecuteFromOutsideError {
         ExecuteFromOutsideError::ProviderError(
             JsonRpcClientError::<reqwest::Error>::TransportError(error).into(),
         )
+    }
+}
+
+fn parse_transaction_execution_error(err: &JsonRpcError) -> ExecuteFromOutsideError {
+    let pattern = "('argent/multicall-failed'),";
+    let mut failure_index: u64 = 0;
+    let mut failure_reason = String::new();
+    if err.data.is_some() && err.data.as_ref().unwrap().is_object() {
+        let data = err.data.as_ref().unwrap().as_object().unwrap()["execution_error"].as_str();
+        let error_message = if let Some(data) = data {
+            data
+        } else {
+            err.data.as_ref().unwrap().as_object().unwrap()["execution_error"]
+                .as_object()
+                .unwrap()["error"]
+                .as_str()
+                .unwrap()
+        };
+        if let Some(pos) = error_message.find(pattern) {
+            let start = pos + pattern.len();
+            let substr = &error_message[start..].trim_start();
+            if let Some(hex_chars) = substr.strip_prefix("0x") {
+                let hex_chars: String =
+                    hex_chars.chars().take_while(|c| c.is_hex_digit()).collect();
+                if let Ok(index) = u64::from_str_radix(&hex_chars, 16) {
+                    failure_index = index;
+                }
+            }
+        }
+        let pattern = "Failure reason:\n";
+        failure_reason = if let Some(failure_index) = error_message.find(pattern) {
+            error_message[failure_index + pattern.len()..]
+                .trim()
+                .to_string()
+        } else {
+            error_message.to_string()
+        };
+    }
+    ExecuteFromOutsideError::ProviderError(ProviderError::StarknetError(
+        StarknetError::TransactionExecutionError(TransactionExecutionErrorData {
+            execution_error: ContractExecutionError::Message(failure_reason.to_string()),
+            transaction_index: failure_index,
+        }),
+    ))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_extract_failure_reason_multicall_mainnet() {
+        let error = JsonRpcError {
+            code: 41,
+            message: "Transaction execution error".to_string(),
+            data: Some(
+                serde_json::json!({"execution_error": {"class_hash":"0xe2eb8f5672af4e6a4e8a8f1b44989685e668489b0a25437733756c5a34a1d6", "contract_address":"0x3947b852fb5b1b16611de6ac4ae9ed517752781467672b313d2685b4bdca929", "error":"(0x617267656e742f6d756c746963616c6c2d6661696c6564 ('argent/multicall-failed'), 0x1, 0x73657373696f6e2f616c72656164792d7265766f6b6564 ('session/already-revoked'), 0x454e545259504f494e545f4641494c4544 ('ENTRYPOINT_FAILED'), 0x454e545259504f494e545f4641494c4544 ('ENTRYPOINT_FAILED'))", "selector":"0x15d40a3d6ca2ac30f4031e42be28da9b056fef9bb7357ac5e85627ee876e5ad"}}),
+            ),
+        };
+        let error_from_json = ExecuteFromOutsideError::from(error);
+        match error_from_json {
+            ExecuteFromOutsideError::ProviderError(ProviderError::StarknetError(
+                StarknetError::TransactionExecutionError(TransactionExecutionErrorData {
+                    execution_error: ContractExecutionError::Message(failure_reason),
+                    transaction_index: failure_index,
+                }),
+            )) => {
+                assert_eq!(failure_index, 1);
+                assert!(failure_reason.contains("('argent/multicall-failed')"));
+                assert!(failure_reason.contains("('session/already-revoked')"));
+            }
+            _ => {
+                panic!("Unexpected error: {:?}", error_from_json);
+            }
+        }
+    }
+    #[test]
+    fn test_extract_failure_reason_multicall_katana() {
+        let error = JsonRpcError {
+            code: 41,
+            message: "Transaction execution error".to_string(),
+            data: Some(
+                serde_json::json!({"execution_error": "Transaction reverted: Transaction execution has failed:\n0: Error in the called contract (contract address: 0x0585fa0cb392244c880c6a96e8c7d7a731e04022eccf61e9fd089d9972f1528a, class hash: 0x00e2eb8f5672af4e6a4e8a8f1b44989685e668489b0a25437733756c5a34a1d6, selector: 0x015d40a3d6ca2ac30f4031e42be28da9b056fef9bb7357ac5e85627ee876e5ad):\nExecution failed. Failure reason:\n(0x617267656e742f6d756c746963616c6c2d6661696c6564 ('argent/multicall-failed'), 0x1, 0x73657373696f6e2f616c72656164792d7265766f6b6564 ('session/already-revoked'), 0x454e545259504f494e545f4641494c4544 ('ENTRYPOINT_FAILED'), 0x454e545259504f494e545f4641494c4544 ('ENTRYPOINT_FAILED')).\n"}),
+            ),
+        };
+        let error_from_json = ExecuteFromOutsideError::from(error);
+        match error_from_json {
+            ExecuteFromOutsideError::ProviderError(ProviderError::StarknetError(
+                StarknetError::TransactionExecutionError(TransactionExecutionErrorData {
+                    execution_error: ContractExecutionError::Message(failure_reason),
+                    transaction_index: failure_index,
+                }),
+            )) => {
+                assert_eq!(failure_index, 1);
+                assert!(failure_reason.contains("('argent/multicall-failed')"));
+                assert!(failure_reason.contains("('session/already-revoked')"));
+            }
+            _ => {
+                panic!("Unexpected error: {:?}", error_from_json);
+            }
+        }
     }
 }

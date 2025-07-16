@@ -2,15 +2,19 @@ use std::borrow::BorrowMut;
 
 use account_sdk::controller::Controller;
 use account_sdk::errors::ControllerError;
+use account_sdk::session::RevokableSession;
 use account_sdk::signers::webauthn::CredentialID;
 use account_sdk::storage::selectors::Selectors;
 use account_sdk::storage::StorageBackend;
 
+use account_sdk::transaction_waiter::TransactionWaiter;
 use coset::CoseKey;
 use serde_wasm_bindgen::to_value;
 use starknet::accounts::ConnectedAccount;
-use starknet::core::types::{Call, FeeEstimate, TypedData};
+use starknet::core::types::{BlockId, BlockTag, Call, FeeEstimate, FunctionCall, TypedData};
 
+use starknet::macros::selector;
+use starknet::providers::Provider;
 use starknet_types_core::felt::Felt;
 use url::Url;
 use wasm_bindgen::prelude::*;
@@ -26,7 +30,7 @@ use crate::types::register::{JsRegister, JsRegisterResponse};
 use crate::types::session::{AuthorizedSession, JsRevokableSession};
 use crate::types::signer::{JsSignerInput, Signer};
 use crate::types::{EncodingError, Felts, JsFeeSource, JsFelt};
-use crate::utils::{set_panic_hook, wait_for_txn};
+use crate::utils::set_panic_hook;
 
 type Result<T> = std::result::Result<T, JsError>;
 
@@ -389,12 +393,10 @@ impl CartridgeAccount {
             .map(JsSignerInput)
             .unwrap_or(signer_input);
 
-        wait_for_txn(
-            Box::new(controller.provider()),
-            tx_result.transaction_hash,
-            None,
-        )
-        .await?;
+        TransactionWaiter::new(tx_result.transaction_hash, controller.provider())
+            .wait()
+            .await
+            .map_err(Into::<ControllerError>::into)?;
 
         let signer_guid: Felt = signer.into();
         controller
@@ -542,16 +544,37 @@ impl CartridgeAccount {
 
     #[wasm_bindgen(js_name = revokeSessions)]
     pub async fn revoke_sessions(&self, sessions: Vec<JsRevokableSession>) -> Result<()> {
-        let sessions: Vec<_> = sessions.into_iter().map(Into::into).collect();
+        set_panic_hook();
+
+        let sessions: Vec<RevokableSession> = sessions.into_iter().map(Into::into).collect();
         let mut controller = self.controller.lock().await;
 
-        let tx_receipt = controller.revoke_sessions(sessions.clone()).await?;
-        wait_for_txn(
-            Box::new(controller.provider()),
-            tx_receipt.transaction_hash,
-            None,
-        )
-        .await?;
+        let provider = controller.provider();
+        let block_id = BlockId::Tag(BlockTag::Pending);
+
+        let mut to_revoke = vec![];
+        for session in sessions.clone() {
+            let result = provider
+                .call(
+                    &FunctionCall {
+                        contract_address: controller.address,
+                        entry_point_selector: selector!("is_session_revoked"),
+                        calldata: vec![session.session_hash],
+                    },
+                    block_id,
+                )
+                .await?;
+            if result[0] == Felt::from(0) {
+                to_revoke.push(session);
+            }
+        }
+
+        let tx = controller.revoke_sessions(to_revoke).await?;
+
+        TransactionWaiter::new(tx.transaction_hash, controller.provider())
+            .wait()
+            .await
+            .map_err(Into::<ControllerError>::into)?;
 
         let _ = controller
             .revoke_sessions_with_cartridge(&sessions, self.cartridge_api_url.clone())

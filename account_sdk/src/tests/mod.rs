@@ -7,11 +7,10 @@ use starknet::{
 use starknet_crypto::Felt;
 use thiserror::Error;
 
-use crate::tests::transaction_waiter::{TransactionWaiter, TransactionWaitingError};
+use crate::transaction_waiter::{TransactionWaiter, TransactionWaitingError};
 
 pub(crate) mod account;
 pub(crate) mod runners;
-pub(crate) mod transaction_waiter;
 
 mod declare_test;
 mod delegate_account_test;
@@ -19,6 +18,7 @@ mod external_owners_test;
 mod outside_execution_test;
 mod owner_test;
 mod session_off_chain_sig_test;
+mod session_test;
 
 #[derive(Error, Debug)]
 pub enum EnsureTxnError<S> {

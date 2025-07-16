@@ -197,6 +197,11 @@ impl From<ControllerError> for JsControllerError {
                 message: e.to_string(),
                 data: None,
             },
+            ControllerError::TransactionTimeout => JsControllerError {
+                code: ErrorCode::StarknetUnexpectedError,
+                message: "Transaction timeout".to_string(),
+                data: None,
+            },
         }
     }
 }

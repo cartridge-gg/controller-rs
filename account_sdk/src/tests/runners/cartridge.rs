@@ -210,22 +210,19 @@ impl CartridgeProxy {
                     .execute_from_outside(outside_execution, signature, address)
                     .await
                 {
-                    Ok(result) => {
-                        println!("success");
-                        Response::builder()
-                            .status(StatusCode::OK)
-                            .body(Body::from(
-                                json!({
-                                    "id" : 1_u64,
-                                    "jsonrpc": "2.0",
-                                    "result" : {
-                                        "transaction_hash": format!("0x{:x}", result.transaction_hash)
-                                    }
-                                })
-                                .to_string(),
-                            ))
-                            .unwrap()
-                    }
+                    Ok(result) => Response::builder()
+                        .status(StatusCode::OK)
+                        .body(Body::from(
+                            json!({
+                                "id" : 1_u64,
+                                "jsonrpc": "2.0",
+                                "result" : {
+                                    "transaction_hash": format!("0x{:x}", result.transaction_hash)
+                                }
+                            })
+                            .to_string(),
+                        ))
+                        .unwrap(),
                     Err(e) => {
                         let error_response = json!({
                             "jsonrpc": "2.0",

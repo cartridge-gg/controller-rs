@@ -21,7 +21,7 @@ use crate::factory::ControllerFactory;
 use crate::provider::CartridgeJsonRpcProvider;
 use crate::signers::Owner;
 use crate::tests::account::{AccountDeclaration, FEE_TOKEN_ADDRESS, UDC_ADDRESS};
-use crate::tests::transaction_waiter::TransactionWaiter;
+use crate::transaction_waiter::TransactionWaiter;
 
 use super::cartridge::CartridgeProxy;
 use super::{find_free_port, SubprocessRunner, TestnetConfig};
