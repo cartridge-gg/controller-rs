@@ -37,12 +37,12 @@ tsify-next = "0.5.4"
 urlencoding = "2.1.3"
 once_cell.workspace = true
 chrono = { workspace = true }
+nom = "7.1"
 
 # Webauthn deps
 base64 = { workspace = true, optional = true }
 base64urlsafedata = { workspace = true, optional = true }
 coset = { workspace = true, optional = true }
-nom = { version = "7.1", optional = true }
 p256 = { workspace = true, optional = true }
 serde_cbor_2 = { version = "0.12.0-dev", optional = true }
 sha2 = { workspace = true, optional = true }
@@ -100,7 +100,6 @@ webauthn = [
     "base64",
     "base64urlsafedata",
     "coset",
-    "nom",
     "p256",
     "serde_cbor_2",
     "sha2",
