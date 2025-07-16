@@ -394,6 +394,7 @@ impl CartridgeAccount {
             .unwrap_or(signer_input);
 
         TransactionWaiter::new(tx_result.transaction_hash, controller.provider())
+            .with_timeout(std::time::Duration::from_secs(20))
             .wait()
             .await
             .map_err(Into::<ControllerError>::into)?;
@@ -572,6 +573,7 @@ impl CartridgeAccount {
         let tx = controller.revoke_sessions(to_revoke).await?;
 
         TransactionWaiter::new(tx.transaction_hash, controller.provider())
+            .with_timeout(std::time::Duration::from_secs(20))
             .wait()
             .await
             .map_err(Into::<ControllerError>::into)?;
