@@ -46,6 +46,8 @@ pub struct Eip191Signer {
 #[serde(rename_all = "camelCase")]
 pub struct Signer {
     #[serde(skip_serializing_if = "Option::is_none")]
+    pub webauthns: Option<Vec<WebauthnSigner>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub webauthn: Option<WebauthnSigner>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub starknet: Option<StarknetSigner>,
@@ -122,19 +124,28 @@ impl From<account_sdk::signers::Signer> for Signer {
     fn from(signer: account_sdk::signers::Signer) -> Self {
         match signer {
             account_sdk::signers::Signer::Webauthn(s) => Self {
+                webauthns: None,
                 webauthn: Some(s.into()),
                 starknet: None,
                 eip191: None,
             },
             account_sdk::signers::Signer::Starknet(s) => Self {
+                webauthns: None,
                 webauthn: None,
                 starknet: Some(s.into()),
                 eip191: None,
             },
             account_sdk::signers::Signer::Eip191(s) => Self {
+                webauthns: None,
                 webauthn: None,
                 starknet: None,
                 eip191: Some(s.into()),
+            },
+            account_sdk::signers::Signer::Webauthns(s) => Self {
+                webauthns: Some(s.into_iter().map(Into::into).collect()),
+                webauthn: None,
+                starknet: None,
+                eip191: None,
             },
         }
     }

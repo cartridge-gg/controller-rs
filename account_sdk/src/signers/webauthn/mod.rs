@@ -402,6 +402,96 @@ pub struct WebauthnSigner {
     pub pub_key: CoseKey,
 }
 
+pub type WebauthnSigners = Vec<WebauthnSigner>;
+
+#[cfg_attr(not(target_arch = "wasm32"), async_trait)]
+#[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
+impl HashSigner for WebauthnSigners {
+    // According to https://www.w3.org/TR/webauthn/#clientdatajson-verification
+    async fn sign(&self, tx_hash: &Felt) -> Result<SignerSignature, SignError> {
+        let challenge = tx_hash.to_bytes_be().to_vec();
+
+        let rp_id = self[0].rp_id.clone();
+        let options = PublicKeyCredentialRequestOptions {
+            challenge: Base64UrlSafeData::from(challenge),
+            timeout: None,
+            rp_id,
+            allow_credentials: self
+                .iter()
+                .map(|s| AllowCredentials {
+                    type_: "public-key".to_string(),
+                    id: Base64UrlSafeData::from(s.credential_id.clone()),
+                    transports: None,
+                })
+                .collect(),
+            user_verification: UserVerificationPolicy::Required,
+            hints: None,
+            extensions: None,
+        };
+
+        let cred = OPERATIONS
+            .get_assertion(options)
+            .await
+            .map_err(SignError::Device)?;
+
+        let signer_used = self.iter().find(|s| s.credential_id == cred.raw_id);
+        if signer_used.is_none() {
+            return Err(SignError::Device(DeviceError::CreateCredential(
+                "No signer found".to_string(),
+            )));
+        }
+        let signer_used = signer_used.unwrap();
+
+        let flags = cred.response.authenticator_data.as_slice()[32];
+        let counter = u32::from_be_bytes(
+            cred.response.authenticator_data.as_slice()[33..37]
+                .try_into()
+                .unwrap(),
+        );
+
+        let client_data_json = String::from_utf8(cred.response.client_data_json.to_vec()).unwrap();
+        let client_data_hash = Sha256::new().chain(client_data_json.clone()).finalize();
+        let mut message: Vec<u8> = cred.response.authenticator_data.as_slice().into();
+        message.append(&mut client_data_hash.to_vec());
+
+        let ecdsa_sig =
+            ecdsa::Signature::<NistP256>::from_der(cred.response.signature.as_slice()).unwrap();
+        let (r, mut s) = ecdsa_sig.split_scalars();
+        let pub_key = signer_used.pub_key_bytes().map_err(SignError::Device)?;
+        let sec1_key = [&[0x4], pub_key.as_slice()].concat();
+
+        let verifying_key = VerifyingKey::from_sec1_bytes(&sec1_key).unwrap();
+        let mut y_parity =
+            RecoveryId::trial_recovery_from_msg(&verifying_key, &message, &ecdsa_sig)
+                .unwrap()
+                .is_y_odd();
+
+        let s_neg = s.neg();
+        if s.as_ref() > s_neg.as_ref() {
+            s = s_neg;
+            y_parity = !y_parity;
+        }
+        let signature = Signature {
+            r: U256::from_bytes_be(r.to_bytes().as_slice().try_into().unwrap()),
+            s: U256::from_bytes_be(s.to_bytes().as_slice().try_into().unwrap()),
+            y_parity,
+        };
+
+        let client_data_json_outro = extract_client_data_json_outro(&client_data_json);
+        let webauthn_signature = WebauthnSignature {
+            flags,
+            sign_count: counter,
+            ec_signature: signature,
+            client_data_json_outro,
+        };
+
+        Ok(SignerSignature::Webauthn((
+            abigen::controller::WebauthnSigner::from(signer_used.clone()),
+            webauthn_signature,
+        )))
+    }
+}
+
 impl From<WebauthnSigner> for abigen::controller::WebauthnSigner {
     fn from(signer: WebauthnSigner) -> Self {
         Self {
