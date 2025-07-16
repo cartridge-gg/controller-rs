@@ -46,6 +46,7 @@ pub struct WebauthnSigner {
     pub public_key: String,
 }
 
+#[cfg(feature = "webauthn")]
 type WebauthnSigners = Vec<WebauthnSigner>;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -159,6 +160,7 @@ impl From<&crate::signers::eip191::Eip191Signer> for Eip191Signer {
     }
 }
 
+#[cfg(feature = "webauthn")]
 impl TryFrom<WebauthnSigner> for crate::signers::webauthn::WebauthnSigner {
     type Error = ControllerError;
     fn try_from(signer: WebauthnSigner) -> Result<Self, Self::Error> {
@@ -192,7 +194,6 @@ impl TryFrom<Signer> for crate::signers::Signer {
                     .map(|s| s.clone().try_into())
                     .collect::<Result<Vec<_>, _>>()?,
             )),
-            #[cfg(feature = "webauthn")]
             Signer::Eip191(s) => Ok(Self::Eip191(crate::signers::eip191::Eip191Signer {
                 // Storage wont work with native signer until this is fixed to properly store the private key
                 #[cfg(not(target_arch = "wasm32"))]
