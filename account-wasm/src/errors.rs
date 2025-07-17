@@ -95,6 +95,7 @@ pub enum ErrorCode {
     Base64DecodeError = 134,
     CoseError = 135,
     PolicyChainIdMismatch = 136,
+    GasPriceTooHigh = 137,
 }
 
 impl From<ControllerError> for JsControllerError {
@@ -279,7 +280,17 @@ impl From<ProviderError> for JsControllerError {
                 ErrorCode::ProviderArrayLengthMismatch,
                 "Array length mismatch".to_string(),
             ),
-            ProviderError::Other(o) => (ErrorCode::ProviderOther, o.to_string()),
+            ProviderError::Other(ref o) => {
+                // Check for gas price errors in provider errors
+                let error_str = o.to_string();
+                if error_str.contains("gas price too high")
+                    || error_str.contains("Ethereum gas price too high")
+                {
+                    (ErrorCode::GasPriceTooHigh, "Gas price too high".to_string())
+                } else {
+                    (ErrorCode::ProviderOther, error_str)
+                }
+            }
         };
         JsControllerError {
             code,
@@ -416,11 +427,19 @@ impl From<StarknetError> for JsControllerError {
                 "The contract class version is not supported",
                 None,
             ),
-            StarknetError::UnexpectedError(msg) => (
-                ErrorCode::StarknetUnexpectedError,
-                "Unexpected error",
-                Some(msg),
-            ),
+            StarknetError::UnexpectedError(msg) => {
+                // Check for specific gas price error
+                if msg.contains("gas price too high") || msg.contains("Ethereum gas price too high")
+                {
+                    (ErrorCode::GasPriceTooHigh, "Gas price too high", Some(msg))
+                } else {
+                    (
+                        ErrorCode::StarknetUnexpectedError,
+                        "Unexpected error",
+                        Some(msg),
+                    )
+                }
+            }
             StarknetError::NoTraceAvailable(data) => (
                 ErrorCode::StarknetNoTraceAvailable,
                 "No trace available",
@@ -523,3 +542,27 @@ impl fmt::Display for JsControllerError {
 }
 
 impl std::error::Error for JsControllerError {}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_gas_price_too_high_error_handling() {
+        // Test StarknetError::UnexpectedError with gas price message
+        let starknet_error =
+            StarknetError::UnexpectedError("Ethereum gas price too high".to_string());
+        let js_error = JsControllerError::from(starknet_error);
+
+        assert!(matches!(js_error.code, ErrorCode::GasPriceTooHigh));
+        assert_eq!(js_error.message, "Gas price too high");
+        assert!(js_error.data.is_some());
+
+        // Test generic case still works
+        let generic_error = StarknetError::UnexpectedError("Some other error".to_string());
+        let js_error = JsControllerError::from(generic_error);
+
+        assert!(matches!(js_error.code, ErrorCode::StarknetUnexpectedError));
+        assert_eq!(js_error.message, "Unexpected error");
+    }
+}
