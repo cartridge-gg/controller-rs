@@ -2,8 +2,10 @@ use std::borrow::BorrowMut;
 
 use account_sdk::controller::Controller;
 use account_sdk::errors::ControllerError;
+use account_sdk::graphql::owner::add_owner::SignerInput;
 use account_sdk::session::RevokableSession;
 use account_sdk::signers::webauthn::CredentialID;
+use account_sdk::signers::NewOwnerSigner;
 use account_sdk::storage::selectors::Selectors;
 use account_sdk::storage::StorageBackend;
 
@@ -24,7 +26,7 @@ use crate::storage::PolicyStorage;
 use crate::sync::WasmMutex;
 use crate::types::call::JsCall;
 use crate::types::estimate::JsFeeEstimate;
-use crate::types::owner::Owner;
+use crate::types::owner::{CreatePasskeyOwnerResult, Owner};
 use crate::types::policy::{CallPolicy, Policy, TypedDataPolicy};
 use crate::types::register::{JsRegister, JsRegisterResponse};
 use crate::types::session::{AuthorizedSession, JsRevokableSession};
@@ -385,9 +387,8 @@ impl CartridgeAccount {
                     }
                     _ => Err(err),
                 })?;
-        let (tx_result, signer, webauthn_signer_input) = controller
-            .add_owner(signer.clone(), self.cartridge_api_url.clone())
-            .await?;
+        let (tx_result, signer, webauthn_signer_input) =
+            controller.add_owner(signer.clone()).await?;
 
         let signer_input = webauthn_signer_input
             .map(JsSignerInput)
@@ -404,6 +405,56 @@ impl CartridgeAccount {
             .add_owner_with_cartridge(
                 signer_input.into(),
                 signer_guid,
+                self.cartridge_api_url.clone(),
+            )
+            .await?;
+
+        Ok(())
+    }
+
+    #[wasm_bindgen(js_name = createPasskeyOwner)]
+    pub async fn create_passkey_owner(
+        &self,
+        rp_id: String,
+    ) -> std::result::Result<CreatePasskeyOwnerResult, JsControllerError> {
+        set_panic_hook();
+
+        let mut controller = self.controller.lock().await;
+
+        let (signer, signer_input) = controller.create_passkey_owner(rp_id).await?;
+
+        let new_owner = account_sdk::signers::Owner::Signer(signer.clone());
+        let signature = new_owner
+            .sign_new_owner(&controller.chain_id, &controller.address)
+            .await?;
+
+        let call = controller
+            .contract()
+            .add_owner_getcall(&signer.clone().into(), &signature);
+
+        let signer_guid: Felt = signer.into();
+        Ok(CreatePasskeyOwnerResult {
+            call: call.into(),
+            signer_input: JsSignerInput(signer_input),
+            signer_guid: signer_guid.into(),
+        })
+    }
+
+    #[wasm_bindgen(js_name = addPasskeyOwnerWithCartridge)]
+    pub async fn add_passkey_owner_with_cartridge(
+        &self,
+        signer_input: JsSignerInput,
+        signer_guid: JsFelt,
+    ) -> std::result::Result<(), JsControllerError> {
+        set_panic_hook();
+
+        let mut controller = self.controller.lock().await;
+
+        let signer: SignerInput = signer_input.into();
+        controller
+            .add_owner_with_cartridge(
+                signer.clone(),
+                *signer_guid.as_felt(),
                 self.cartridge_api_url.clone(),
             )
             .await?;

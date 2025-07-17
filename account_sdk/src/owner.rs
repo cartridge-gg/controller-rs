@@ -10,10 +10,45 @@ use crate::{
 };
 
 impl Controller {
+    #[cfg(feature = "webauthn")]
+    pub async fn create_passkey_owner(
+        &mut self,
+        rp_id: String,
+    ) -> Result<(Signer, SignerInput), ControllerError> {
+        use crate::signers::generate_add_owner_tx_hash;
+        use crate::signers::webauthn::WebauthnSigner;
+
+        let challenge = generate_add_owner_tx_hash(&self.chain_id, &self.address).to_bytes_be();
+
+        let (signer, register_ret) =
+            WebauthnSigner::register(rp_id, self.username.clone(), &challenge)
+                .await
+                .map_err(|e| {
+                    ControllerError::InvalidResponseData(format!("Failed to register: {}", e))
+                })?;
+
+        let signer_input = SignerInput {
+            type_: crate::graphql::owner::add_owner::SignerType::webauthn,
+            credential: serde_json::json!({
+                "id": signer.credential_id,
+                "publicKey": hex::encode(signer.pub_key_bytes().map_err(|e| {
+                    ControllerError::InvalidResponseData(format!("Failed to get public key: {e}"))
+                })?),
+                "rawId": register_ret.raw_id,
+                "type": register_ret.type_,
+                "response": {
+                    "clientDataJSON": register_ret.response.client_data_json,
+                    "attestationObject": register_ret.response.attestation_object,
+                }
+            })
+            .to_string(),
+        };
+        Ok((Signer::Webauthn(signer), signer_input))
+    }
+
     pub async fn add_owner(
         &mut self,
         signer: Signer,
-        #[allow(unused_variables)] cartridge_api_url: String,
     ) -> Result<(InvokeTransactionResult, Signer, Option<SignerInput>), ControllerError> {
         #[cfg(not(feature = "webauthn"))]
         let (signer, signer_input) = (signer, None);
@@ -21,39 +56,8 @@ impl Controller {
         #[cfg(feature = "webauthn")]
         let (signer, signer_input) = match signer {
             Signer::Webauthn(signer) => {
-                use crate::signers::generate_add_owner_tx_hash;
-                use crate::signers::webauthn::WebauthnSigner;
-
-                let challenge =
-                    generate_add_owner_tx_hash(&self.chain_id, &self.address).to_bytes_be();
-
-                let (signer, register_ret) =
-                    WebauthnSigner::register(signer.rp_id, self.username.clone(), &challenge)
-                        .await
-                        .map_err(|e| {
-                            ControllerError::InvalidResponseData(format!(
-                                "Failed to register: {}",
-                                e
-                            ))
-                        })?;
-
-                let signer_input = Some(SignerInput {
-                    type_: crate::graphql::owner::add_owner::SignerType::webauthn,
-                    credential: serde_json::json!({
-                        "id": signer.credential_id,
-                        "publicKey": hex::encode(signer.pub_key_bytes().map_err(|e| {
-                            ControllerError::InvalidResponseData(format!("Failed to get public key: {e}"))
-                        })?),
-                        "rawId": register_ret.raw_id,
-                        "type": register_ret.type_,
-                        "response": {
-                            "clientDataJSON": register_ret.response.client_data_json,
-                            "attestationObject": register_ret.response.attestation_object,
-                        }
-                    })
-                    .to_string(),
-                });
-                (Signer::Webauthn(signer), signer_input)
+                let (signer, signer_input) = self.create_passkey_owner(signer.rp_id).await?;
+                (signer, Some(signer_input))
             }
             _ => (signer, None),
         };

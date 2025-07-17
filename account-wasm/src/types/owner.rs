@@ -3,6 +3,8 @@ use serde::{Deserialize, Serialize};
 use tsify_next::Tsify;
 use wasm_bindgen::prelude::*;
 
+use crate::types::{call::JsCall, signer::JsSignerInput};
+
 use super::{signer::Signer, JsFelt};
 
 #[allow(non_snake_case)]
@@ -40,4 +42,14 @@ impl From<SdkOwner> for Owner {
             },
         }
     }
+}
+
+#[allow(non_snake_case)]
+#[derive(Tsify, Serialize, Deserialize, Debug, Clone)]
+#[tsify(into_wasm_abi, from_wasm_abi)]
+#[serde(rename_all = "camelCase")]
+pub struct CreatePasskeyOwnerResult {
+    pub call: JsCall,
+    pub signer_input: JsSignerInput,
+    pub signer_guid: JsFelt,
 }
