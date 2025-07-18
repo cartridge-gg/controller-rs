@@ -628,8 +628,7 @@ pub fn pub_key_to_cose_key(pub_key: [u8; 64]) -> CoseKey {
 
     let cose_value = Value::Map(cose_map);
     let cose_bytes = serde_cbor_2::to_vec(&cose_value).unwrap();
-    let cose_key = CoseKey::from_slice(&cose_bytes).unwrap();
-    cose_key
+    CoseKey::from_slice(&cose_bytes).unwrap()
 }
 
 fn extract_client_data_json_outro(client_data_json: &str) -> Vec<u8> {

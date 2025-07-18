@@ -150,7 +150,7 @@ impl Controller {
     pub async fn create_passkey(
         &mut self,
         rp_id: String,
-        allow_popup: bool,
+        #[allow(unused)] allow_popup: bool,
     ) -> Result<(Signer, SignerInput), ControllerError> {
         use crate::signers::generate_add_owner_tx_hash;
         use crate::signers::webauthn::WebauthnSigner;
@@ -182,13 +182,6 @@ impl Controller {
             .map_err(|e| {
                 ControllerError::InvalidResponseData(format!("Failed to register passkey: {e}"))
             });
-
-        #[cfg(not(target_arch = "wasm32"))]
-        let ret = if let Err(e) = ret {
-            return Err(e);
-        } else {
-            ret
-        };
 
         #[cfg(target_arch = "wasm32")]
         if let Err(e) = ret {

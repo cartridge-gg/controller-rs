@@ -389,11 +389,7 @@ impl CartridgeAccount {
 
         let signer_guid: Felt = signer.into();
         controller
-            .add_owner_with_cartridge(
-                signer_input.into(),
-                signer_guid,
-                self.cartridge_api_url.clone(),
-            )
+            .add_owner_with_cartridge(signer_input, signer_guid, self.cartridge_api_url.clone())
             .await?;
 
         Ok(())
