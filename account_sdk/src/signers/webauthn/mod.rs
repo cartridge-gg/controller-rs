@@ -545,7 +545,7 @@ impl WebauthnSigner {
             user: User {
                 id: Base64UrlSafeData::from(vec![0]),
                 name: user_name.clone(),
-                display_name: "".to_string(),
+                display_name: user_name.clone(),
             },
             challenge: Base64UrlSafeData::from(challenge),
             pub_key_cred_params: vec![
@@ -598,6 +598,38 @@ impl WebauthnSigner {
     pub fn pub_key_bytes(&self) -> Result<[u8; 64], DeviceError> {
         extract_pub_key(&self.pub_key)
     }
+}
+
+pub fn pub_key_to_cose_key(pub_key: [u8; 64]) -> CoseKey {
+    use coset::cbor::Value;
+    use coset::iana;
+
+    let mut x_coord = vec![0u8; 32];
+    let mut y_coord = vec![0u8; 32];
+    x_coord.copy_from_slice(&pub_key[..32]);
+    y_coord.copy_from_slice(&pub_key[32..]);
+
+    let cose_map = vec![
+        (
+            Value::Integer(1.into()),
+            Value::Integer((iana::KeyType::EC2 as i64).into()),
+        ),
+        (
+            Value::Integer(3.into()),
+            Value::Integer((iana::Algorithm::ES256 as i64).into()),
+        ),
+        (
+            Value::Integer((-1).into()),
+            Value::Integer((iana::EllipticCurve::P_256 as i64).into()),
+        ),
+        (Value::Integer((-2).into()), Value::Bytes(x_coord)),
+        (Value::Integer((-3).into()), Value::Bytes(y_coord)),
+    ];
+
+    let cose_value = Value::Map(cose_map);
+    let cose_bytes = serde_cbor_2::to_vec(&cose_value).unwrap();
+    let cose_key = CoseKey::from_slice(&cose_bytes).unwrap();
+    cose_key
 }
 
 fn extract_client_data_json_outro(client_data_json: &str) -> Vec<u8> {

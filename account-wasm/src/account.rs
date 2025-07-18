@@ -2,15 +2,11 @@ use std::borrow::BorrowMut;
 
 use account_sdk::controller::Controller;
 use account_sdk::errors::ControllerError;
-use account_sdk::graphql::owner::add_owner::SignerInput;
 use account_sdk::session::RevokableSession;
-use account_sdk::signers::webauthn::CredentialID;
-use account_sdk::signers::NewOwnerSigner;
 use account_sdk::storage::selectors::Selectors;
 use account_sdk::storage::StorageBackend;
 
 use account_sdk::transaction_waiter::TransactionWaiter;
-use coset::CoseKey;
 use serde_wasm_bindgen::to_value;
 use starknet::accounts::ConnectedAccount;
 use starknet::core::types::{BlockId, BlockTag, Call, FeeEstimate, FunctionCall, TypedData};
@@ -26,19 +22,19 @@ use crate::storage::PolicyStorage;
 use crate::sync::WasmMutex;
 use crate::types::call::JsCall;
 use crate::types::estimate::JsFeeEstimate;
-use crate::types::owner::{CreatePasskeyOwnerResult, Owner};
+use crate::types::owner::Owner;
 use crate::types::policy::{CallPolicy, Policy, TypedDataPolicy};
 use crate::types::register::{JsRegister, JsRegisterResponse};
 use crate::types::session::{AuthorizedSession, JsRevokableSession};
 use crate::types::signer::{JsSignerInput, Signer};
-use crate::types::{EncodingError, Felts, JsFeeSource, JsFelt};
+use crate::types::{Felts, JsFeeSource, JsFelt};
 use crate::utils::set_panic_hook;
 
 type Result<T> = std::result::Result<T, JsError>;
 
 #[wasm_bindgen]
 pub struct CartridgeAccount {
-    controller: WasmMutex<Controller>,
+    pub(super) controller: WasmMutex<Controller>,
     policy_storage: WasmMutex<PolicyStorage>,
     cartridge_api_url: String,
 }
@@ -360,39 +356,30 @@ impl CartridgeAccount {
     #[wasm_bindgen(js_name = addOwner)]
     pub async fn add_owner(
         &mut self,
-        owner: Signer,
-        signer_input: JsSignerInput,
+        owner: Option<Signer>,
+        signer_input: Option<JsSignerInput>,
+        rp_id: Option<String>,
     ) -> std::result::Result<(), JsControllerError> {
         set_panic_hook();
 
+        let (signer, signer_input) = if let Some(rp_id) = rp_id {
+            self.handle_passkey_creation(rp_id).await?
+        } else {
+            if owner.is_none() || signer_input.is_none() {
+                return Err(JsControllerError::from(
+                    ControllerError::InvalidResponseData(
+                        "Owner and signer input are required".to_string(),
+                    ),
+                ));
+            }
+            (
+                owner.clone().unwrap().try_into()?,
+                signer_input.unwrap().into(),
+            )
+        };
+
         let mut controller = self.controller.lock().await;
-
-        let signer: account_sdk::signers::Signer =
-            owner
-                .clone()
-                .try_into()
-                .or_else(|err: EncodingError| match &err {
-                    EncodingError::Serialization(error) => {
-                        if error.to_string().as_str().contains("Invalid public_key") {
-                            Ok(account_sdk::signers::Signer::Webauthn(
-                                account_sdk::signers::webauthn::WebauthnSigner::new(
-                                    owner.webauthn.as_ref().unwrap().rp_id.clone(),
-                                    CredentialID::from(vec![]),
-                                    CoseKey::default(),
-                                ),
-                            ))
-                        } else {
-                            Err(err)
-                        }
-                    }
-                    _ => Err(err),
-                })?;
-        let (tx_result, signer, webauthn_signer_input) =
-            controller.add_owner(signer.clone()).await?;
-
-        let signer_input = webauthn_signer_input
-            .map(JsSignerInput)
-            .unwrap_or(signer_input);
+        let tx_result = controller.add_owner(signer.clone()).await?;
 
         TransactionWaiter::new(tx_result.transaction_hash, controller.provider())
             .with_timeout(std::time::Duration::from_secs(20))
@@ -412,54 +399,18 @@ impl CartridgeAccount {
         Ok(())
     }
 
-    #[wasm_bindgen(js_name = createPasskeyOwner)]
-    pub async fn create_passkey_owner(
+    #[wasm_bindgen(js_name = createPasskeySigner)]
+    pub async fn create_passkey_signer(
         &self,
         rp_id: String,
-    ) -> std::result::Result<CreatePasskeyOwnerResult, JsControllerError> {
+    ) -> std::result::Result<JsSignerInput, JsControllerError> {
         set_panic_hook();
 
         let mut controller = self.controller.lock().await;
 
-        let (signer, signer_input) = controller.create_passkey_owner(rp_id).await?;
+        let (_, signer_input) = controller.create_passkey(rp_id, false).await?;
 
-        let new_owner = account_sdk::signers::Owner::Signer(signer.clone());
-        let signature = new_owner
-            .sign_new_owner(&controller.chain_id, &controller.address)
-            .await?;
-
-        let call = controller
-            .contract()
-            .add_owner_getcall(&signer.clone().into(), &signature);
-
-        let signer_guid: Felt = signer.into();
-        Ok(CreatePasskeyOwnerResult {
-            call: call.into(),
-            signer_input: JsSignerInput(signer_input),
-            signer_guid: signer_guid.into(),
-        })
-    }
-
-    #[wasm_bindgen(js_name = addPasskeyOwnerWithCartridge)]
-    pub async fn add_passkey_owner_with_cartridge(
-        &self,
-        signer_input: JsSignerInput,
-        signer_guid: JsFelt,
-    ) -> std::result::Result<(), JsControllerError> {
-        set_panic_hook();
-
-        let mut controller = self.controller.lock().await;
-
-        let signer: SignerInput = signer_input.into();
-        controller
-            .add_owner_with_cartridge(
-                signer.clone(),
-                *signer_guid.as_felt(),
-                self.cartridge_api_url.clone(),
-            )
-            .await?;
-
-        Ok(())
+        Ok(JsSignerInput(signer_input))
     }
 
     #[wasm_bindgen(js_name = estimateInvokeFee)]
