@@ -8,6 +8,7 @@ pub mod session;
 
 mod errors;
 
+mod owner;
 mod storage;
 mod sync;
 mod types;
