@@ -1,9 +1,11 @@
 use cainome::rs::{Abigen, ExecutionVersion};
+use serde::{Deserialize, Serialize};
 use starknet::core::types::Felt;
 use std::{collections::HashMap, fs, path::PathBuf, process::Command};
 
 fn main() {
     println!("cargo:rerun-if-changed=./artifacts/classes");
+    println!("cargo:rerun-if-changed=./artifacts/metadata.json");
     generate_controller_bindings();
     generate_erc20_bindings();
     generate_artifacts();
@@ -81,7 +83,7 @@ pub enum Version {{
     {enum_variants}
 }}
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 pub struct ContractClass {{
     pub content: &'static str,
     pub hash: Felt,
@@ -119,19 +121,42 @@ lazy_static! {{
     );
 
     fs::write("./src/artifacts.rs", artifacts).unwrap();
+
+    // Load existing metadata
+    let existing_metadata = load_existing_metadata();
+
     // Write artifacts to JSON file
     let json_artifacts = serde_json::json!({
         "versions": versions,
         "latest_version": latest_version,
+        "stable_controller": existing_metadata.stable_controller,
+        "beta_controller": existing_metadata.beta_controller,
         "controllers": versions.iter().map(|v| {
             (v.to_string(), {
                 let path = format!("./artifacts/classes/controller.{}.contract_class.json", v);
                 let class_hash = extract_class_hash(&PathBuf::from(&path));
                 let casm_hash = extract_compiled_class_hash(v);
-                serde_json::json!({  // <-- Add json! macro here
+                let mut controller_info = serde_json::json!({
                     "class_hash": format!("{:#x}", class_hash),
                     "casm_hash": format!("{:#x}", casm_hash)
-                })
+                });
+
+                // Add version metadata for non-latest versions from existing controllers
+                if v != "latest" {
+                    if let Some(existing_controller) = existing_metadata.controllers.get(v) {
+                        if let Some(version) = existing_controller.get("version") {
+                            controller_info["version"] = version.clone();
+                        }
+                        if let Some(outside_execution_version) = existing_controller.get("outside_execution_version") {
+                            controller_info["outside_execution_version"] = outside_execution_version.clone();
+                        }
+                        if let Some(changes) = existing_controller.get("changes") {
+                            controller_info["changes"] = changes.clone();
+                        }
+                    }
+                }
+
+                controller_info
             })
         }).collect::<HashMap<_,_>>()
     });
@@ -141,6 +166,28 @@ lazy_static! {{
         serde_json::to_string_pretty(&json_artifacts).unwrap(),
     )
     .unwrap();
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct VersionInfo {
+    pub version: String,
+    pub outside_execution_version: String,
+    pub changes: Vec<String>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct ExistingMetadata {
+    pub stable_controller: String,
+    pub beta_controller: String,
+    pub versions: Vec<String>,
+    pub latest_version: String,
+    pub controllers: HashMap<String, serde_json::Value>,
+}
+
+fn load_existing_metadata() -> ExistingMetadata {
+    let metadata_content = fs::read_to_string("./artifacts/metadata.json")
+        .expect("Failed to read artifacts/metadata.json");
+    serde_json::from_str(&metadata_content).expect("Failed to parse artifacts/metadata.json")
 }
 
 fn extract_compiled_class_hash(version: &str) -> Felt {

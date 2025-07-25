@@ -15,7 +15,7 @@ pub enum Version {
     LATEST,
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 pub struct ContractClass {
     pub content: &'static str,
     pub hash: Felt,
