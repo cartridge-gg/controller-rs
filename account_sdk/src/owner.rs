@@ -166,7 +166,6 @@ impl Controller {
             let is_safari = !user_agent.to_lowercase().contains("chrome")
                 && !user_agent.to_lowercase().contains("android")
                 && user_agent.to_lowercase().contains("safari");
-            let is_safari = true;
 
             if is_safari && allow_popup {
                 return self.do_passkey_creation_popup_flow(rp_id).await;
