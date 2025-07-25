@@ -58,8 +58,6 @@ impl Controller {
             ));
         }
 
-        let _ = popup.unwrap();
-
         let (tx, rx) = futures::channel::oneshot::channel();
         let tx = std::rc::Rc::new(std::cell::RefCell::new(Some(tx)));
 
