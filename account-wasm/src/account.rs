@@ -80,6 +80,56 @@ impl CartridgeAccount {
         Ok(CartridgeAccountWithMeta::new(controller, cartridge_api_url))
     }
 
+    /// Creates a new `CartridgeAccount` instance with a randomly generated Starknet signer.
+    /// The controller address is computed internally based on the generated signer.
+    ///
+    /// # Parameters
+    /// - `app_id`: Application identifier.
+    /// - `rpc_url`: The URL of the JSON-RPC endpoint.
+    /// - `chain_id`: Identifier of the blockchain network to interact with.
+    /// - `username`: Username associated with the account.
+    ///
+    #[allow(clippy::new_ret_no_self)]
+    #[wasm_bindgen(js_name = newHeadless)]
+    pub fn new_headless(
+        app_id: String,
+        class_hash: JsFelt,
+        rpc_url: String,
+        chain_id: JsFelt,
+        username: String,
+        cartridge_api_url: String,
+    ) -> Result<CartridgeAccountWithMeta> {
+        set_panic_hook();
+
+        let rpc_url = Url::parse(&rpc_url)?;
+        let username = username.to_lowercase();
+        let class_hash_felt: Felt = class_hash.try_into()?;
+        let chain_id_felt: Felt = chain_id.try_into()?;
+
+        // Create a random Starknet signer
+        let signing_key = starknet::signers::SigningKey::from_random();
+        let owner = account_sdk::signers::Owner::Signer(account_sdk::signers::Signer::Starknet(
+            signing_key,
+        ));
+
+        // Compute the controller address based on the generated signer and username
+        let salt = starknet::core::utils::cairo_short_string_to_felt(&username).unwrap();
+        let address =
+            account_sdk::factory::compute_account_address(class_hash_felt, owner.clone(), salt);
+
+        let controller = Controller::new(
+            app_id,
+            username.clone(),
+            class_hash_felt,
+            rpc_url,
+            owner,
+            address,
+            chain_id_felt,
+        );
+
+        Ok(CartridgeAccountWithMeta::new(controller, cartridge_api_url))
+    }
+
     #[wasm_bindgen(js_name = fromStorage)]
     pub fn from_storage(
         app_id: String,
