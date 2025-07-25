@@ -18,6 +18,16 @@ pub struct JsCall {
     pub calldata: Vec<JsFelt>,
 }
 
+impl From<starknet::core::types::Call> for JsCall {
+    fn from(value: starknet::core::types::Call) -> Self {
+        JsCall {
+            contract_address: value.to.into(),
+            entrypoint: value.selector.to_string(),
+            calldata: value.calldata.into_iter().map(|felt| felt.into()).collect(),
+        }
+    }
+}
+
 impl TryFrom<JsCall> for Call {
     type Error = EncodingError;
 
