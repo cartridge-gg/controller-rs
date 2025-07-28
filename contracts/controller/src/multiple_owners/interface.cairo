@@ -2,8 +2,8 @@ use starknet::ContractAddress;
 use argent::signer::{
     signer_signature::{
         Signer, SignerStorageValue, SignerType, StarknetSigner, StarknetSignature, SignerTrait,
-        SignerStorageTrait, SignerSignature, SignerSignatureTrait, starknet_signer_from_pubkey
-    }
+        SignerStorageTrait, SignerSignature, SignerSignatureTrait, starknet_signer_from_pubkey,
+    },
 };
 
 #[starknet::interface]

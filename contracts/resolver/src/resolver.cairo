@@ -15,7 +15,7 @@ mod ControllerResolverDelegation {
     use starknet::{get_caller_address, ContractAddress, ClassHash, storage::Map};
     use starknet::contract_address::ContractAddressZeroable;
     use resolver::interface::{
-        IResolver, IExecutorAccount, IExecutorAccountDispatcher, IExecutorAccountDispatcherTrait
+        IResolver, IExecutorAccount, IExecutorAccountDispatcher, IExecutorAccountDispatcherTrait,
     };
 
     use openzeppelin::upgrades::UpgradeableComponent;
@@ -44,7 +44,7 @@ mod ControllerResolverDelegation {
     enum Event {
         DomainToAddressUpdate: DomainToAddressUpdate,
         #[flat]
-        UpgradeableEvent: UpgradeableComponent::Event
+        UpgradeableEvent: UpgradeableComponent::Event,
     }
 
     #[derive(Drop, starknet::Event)]
@@ -57,7 +57,7 @@ mod ControllerResolverDelegation {
 
     #[constructor]
     fn constructor(
-        ref self: ContractState, owner: ContractAddress, mut executor_pub_keys: Span<felt252>
+        ref self: ContractState, owner: ContractAddress, mut executor_pub_keys: Span<felt252>,
     ) {
         self.owner.write(owner);
 
@@ -69,7 +69,7 @@ mod ControllerResolverDelegation {
     #[abi(embed_v0)]
     impl AdditionResolveImpl of IResolver<ContractState> {
         fn resolve(
-            self: @ContractState, mut domain: Span<felt252>, field: felt252, hint: Span<felt252>
+            self: @ContractState, mut domain: Span<felt252>, field: felt252, hint: Span<felt252>,
         ) -> felt252 {
             assert(domain.len() == 1, 'Domain must have a length of 1');
             assert(field == 'starknet', 'Not supported');
@@ -97,8 +97,8 @@ mod ControllerResolverDelegation {
             self
                 .emit(
                     Event::DomainToAddressUpdate(
-                        DomainToAddressUpdate { domain: array![name].span(), address, }
-                    )
+                        DomainToAddressUpdate { domain: array![name].span(), address },
+                    ),
                 )
         }
 

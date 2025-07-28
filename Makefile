@@ -24,5 +24,23 @@ test-session: generate_artifacts
 	rm -rf ./account_sdk/log
 	cargo test --manifest-path account_sdk/Cargo.toml session -- --nocapture
 
+setup-pre-commit:
+	./bin/setup-pre-commit
+
+lint:
+	./bin/lint
+
+lint-rust:
+	./bin/rust-lint
+
+lint-cairo:
+	./bin/cairo-lint
+
+lint-prettier:
+	./bin/prettier-lint
+
+lint-check:
+	./bin/lint --check-only
+
 clean:
 	rm -rf ./target

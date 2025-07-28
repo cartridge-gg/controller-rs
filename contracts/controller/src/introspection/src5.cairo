@@ -1,7 +1,7 @@
 #[starknet::component]
 mod src5_component {
     use argent::account::interface::{
-        SRC5_ACCOUNT_INTERFACE_ID, SRC5_ACCOUNT_INTERFACE_ID_OLD_1, SRC5_ACCOUNT_INTERFACE_ID_OLD_2
+        SRC5_ACCOUNT_INTERFACE_ID, SRC5_ACCOUNT_INTERFACE_ID_OLD_1, SRC5_ACCOUNT_INTERFACE_ID_OLD_2,
     };
     use argent::introspection::interface::{ISRC5, ISRC5Legacy};
     use argent::introspection::interface::{SRC5_INTERFACE_ID, SRC5_INTERFACE_ID_OLD};
@@ -15,10 +15,10 @@ mod src5_component {
 
     #[embeddable_as(SRC5Impl)]
     impl SRC5<
-        TContractState, +HasComponent<TContractState>
+        TContractState, +HasComponent<TContractState>,
     > of ISRC5<ComponentState<TContractState>> {
         fn supports_interface(
-            self: @ComponentState<TContractState>, interface_id: felt252
+            self: @ComponentState<TContractState>, interface_id: felt252,
         ) -> bool {
             if interface_id == SRC5_INTERFACE_ID {
                 true
@@ -44,10 +44,10 @@ mod src5_component {
 
     #[embeddable_as(SRC5LegacyImpl)]
     impl SRC5Legacy<
-        TContractState, +HasComponent<TContractState>
+        TContractState, +HasComponent<TContractState>,
     > of ISRC5Legacy<ComponentState<TContractState>> {
         fn supportsInterface(
-            self: @ComponentState<TContractState>, interfaceId: felt252
+            self: @ComponentState<TContractState>, interfaceId: felt252,
         ) -> felt252 {
             if self.supports_interface(interfaceId) {
                 1

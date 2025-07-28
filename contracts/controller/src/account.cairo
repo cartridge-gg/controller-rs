@@ -17,7 +17,7 @@ trait ICartridgeAccount<TContractState> {
         class_hash: felt252,
         contract_address_salt: felt252,
         owner: CartridgeAccount::Owner,
-        guardian: Option<Signer>
+        guardian: Option<Signer>,
     ) -> felt252;
 }
 
@@ -40,25 +40,25 @@ mod CartridgeAccount {
         get_execution_info, syscalls::storage_read_syscall,
         storage_access::{
             storage_address_from_base_and_offset, storage_base_address_from_felt252,
-            storage_write_syscall
-        }
+            storage_write_syscall,
+        },
     };
 
     use argent::account::interface::{
-        IAccount, IArgentAccount, IArgentUserAccount, IDeprecatedArgentAccount, Version
+        IAccount, IArgentAccount, IArgentUserAccount, IDeprecatedArgentAccount, Version,
     };
     use argent::outside_execution::{
-        outside_execution::outside_execution_component, interface::{IOutsideExecutionCallback}
+        outside_execution::outside_execution_component, interface::{IOutsideExecutionCallback},
     };
     use argent::recovery::interface::{LegacyEscape, LegacyEscapeType, EscapeStatus};
     use argent::signer::{
         signer_signature::{
             Signer, SignerStorageValue, SignerType, StarknetSigner, StarknetSignature, SignerTrait,
-            SignerStorageTrait, SignerSignature, SignerSignatureTrait, starknet_signer_from_pubkey
-        }
+            SignerStorageTrait, SignerSignature, SignerSignatureTrait, starknet_signer_from_pubkey,
+        },
     };
     use argent::upgrade::{
-        upgrade::upgrade_component, interface::{IUpgradableCallback, IUpgradableCallbackOld}
+        upgrade::upgrade_component, interface::{IUpgradableCallback, IUpgradableCallbackOld},
     };
     use argent::utils::{
         asserts::{assert_no_self_call, assert_only_self, assert_only_protocol},
@@ -66,8 +66,8 @@ mod CartridgeAccount {
         transaction_version::{
             TX_V1, TX_V1_ESTIMATE, TX_V3, TX_V3_ESTIMATE, assert_correct_invoke_version,
             assert_correct_declare_version, assert_correct_deploy_account_version, DA_MODE_L1,
-            is_estimate_transaction
-        }
+            is_estimate_transaction,
+        },
     };
     use argent::session::interface::{DetailedTypedData, SessionToken, TypedData};
 
@@ -78,16 +78,16 @@ mod CartridgeAccount {
     use controller::account::{ICartridgeAccount, IAssertOwner};
     use controller::external_owners::external_owners::{
         external_owners_component,
-        external_owners_component::InternalImpl as ExternalOwnersInternalImpl
+        external_owners_component::InternalImpl as ExternalOwnersInternalImpl,
     };
     use controller::delegate_account::delegate_account::delegate_account_component;
     use controller::introspection::src5::src5_component;
     use controller::session::{
         session::session_component::InternalImpl, session::session_component,
-        interface::ISessionCallback
+        interface::ISessionCallback,
     };
     use controller::multiple_owners::{
-        multiple_owners::{multiple_owners_component}, interface::IMultipleOwners
+        multiple_owners::{multiple_owners_component}, interface::IMultipleOwners,
     };
 
     const TRANSACTION_VERSION: felt252 = 1;
@@ -100,7 +100,7 @@ mod CartridgeAccount {
     impl SessionImpl = session_component::SessionComponent<ContractState>;
 
     component!(
-        path: multiple_owners_component, storage: multiple_owners, event: MultipleOwnersEvent
+        path: multiple_owners_component, storage: multiple_owners, event: MultipleOwnersEvent,
     );
     #[abi(embed_v0)]
     impl MultipleOwnersImpl =
@@ -110,7 +110,7 @@ mod CartridgeAccount {
     component!(
         path: outside_execution_component,
         storage: execute_from_outside,
-        event: ExecuteFromOutsideEvents
+        event: ExecuteFromOutsideEvents,
     );
     #[abi(embed_v0)]
     impl ExecuteFromOutside =
@@ -118,7 +118,7 @@ mod CartridgeAccount {
 
     // External owners
     component!(
-        path: external_owners_component, storage: external_owners, event: ExternalOwnersEvent
+        path: external_owners_component, storage: external_owners, event: ExternalOwnersEvent,
     );
     #[abi(embed_v0)]
     impl ExternalOwners =
@@ -126,7 +126,7 @@ mod CartridgeAccount {
 
     // Delegate Account
     component!(
-        path: delegate_account_component, storage: delegate_account, event: DelegateAccountEvents
+        path: delegate_account_component, storage: delegate_account, event: DelegateAccountEvents,
     );
     #[abi(embed_v0)]
     impl DelegateAccount =
@@ -143,7 +143,7 @@ mod CartridgeAccount {
 
     // Reentrancy guard
     component!(
-        path: ReentrancyGuardComponent, storage: reentrancy_guard, event: ReentrancyGuardEvent
+        path: ReentrancyGuardComponent, storage: reentrancy_guard, event: ReentrancyGuardEvent,
     );
     impl ReentrancyGuardInternalImpl = ReentrancyGuardComponent::InternalImpl<ContractState>;
 
@@ -186,7 +186,7 @@ mod CartridgeAccount {
         #[flat]
         SRC5Events: src5_component::Event,
         #[flat]
-        UpgradeableEvent: UpgradeableComponent::Event
+        UpgradeableEvent: UpgradeableComponent::Event,
     }
 
     #[derive(Drop, Copy, Serde)]
@@ -202,7 +202,7 @@ mod CartridgeAccount {
     struct TransactionExecuted {
         #[key]
         hash: felt252,
-        response: Span<Span<felt252>>
+        response: Span<Span<felt252>>,
     }
 
     mod Errors {
@@ -238,7 +238,7 @@ mod CartridgeAccount {
                 self
                     .session
                     .validate_session_serialized(
-                        tx_info.signature, calls.span(), tx_info.transaction_hash
+                        tx_info.signature, calls.span(), tx_info.transaction_hash,
                     );
             } else {
                 self
@@ -266,7 +266,7 @@ mod CartridgeAccount {
                 let session_timestamp_u64 = session_timestamp.try_into().unwrap();
                 assert(
                     session_timestamp_u64 >= exec_info.block_info.unbox().block_timestamp,
-                    'session/expired'
+                    'session/expired',
                 );
             }
 
@@ -274,19 +274,21 @@ mod CartridgeAccount {
 
             self
                 .emit(
-                    TransactionExecuted { hash: tx_info.transaction_hash, response: retdata.span() }
+                    TransactionExecuted {
+                        hash: tx_info.transaction_hash, response: retdata.span(),
+                    },
                 );
             self.reentrancy_guard.end();
             retdata
         }
 
         fn is_valid_signature(
-            self: @ContractState, hash: felt252, signature: Array<felt252>
+            self: @ContractState, hash: felt252, signature: Array<felt252>,
         ) -> felt252 {
             if *signature[0] == SESSION_TYPED_DATE_MAGIC {
                 if self
                     .is_valid_session_typed_data_signature(
-                        hash, signature.span().slice(1, signature.len() - 1)
+                        hash, signature.span().slice(1, signature.len() - 1),
                     ) {
                     starknet::VALIDATED
                 } else {
@@ -294,7 +296,7 @@ mod CartridgeAccount {
                 }
             } else if self
                 .is_valid_span_signature(
-                    hash, self.parse_signature_array(signature.span()).span()
+                    hash, self.parse_signature_array(signature.span()).span(),
                 ) {
                 starknet::VALIDATED
             } else {
@@ -314,17 +316,17 @@ mod CartridgeAccount {
                 let call = Call {
                     to: get_contract_address(),
                     selector: selector!("__declare_transaction__"),
-                    calldata: array![class_hash,].span()
+                    calldata: array![class_hash].span(),
                 };
                 self
                     .session
                     .validate_session_serialized(
-                        tx_info.signature, array![call].span(), tx_info.transaction_hash
+                        tx_info.signature, array![call].span(), tx_info.transaction_hash,
                     );
             } else {
                 self
                     .assert_valid_span_signature(
-                        tx_info.transaction_hash, self.parse_signature_array(tx_info.signature)
+                        tx_info.transaction_hash, self.parse_signature_array(tx_info.signature),
                     );
             }
             starknet::VALIDATED
@@ -342,7 +344,7 @@ mod CartridgeAccount {
             assert(tx_info.paymaster_data.is_empty(), 'unsupported-paymaster');
             self
                 .assert_valid_span_signature(
-                    tx_info.transaction_hash, self.parse_signature_array(tx_info.signature)
+                    tx_info.transaction_hash, self.parse_signature_array(tx_info.signature),
                 );
             starknet::VALIDATED
         }
@@ -350,7 +352,7 @@ mod CartridgeAccount {
 
     impl SessionCallbackImpl of ISessionCallback<ContractState> {
         fn parse_authorization(
-            self: @ContractState, authorization_signature: Span<felt252>
+            self: @ContractState, authorization_signature: Span<felt252>,
         ) -> Array<SignerSignature> {
             self.parse_signature_array(authorization_signature)
         }
@@ -370,11 +372,11 @@ mod CartridgeAccount {
         fn verify_authorization(
             self: @ContractState,
             session_hash: felt252,
-            authorization_signature: Span<SignerSignature>
+            authorization_signature: Span<SignerSignature>,
         ) {
             assert(
                 self.is_valid_span_signature(session_hash, authorization_signature),
-                'session/invalid-account-sig'
+                'session/invalid-account-sig',
             );
         }
     }
@@ -384,7 +386,7 @@ mod CartridgeAccount {
             let caller = get_caller_address();
             assert(
                 caller == get_contract_address() || self.is_external_owner(caller),
-                'caller-not-owner'
+                'caller-not-owner',
             );
         }
     }
@@ -406,13 +408,13 @@ mod CartridgeAccount {
                         outside_execution_hash,
                         signature,
                         is_from_outside: true,
-                        account_address: get_contract_address()
+                        account_address: get_contract_address(),
                     );
             }
             let retdata = execute_multicall(calls);
             self
                 .emit(
-                    TransactionExecuted { hash: outside_execution_hash, response: retdata.span() }
+                    TransactionExecuted { hash: outside_execution_hash, response: retdata.span() },
                 );
             retdata
         }
@@ -434,7 +436,7 @@ mod CartridgeAccount {
     impl ContractInternalImpl of ContractInternalTrait {
         #[must_use]
         fn is_valid_span_signature(
-            self: @ContractState, hash: felt252, signer_signatures: Span<SignerSignature>
+            self: @ContractState, hash: felt252, signer_signatures: Span<SignerSignature>,
         ) -> bool {
             assert(signer_signatures.len() <= 2, 'invalid-signature-length');
             self.is_valid_owner_signature(hash, *signer_signatures.at(0))
@@ -442,7 +444,7 @@ mod CartridgeAccount {
 
         #[must_use]
         fn is_valid_owner_signature(
-            self: @ContractState, hash: felt252, signer_signature: SignerSignature
+            self: @ContractState, hash: felt252, signer_signature: SignerSignature,
         ) -> bool {
             let signer = signer_signature.signer().storage_value();
             if !self.is_owner(signer.into_guid()) {
@@ -453,12 +455,12 @@ mod CartridgeAccount {
 
         #[must_use]
         fn is_valid_session_typed_data_signature(
-            self: @ContractState, hash: felt252, mut signature: Span<felt252>
+            self: @ContractState, hash: felt252, mut signature: Span<felt252>,
         ) -> bool {
             // this function assumes revision `1`
 
             let detailed_typed_data_items: Array<DetailedTypedData> = Serde::deserialize(
-                ref signature
+                ref signature,
             )
                 .expect('invalid-signature-format');
             let session_token: SessionToken = Serde::deserialize(ref signature)
@@ -493,11 +495,11 @@ mod CartridgeAccount {
                             .update(*detailed_typed_data.domain_hash)
                             .update(contract_address)
                             .update(message_hash)
-                            .finalize()
+                            .finalize(),
                     );
 
                 let (scope_hash, _, _) = hades_permutation(
-                    *detailed_typed_data.domain_hash, *detailed_typed_data.type_hash, 2
+                    *detailed_typed_data.domain_hash, *detailed_typed_data.type_hash, 2,
                 );
                 typed_data_items.append(TypedData { scope_hash, typed_data_hash: message_hash });
             };
@@ -517,7 +519,7 @@ mod CartridgeAccount {
 
         #[inline(always)]
         fn parse_signature_array(
-            self: @ContractState, mut signatures: Span<felt252>
+            self: @ContractState, mut signatures: Span<felt252>,
         ) -> Array<SignerSignature> {
             // manual inlining instead of calling full_deserialize for performance
             let deserialized: Array<SignerSignature> = Serde::deserialize(ref signatures)
@@ -527,11 +529,11 @@ mod CartridgeAccount {
         }
 
         fn assert_valid_span_signature(
-            self: @ContractState, hash: felt252, signer_signatures: Array<SignerSignature>
+            self: @ContractState, hash: felt252, signer_signatures: Array<SignerSignature>,
         ) {
             assert(signer_signatures.len() <= 2, 'invalid-signature-length');
             assert(
-                self.is_valid_owner_signature(hash, *signer_signatures.at(0)), 'invalid-owner-sig'
+                self.is_valid_owner_signature(hash, *signer_signatures.at(0)), 'invalid-owner-sig',
             );
         }
 

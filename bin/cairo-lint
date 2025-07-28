@@ -1,0 +1,98 @@
+#!/usr/bin/env bash
+
+# Exit immediately if a command exits with a non-zero status
+set -e
+
+# Colors for output
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+NC='\033[0m' # No Color
+
+# Default values
+CHECK_ONLY=false
+
+# Function to show usage
+show_usage() {
+    echo "Usage: $0 [OPTIONS]"
+    echo ""
+    echo "Options:"
+    echo "  --check-only    Check formatting without applying changes"
+    echo "  --help          Show this help message"
+    echo ""
+    echo "Examples:"
+    echo "  $0              # Format all Cairo files"
+    echo "  $0 --check-only # Check all Cairo files"
+}
+
+# Parse command line arguments
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        --check-only)
+            CHECK_ONLY=true
+            shift
+            ;;
+        --help)
+            show_usage
+            exit 0
+            ;;
+        *)
+            echo -e "${RED}Unknown option: $1${NC}"
+            show_usage
+            exit 1
+            ;;
+    esac
+done
+
+# Check if scarb is available
+if ! command -v scarb &> /dev/null; then
+    echo -e "${RED}Error: scarb is not installed or not in PATH${NC}"
+    echo "Please install scarb from: https://docs.swmansion.com/scarb/"
+    exit 1
+fi
+
+echo -e "${BLUE}Running Cairo linting...${NC}"
+
+EXIT_CODE=0
+
+# Find all contract directories
+CONTRACT_DIRS=$(find contracts -name "Scarb.toml" -exec dirname {} \; 2>/dev/null || true)
+
+if [ -z "$CONTRACT_DIRS" ]; then
+    echo -e "${YELLOW}No Cairo contract directories found (looking for Scarb.toml files)${NC}"
+    exit 0
+fi
+
+# Format Cairo files in each contract directory
+for contract_dir in $CONTRACT_DIRS; do
+    echo -e "${BLUE}Processing Cairo files in $contract_dir...${NC}"
+    
+    if [ ! -f "$contract_dir/Scarb.toml" ]; then
+        echo -e "${YELLOW}Skipping $contract_dir (no Scarb.toml found)${NC}"
+        continue
+    fi
+    
+    if [ "$CHECK_ONLY" = true ]; then
+        echo -e "${BLUE}Checking formatting in $contract_dir...${NC}"
+        if ! (cd "$contract_dir" && scarb fmt --check); then
+            echo -e "${RED}Formatting check failed in $contract_dir${NC}"
+            EXIT_CODE=1
+        fi
+    else
+        echo -e "${BLUE}Formatting files in $contract_dir...${NC}"
+        if ! (cd "$contract_dir" && scarb fmt); then
+            echo -e "${RED}Formatting failed in $contract_dir${NC}"
+            EXIT_CODE=1
+        fi
+    fi
+done
+
+# Summary
+if [ $EXIT_CODE -eq 0 ]; then
+    echo -e "${GREEN}✅ All Cairo linting checks passed!${NC}"
+else
+    echo -e "${RED}❌ Some Cairo linting checks failed.${NC}"
+fi
+
+exit $EXIT_CODE

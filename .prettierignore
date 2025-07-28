@@ -1,0 +1,33 @@
+# Build artifacts
+target/
+pkg-controller/
+pkg-session/
+node_modules/
+
+# Generated files
+Cargo.lock
+Scarb.lock
+
+# Artifacts
+artifacts/
+
+# User instructions (should not be auto-formatted)
+CLAUDE.md
+
+# Package files
+package-lock.json
+pnpm-lock.yaml
+yarn.lock
+
+# Generated documentation
+_site/
+.docusaurus/
+
+# IDE files
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
