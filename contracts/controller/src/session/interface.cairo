@@ -31,22 +31,26 @@ impl SessionStateImpl of SessionStateTrait {
 #[starknet::interface]
 trait ISession<TContractState> {
     fn revoke_session(ref self: TContractState, session_hash: felt252);
-    fn register_session(ref self: TContractState, session: Session, guid_or_address: felt252,);
+    fn register_session(ref self: TContractState, session: Session, guid_or_address: felt252);
     fn is_session_revoked(self: @TContractState, session_hash: felt252) -> bool;
     fn is_session_registered(
         self: @TContractState, session_hash: felt252, guid_or_address: felt252,
     ) -> bool;
-    fn is_session_signature_valid(self: @TContractState, data: Span<TypedData>, token: SessionToken) -> bool;
+    fn is_session_signature_valid(
+        self: @TContractState, data: Span<TypedData>, token: SessionToken,
+    ) -> bool;
 }
 
 #[starknet::interface]
 trait ISessionCallback<TContractState> {
     fn parse_authorization(
-        self: @TContractState, authorization_signature: Span<felt252>
+        self: @TContractState, authorization_signature: Span<felt252>,
     ) -> Array<SignerSignature>;
     fn is_valid_authorizer(self: @TContractState, guid_or_address: felt252) -> bool;
     fn verify_authorization(
-        self: @TContractState, session_hash: felt252, authorization_signature: Span<SignerSignature>
+        self: @TContractState,
+        session_hash: felt252,
+        authorization_signature: Span<SignerSignature>,
     );
 }
 

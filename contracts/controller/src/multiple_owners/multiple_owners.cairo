@@ -7,8 +7,8 @@ mod multiple_owners_component {
     use argent::signer::{
         signer_signature::{
             Signer, SignerStorageValue, SignerType, StarknetSigner, StarknetSignature, SignerTrait,
-            SignerStorageTrait, SignerSignature, SignerSignatureTrait, starknet_signer_from_pubkey
-        }
+            SignerStorageTrait, SignerSignature, SignerSignatureTrait, starknet_signer_from_pubkey,
+        },
     };
 
     use controller::multiple_owners::interface::IMultipleOwners;
@@ -41,10 +41,10 @@ mod multiple_owners_component {
         TContractState,
         +HasComponent<TContractState>,
         +IAssertOwner<TContractState>,
-        +Drop<TContractState>
+        +Drop<TContractState>,
     > of IMultipleOwners<ComponentState<TContractState>> {
         fn add_owner(
-            ref self: ComponentState<TContractState>, owner: Signer, signature: SignerSignature
+            ref self: ComponentState<TContractState>, owner: Signer, signature: SignerSignature,
         ) {
             self.get_contract().assert_owner();
             self.assert_valid_owner_signature(signature);
@@ -74,9 +74,9 @@ mod multiple_owners_component {
                 array![
                     selector!("add_owner"),
                     get_tx_info().unbox().chain_id,
-                    get_contract_address().into()
+                    get_contract_address().into(),
                 ]
-                    .span()
+                    .span(),
             );
 
             assert(signer_signature.is_valid_signature(message_hash), 'invalid-owner-sig');

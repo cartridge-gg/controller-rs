@@ -1,0 +1,66 @@
+#!/usr/bin/env bash
+
+# Exit immediately if a command exits with a non-zero status
+set -e
+
+echo "Setting up pre-commit hooks..."
+
+# Check if we're in a git repository
+if [ ! -d ".git" ]; then
+    echo "Error: This script must be run from the root of a git repository."
+    exit 1
+fi
+
+# Configure git to use the custom hooks directory
+echo "Configuring git to use custom hooks directory..."
+git config core.hooksPath .githooks
+
+# Make sure the hooks are executable
+echo "Making hooks executable..."
+chmod +x .githooks/*
+
+# Install required tooling
+echo "Checking for required tooling..."
+
+# Check for rustfmt
+if ! command -v rustfmt &> /dev/null; then
+    echo "Installing rustfmt..."
+    rustup component add rustfmt
+else
+    echo "✓ rustfmt is already installed"
+fi
+
+# Check for clippy
+if ! command -v cargo-clippy &> /dev/null; then
+    echo "Installing clippy..."
+    rustup component add clippy
+else
+    echo "✓ clippy is already installed"
+fi
+
+# Check for scarb (optional for Cairo contracts)
+if command -v scarb &> /dev/null; then
+    echo "✓ scarb is available"
+else
+    echo "⚠ scarb not found - Cairo formatting will be skipped"
+fi
+
+# Check for prettier (optional for docs)
+if command -v prettier &> /dev/null; then
+    echo "✓ prettier is available"
+else
+    echo "⚠ prettier not found - document formatting will be skipped"
+    echo "  Install with: npm install -g prettier"
+fi
+
+echo ""
+echo "✅ Pre-commit hooks setup complete!"
+echo ""
+echo "The pre-commit hook will now run automatically when you commit."
+echo "It will format and lint your code using:"
+echo "  - cargo fmt (Rust formatting)"
+echo "  - cargo clippy (Rust linting)"
+echo "  - scarb fmt (Cairo formatting, if available)"
+echo "  - prettier (Markdown/YAML formatting, if available)"
+echo ""
+echo "You can also run linting manually with: make lint"

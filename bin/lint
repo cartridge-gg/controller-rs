@@ -1,0 +1,207 @@
+#!/usr/bin/env bash
+
+# Exit immediately if a command exits with a non-zero status
+set -e
+
+# Colors for output
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+NC='\033[0m' # No Color
+
+# Default values
+CHECK_ONLY=false
+RUST_LINT=false
+CAIRO_LINT=false
+PRETTIER_LINT=false
+FILES_SPECIFIED=false
+SPECIFIC_FILES=""
+
+# Function to show usage
+show_usage() {
+    echo "Usage: $0 [OPTIONS]"
+    echo ""
+    echo "Options:"
+    echo "  --rust          Run Rust linting only (rustfmt + clippy)"
+    echo "  --cairo         Run Cairo linting only (scarb fmt)"
+    echo "  --prettier      Run prettier linting only (markdown/yaml)"
+    echo "  --all           Run all linting (default if no specific options)"
+    echo "  --check-only    Check formatting without applying changes"
+    echo "  --files FILE... Lint specific files only"
+    echo "  --help          Show this help message"
+    echo ""
+    echo "Examples:"
+    echo "  $0                     # Run all linting"
+    echo "  $0 --rust              # Run only Rust linting"
+    echo "  $0 --check-only        # Check all without formatting"
+    echo "  $0 --files src/lib.rs  # Lint specific file"
+}
+
+# Parse command line arguments
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        --rust)
+            RUST_LINT=true
+            shift
+            ;;
+        --cairo)
+            CAIRO_LINT=true
+            shift
+            ;;
+        --prettier)
+            PRETTIER_LINT=true
+            shift
+            ;;
+        --all)
+            RUST_LINT=true
+            CAIRO_LINT=true
+            PRETTIER_LINT=true
+            shift
+            ;;
+        --check-only)
+            CHECK_ONLY=true
+            shift
+            ;;
+        --files)
+            FILES_SPECIFIED=true
+            shift
+            while [[ $# -gt 0 && ! $1 =~ ^-- ]]; do
+                SPECIFIC_FILES="$SPECIFIC_FILES $1"
+                shift
+            done
+            ;;
+        --help)
+            show_usage
+            exit 0
+            ;;
+        *)
+            echo -e "${RED}Unknown option: $1${NC}"
+            show_usage
+            exit 1
+            ;;
+    esac
+done
+
+# If no specific linter is chosen, run all
+if [ "$RUST_LINT" = false ] && [ "$CAIRO_LINT" = false ] && [ "$PRETTIER_LINT" = false ]; then
+    RUST_LINT=true
+    CAIRO_LINT=true
+    PRETTIER_LINT=true
+fi
+
+echo -e "${BLUE}Running linting checks...${NC}"
+
+# Function to run Rust linting
+run_rust_lint() {
+    echo -e "${BLUE}Running Rust linting...${NC}"
+    
+    if [ "$FILES_SPECIFIED" = true ]; then
+        # Lint specific Rust files
+        RUST_FILES=$(echo "$SPECIFIC_FILES" | tr ' ' '\n' | grep '\.rs$' || true)
+        if [ -n "$RUST_FILES" ]; then
+            if [ "$CHECK_ONLY" = true ]; then
+                echo "$RUST_FILES" | xargs rustfmt --edition 2021 --check
+            else
+                echo "$RUST_FILES" | xargs rustfmt --edition 2021
+            fi
+            cargo clippy --all-targets --all-features -- -D warnings
+        fi
+    else
+        # Lint all Rust files
+        if [ "$CHECK_ONLY" = true ]; then
+            cargo fmt --all -- --check
+        else
+            cargo fmt --all
+        fi
+        cargo clippy --all-targets --all-features -- -D warnings
+    fi
+}
+
+# Function to run Cairo linting
+run_cairo_lint() {
+    if ! command -v scarb &> /dev/null; then
+        echo -e "${YELLOW}scarb not found. Skipping Cairo linting.${NC}"
+        return 0
+    fi
+    
+    echo -e "${BLUE}Running Cairo linting...${NC}"
+    
+    if [ "$FILES_SPECIFIED" = true ]; then
+        # Check if any specified files are Cairo files
+        CAIRO_FILES=$(echo "$SPECIFIC_FILES" | tr ' ' '\n' | grep '\.cairo$' || true)
+        if [ -z "$CAIRO_FILES" ]; then
+            return 0
+        fi
+    fi
+    
+    # Format Cairo files in contracts directories
+    for contract_dir in contracts/*/; do
+        if [ -d "$contract_dir" ]; then
+            echo -e "${BLUE}Formatting Cairo files in $contract_dir...${NC}"
+            if [ "$CHECK_ONLY" = true ]; then
+                (cd "$contract_dir" && scarb fmt --check)
+            else
+                (cd "$contract_dir" && scarb fmt)
+            fi
+        fi
+    done
+}
+
+# Function to run prettier linting
+run_prettier_lint() {
+    if ! command -v prettier &> /dev/null; then
+        echo -e "${YELLOW}prettier not found. Skipping documentation linting.${NC}"
+        return 0
+    fi
+    
+    echo -e "${BLUE}Running prettier linting...${NC}"
+    
+    if [ "$FILES_SPECIFIED" = true ]; then
+        # Lint specific documentation files
+        DOC_FILES=$(echo "$SPECIFIC_FILES" | tr ' ' '\n' | grep -E '\.(md|yml|yaml|json)$' | grep -v CLAUDE.md || true)
+        if [ -n "$DOC_FILES" ]; then
+            if [ "$CHECK_ONLY" = true ]; then
+                echo "$DOC_FILES" | xargs prettier --check
+            else
+                echo "$DOC_FILES" | xargs prettier --write
+            fi
+        fi
+    else
+        # Lint all documentation files
+        if [ "$CHECK_ONLY" = true ]; then
+            prettier --check "**/*.{md,yml,yaml,json}" --ignore-path .prettierignore
+        else
+            prettier --write "**/*.{md,yml,yaml,json}" --ignore-path .prettierignore
+        fi
+    fi
+}
+
+# Run the selected linters
+EXIT_CODE=0
+
+if [ "$RUST_LINT" = true ]; then
+    if ! run_rust_lint; then
+        EXIT_CODE=1
+    fi
+fi
+
+if [ "$CAIRO_LINT" = true ]; then
+    if ! run_cairo_lint; then
+        EXIT_CODE=1
+    fi
+fi
+
+if [ "$PRETTIER_LINT" = true ]; then
+    if ! run_prettier_lint; then
+        EXIT_CODE=1
+    fi
+fi
+
+if [ $EXIT_CODE -eq 0 ]; then
+    echo -e "${GREEN}✅ All linting checks passed!${NC}"
+else
+    echo -e "${RED}❌ Some linting checks failed.${NC}"
+fi
+
+exit $EXIT_CODE

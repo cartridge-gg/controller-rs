@@ -32,31 +32,28 @@ mod external_owners_component {
         TContractState,
         +HasComponent<TContractState>,
         +IAssertOwner<TContractState>,
-        +Drop<TContractState>
+        +Drop<TContractState>,
     > of IExternalOwners<ComponentState<TContractState>> {
         fn register_external_owner(
-            ref self: ComponentState<TContractState>, external_owner_address: ContractAddress
+            ref self: ComponentState<TContractState>, external_owner_address: ContractAddress,
         ) {
             self.get_contract().assert_owner();
             self._register_external_owner(external_owner_address);
         }
 
         fn remove_external_owner(
-            ref self: ComponentState<TContractState>, external_owner_address: ContractAddress
+            ref self: ComponentState<TContractState>, external_owner_address: ContractAddress,
         ) {
             self.get_contract().assert_owner();
 
-            assert(
-                self.is_external_owner(external_owner_address),
-                'ext-owners/not-registered'
-            );
+            assert(self.is_external_owner(external_owner_address), 'ext-owners/not-registered');
 
             self.external_owners.write(external_owner_address.into(), false);
             self.emit(ExternalOwnerRemoved { address: external_owner_address });
         }
 
         fn is_external_owner(
-            self: @ComponentState<TContractState>, external_owner_address: ContractAddress
+            self: @ComponentState<TContractState>, external_owner_address: ContractAddress,
         ) -> bool {
             self.external_owners.read(external_owner_address.into())
         }
@@ -67,14 +64,14 @@ mod external_owners_component {
         TContractState,
         +HasComponent<TContractState>,
         +IAssertOwner<TContractState>,
-        +Drop<TContractState>
+        +Drop<TContractState>,
     > of InternalTrait<TContractState> {
         fn _register_external_owner(
-            ref self: ComponentState<TContractState>, external_owner_address: ContractAddress
+            ref self: ComponentState<TContractState>, external_owner_address: ContractAddress,
         ) {
             assert(
                 self.is_external_owner(external_owner_address) == false,
-                'ext-owners/already-registered'
+                'ext-owners/already-registered',
             );
 
             self.external_owners.write(external_owner_address.into(), true);

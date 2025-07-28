@@ -1,7 +1,7 @@
 use starknet::account::Call;
 use core::array::ArrayTrait;
 use alexandria_merkle_tree::merkle_tree::{
-    Hasher, MerkleTree, poseidon::PoseidonHasherImpl, MerkleTreeTrait
+    Hasher, MerkleTree, poseidon::PoseidonHasherImpl, MerkleTreeTrait,
 };
 use argent::session::{session_hash::MerkleLeafHashPolicy, interface::Policy};
 
@@ -13,10 +13,10 @@ mod session_component {
     use starknet::{account::Call, info::get_block_timestamp, get_contract_address, storage::Map};
     use argent::session::interface::{Session, SessionToken, Policy, TypedData};
     use argent::session::session_hash::{
-        StructHashSession, OffChainMessageHashSessionRev1, StructHashTypedData
+        StructHashSession, OffChainMessageHashSessionRev1, StructHashTypedData,
     };
     use argent::signer::signer_signature::{
-        Signer, SignerSignature, SignerType, SignerSignatureImpl, SignerTraitImpl
+        Signer, SignerSignature, SignerType, SignerSignatureImpl, SignerTraitImpl,
     };
 
     use controller::asserts::assert_no_self_call;
@@ -25,7 +25,7 @@ mod session_component {
     use controller::account::IAssertOwner;
 
     const SESSION_MAGIC: felt252 = 'session-token';
-    const WILDCARD_MAGIC: felt252  = 'wildcard-policy';
+    const WILDCARD_MAGIC: felt252 = 'wildcard-policy';
     const AUTHORIZATION_BY_REGISTERED: felt252 = 'authorization-by-registered';
 
     #[storage]
@@ -90,14 +90,14 @@ mod session_component {
             assert(!self.revoked_session.read(session_hash), 'session/already-revoked');
             assert(
                 !self.valid_session_cache.read((guid_or_address, session_hash)),
-                'session/already-registered'
+                'session/already-registered',
             );
 
             self.valid_session_cache.write((guid_or_address, session_hash), true);
         }
 
         fn is_session_revoked(
-            self: @ComponentState<TContractState>, session_hash: felt252
+            self: @ComponentState<TContractState>, session_hash: felt252,
         ) -> bool {
             self.revoked_session.read(session_hash)
         }
@@ -111,9 +111,9 @@ mod session_component {
 
             self.valid_session_cache.read((guid_or_address, session_hash))
         }
-        
+
         fn is_session_signature_valid(
-            self: @ComponentState<TContractState>, data: Span<TypedData>, token: SessionToken
+            self: @ComponentState<TContractState>, data: Span<TypedData>, token: SessionToken,
         ) -> bool {
             let mut data = data;
             let mut policies: Array<Policy> = array![];
@@ -157,7 +157,7 @@ mod session_component {
         fn is_session(self: @ComponentState<TContractState>, signature: Span<felt252>) -> bool {
             match signature.get(0) {
                 Option::Some(session_magic) => *session_magic.unbox() == SESSION_MAGIC,
-                Option::None => false
+                Option::None => false,
             }
         }
 
@@ -205,7 +205,7 @@ mod session_component {
 
                 assert(
                     self.valid_session_cache.read((owner_guid, session_hash)),
-                    'session/not-registered'
+                    'session/not-registered',
                 );
             } else {
                 let parsed = contract.parse_authorization(signature.session_authorization);
@@ -230,12 +230,12 @@ mod session_component {
 
             assert(
                 signature.session.session_key_guid == session_guid_from_sig,
-                'session/session-key-mismatch'
+                'session/session-key-mismatch',
             );
 
             assert(
                 signature.session_signature.is_valid_signature(message_hash),
-                'session/invalid-session-sig'
+                'session/invalid-session-sig',
             );
 
             if signature.session.guardian_key_guid != 0 {
@@ -246,12 +246,12 @@ mod session_component {
                         .guardian_signature
                         .signer()
                         .into_guid(),
-                    'session/invalid-guardian'
+                    'session/invalid-guardian',
                 );
 
                 assert(
                     signature.guardian_signature.is_valid_signature(message_hash),
-                    'session/invalid-guardian-sig'
+                    'session/invalid-guardian-sig',
                 );
             }
 
@@ -263,7 +263,7 @@ mod session_component {
 
             assert(
                 check_policy(calls, signature.session.allowed_policies_root, signature.proofs),
-                'session/policy-check-failed'
+                'session/policy-check-failed',
             );
 
             to_be_cached
@@ -271,7 +271,7 @@ mod session_component {
     }
 }
 
-fn check_policy(array: Span<Policy>, root: felt252, proofs: Span<Span<felt252>>,) -> bool {
+fn check_policy(array: Span<Policy>, root: felt252, proofs: Span<Span<felt252>>) -> bool {
     let mut i = 0_usize;
     loop {
         if i >= array.len() {

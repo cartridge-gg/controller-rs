@@ -1,4 +1,3 @@
-
 #[starknet::contract]
 mod Resolver {
     use core::option::OptionTrait;
@@ -55,7 +54,7 @@ mod Resolver {
     #[abi(embed_v0)]
     impl ResolverImpl of IResolver<ContractState> {
         fn resolve(
-            self: @ContractState, domain: Span<felt252>, field: felt252, hint: Span<felt252>
+            self: @ContractState, domain: Span<felt252>, field: felt252, hint: Span<felt252>,
         ) -> felt252 {
             if hint.len() != 4 {
                 panic(self.get_error_array(array!['offchain_resolving'], domain));
@@ -68,16 +67,16 @@ mod Resolver {
             let message_hash: felt252 = hash::LegacyHash::hash(
                 hash::LegacyHash::hash(
                     hash::LegacyHash::hash(
-                        hash::LegacyHash::hash('ccip_demo resolving', max_validity), hashed_domain
+                        hash::LegacyHash::hash('ccip_demo resolving', max_validity), hashed_domain,
                     ),
-                    field
+                    field,
                 ),
-                *hint.at(0)
+                *hint.at(0),
             );
 
             let public_key = self.public_key.read();
             let is_valid = check_ecdsa_signature(
-                message_hash, public_key, *hint.at(1), *hint.at(2)
+                message_hash, public_key, *hint.at(1), *hint.at(2),
             );
             assert(is_valid, 'Invalid signature');
 
@@ -98,7 +97,7 @@ mod Resolver {
                     loop {
                         match new_uri.pop_front() {
                             Option::Some(value) => { res.append(value); },
-                            Option::None => { break; }
+                            Option::None => { break; },
                         }
                     };
                 }
@@ -115,8 +114,8 @@ mod Resolver {
                     self
                         .emit(
                             StarknetIDOffChainResolverUpdate {
-                                uri_added: new_uri, uri_removed: array![].span()
-                            }
+                                uri_added: new_uri, uri_removed: array![].span(),
+                            },
                         );
                     self.store_uri(new_uri, i);
 
@@ -158,20 +157,20 @@ mod Resolver {
                         self.uri.write((index, j), *value);
                         j += 1;
                     },
-                    Option::None => { break; }
+                    Option::None => { break; },
                 }
             };
         }
 
         fn get_error_array(
-            self: @ContractState, mut res: Array<felt252>, mut domain: Span<felt252>
+            self: @ContractState, mut res: Array<felt252>, mut domain: Span<felt252>,
         ) -> Array<felt252> {
             // append domain to error array
             res.append(domain.len().into());
             loop {
                 match domain.pop_front() {
                     Option::Some(value) => { res.append(*value); },
-                    Option::None => { break; }
+                    Option::None => { break; },
                 }
             };
             // append uris to error array
@@ -191,7 +190,7 @@ mod Resolver {
                     loop {
                         match new_uri.pop_front() {
                             Option::Some(value) => { res.append(value); },
-                            Option::None => { break; }
+                            Option::None => { break; },
                         }
                     };
                 }

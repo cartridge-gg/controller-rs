@@ -26,10 +26,10 @@ mod delegate_account_component {
         TContractState,
         +HasComponent<TContractState>,
         +IAssertOwner<TContractState>,
-        +Drop<TContractState>
+        +Drop<TContractState>,
     > of IDelegateAccount<ComponentState<TContractState>> {
         fn set_delegate_account(
-            ref self: ComponentState<TContractState>, delegate_address: ContractAddress
+            ref self: ComponentState<TContractState>, delegate_address: ContractAddress,
         ) {
             self.get_contract().assert_owner();
 

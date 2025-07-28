@@ -34,22 +34,37 @@ jobs:
           target: x86_64-pc-windows-msvc
       - run: cargo build --target x86_64-pc-windows-msvc -p account_sdk
 
-  clippy:
+  lint:
+    name: Code Quality (mirrors pre-commit hooks)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions-rust-lang/setup-rust-toolchain@v1
-        with:
-          toolchain: ${{ env.RUST_VERSION }}
-          components: clippy
-      - run: cargo clippy --all-targets --all-features
 
-  rust-fmt:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
+      # Setup Rust with required components
       - uses: actions-rust-lang/setup-rust-toolchain@v1
         with:
           toolchain: ${{ env.RUST_VERSION }}
-          components: rustfmt
-      - uses: actions-rust-lang/rustfmt@v1
+          components: rustfmt, clippy
+
+      # Setup Scarb for Cairo formatting
+      - name: Setup Scarb
+        uses: software-mansion/setup-scarb@v1
+        with:
+          scarb-version: "2.9.4"
+
+      # Setup Node.js and prettier for documentation formatting
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install prettier
+        run: npm install -g prettier
+
+      # Make scripts executable
+      - name: Make scripts executable
+        run: chmod +x bin/*
+
+      # Run all linting checks (mirrors the pre-commit hooks exactly)
+      - name: Run all linting checks
+        run: make lint-check
