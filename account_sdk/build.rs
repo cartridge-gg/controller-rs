@@ -4,6 +4,7 @@ use std::{collections::HashMap, fs, path::PathBuf, process::Command};
 
 fn main() {
     println!("cargo:rerun-if-changed=./artifacts/classes");
+    println!("cargo:rerun-if-changed=./artifacts/metadata.json");
     generate_controller_bindings();
     generate_erc20_bindings();
     generate_artifacts();
@@ -81,7 +82,7 @@ pub enum Version {{
     {enum_variants}
 }}
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 pub struct ContractClass {{
     pub content: &'static str,
     pub hash: Felt,
@@ -119,7 +120,8 @@ lazy_static! {{
     );
 
     fs::write("./src/artifacts.rs", artifacts).unwrap();
-    // Write artifacts to JSON file
+
+    // Write artifacts to JSON file with deterministic metadata
     let json_artifacts = serde_json::json!({
         "versions": versions,
         "latest_version": latest_version,
@@ -128,10 +130,21 @@ lazy_static! {{
                 let path = format!("./artifacts/classes/controller.{}.contract_class.json", v);
                 let class_hash = extract_class_hash(&PathBuf::from(&path));
                 let casm_hash = extract_compiled_class_hash(v);
-                serde_json::json!({  // <-- Add json! macro here
+                let mut controller_info = serde_json::json!({
                     "class_hash": format!("{:#x}", class_hash),
                     "casm_hash": format!("{:#x}", casm_hash)
-                })
+                });
+
+                // Add deterministic version metadata for non-latest versions
+                if v != "latest" {
+                    let outside_execution_version = determine_outside_execution_version(v);
+                    let changes = determine_version_changes(v);
+
+                    controller_info["outside_execution_version"] = serde_json::Value::String(outside_execution_version);
+                    controller_info["changes"] = serde_json::Value::Array(changes.into_iter().map(serde_json::Value::String).collect());
+                }
+
+                controller_info
             })
         }).collect::<HashMap<_,_>>()
     });
@@ -141,6 +154,29 @@ lazy_static! {{
         serde_json::to_string_pretty(&json_artifacts).unwrap(),
     )
     .unwrap();
+}
+
+fn determine_outside_execution_version(version: &str) -> String {
+    match version {
+        "v1.0.4" | "v1.0.5" => "V2".to_string(),
+        _ => "V3".to_string(), // v1.0.6 and later use V3
+    }
+}
+
+fn determine_version_changes(version: &str) -> Vec<String> {
+    match version {
+        "v1.0.4" => vec![],
+        "v1.0.5" => vec!["Improved session token implementation".to_string()],
+        "v1.0.6" => vec![
+            "Support session key message signing".to_string(),
+            "Support session guardians".to_string(),
+            "Improve paymaster nonce management".to_string(),
+        ],
+        "v1.0.7" => vec!["Unified message signature verification".to_string()],
+        "v1.0.8" => vec!["Improved session message signature".to_string()],
+        "v1.0.9" => vec!["Wildcard session support".to_string()],
+        _ => vec![], // Unknown versions or latest
+    }
 }
 
 fn extract_compiled_class_hash(version: &str) -> Felt {

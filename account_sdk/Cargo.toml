@@ -62,6 +62,7 @@ tempfile = "3.8"
 cainome.workspace = true
 starknet.workspace = true
 serde_json.workspace = true
+serde.workspace = true
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 tokio.workspace = true
