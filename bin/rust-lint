@@ -59,7 +59,7 @@ echo -e "${BLUE}Running Rust linting...${NC}"
 run_rustfmt() {
     if [ "$FILES_SPECIFIED" = true ]; then
         # Format specific files
-        RUST_FILES=$(echo $SPECIFIC_FILES | tr ' ' '\n' | grep '\.rs$' || true)
+        RUST_FILES=$(echo "$SPECIFIC_FILES" | tr ' ' '\n' | grep '\.rs$' || true)
         if [ -n "$RUST_FILES" ]; then
             if [ "$CHECK_ONLY" = true ]; then
                 echo -e "${BLUE}Checking formatting of specific Rust files...${NC}"

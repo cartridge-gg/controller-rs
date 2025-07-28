@@ -98,14 +98,14 @@ run_rust_lint() {
     
     if [ "$FILES_SPECIFIED" = true ]; then
         # Lint specific Rust files
-        RUST_FILES=$(echo $SPECIFIC_FILES | tr ' ' '\n' | grep '\.rs$' || true)
+        RUST_FILES=$(echo "$SPECIFIC_FILES" | tr ' ' '\n' | grep '\.rs$' || true)
         if [ -n "$RUST_FILES" ]; then
             if [ "$CHECK_ONLY" = true ]; then
                 echo "$RUST_FILES" | xargs rustfmt --edition 2021 --check
             else
                 echo "$RUST_FILES" | xargs rustfmt --edition 2021
             fi
-            echo "$RUST_FILES" | xargs -I {} cargo clippy --all-targets --all-features -- -D warnings
+            cargo clippy --all-targets --all-features -- -D warnings
         fi
     else
         # Lint all Rust files
@@ -129,7 +129,7 @@ run_cairo_lint() {
     
     if [ "$FILES_SPECIFIED" = true ]; then
         # Check if any specified files are Cairo files
-        CAIRO_FILES=$(echo $SPECIFIC_FILES | tr ' ' '\n' | grep '\.cairo$' || true)
+        CAIRO_FILES=$(echo "$SPECIFIC_FILES" | tr ' ' '\n' | grep '\.cairo$' || true)
         if [ -z "$CAIRO_FILES" ]; then
             return 0
         fi
@@ -159,7 +159,7 @@ run_prettier_lint() {
     
     if [ "$FILES_SPECIFIED" = true ]; then
         # Lint specific documentation files
-        DOC_FILES=$(echo $SPECIFIC_FILES | tr ' ' '\n' | grep -E '\.(md|yml|yaml|json)$' | grep -v CLAUDE.md || true)
+        DOC_FILES=$(echo "$SPECIFIC_FILES" | tr ' ' '\n' | grep -E '\.(md|yml|yaml|json)$' | grep -v CLAUDE.md || true)
         if [ -n "$DOC_FILES" ]; then
             if [ "$CHECK_ONLY" = true ]; then
                 echo "$DOC_FILES" | xargs prettier --check

@@ -68,7 +68,7 @@ EXIT_CODE=0
 run_prettier() {
     if [ "$FILES_SPECIFIED" = true ]; then
         # Format specific files
-        DOC_FILES=$(echo $SPECIFIC_FILES | tr ' ' '\n' | grep -E '\.(md|yml|yaml|json)$' | grep -v CLAUDE.md || true)
+        DOC_FILES=$(echo "$SPECIFIC_FILES" | tr ' ' '\n' | grep -E '\.(md|yml|yaml|json)$' | grep -v CLAUDE.md || true)
         if [ -n "$DOC_FILES" ]; then
             if [ "$CHECK_ONLY" = true ]; then
                 echo -e "${BLUE}Checking formatting of specific files...${NC}"
