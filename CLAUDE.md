@@ -23,7 +23,6 @@ This is a Rust-based project that implements a Cartridge Controller system for S
 - The build script creates two separate packages: `pkg-controller` and `pkg-session`
 
 ### Cairo Contracts
-- `scarb --manifest-path ./contracts/controller/Scarb.toml build` - Build controller contracts
 - `scarb --manifest-path ./contracts/resolver/Scarb.toml build` - Build resolver contracts
 
 ### Code Quality and Linting
