@@ -27,19 +27,19 @@ primitive-types = { version = "0.12", default-features = false }
 getrandom = { version = "0.2", features = ["js"] }
 rand = { version = "0.8", features = ["getrandom"] }
 reqwest = { version = "0.11.16", default-features = false, features = [
-    "json",
-    "rustls-tls",
-    "cookies",
+	"json",
+	"rustls-tls",
+	"cookies",
 ] }
 serde = { version = "1.0.160", default-features = false, features = ["derive"] }
 serde_json = { version = "1.0.96", default-features = false, features = [
-    "alloc",
-    "raw_value",
+	"alloc",
+	"raw_value",
 ] }
 serde-wasm-bindgen = "0.6.5"
 serde_with = { version = "3.9.0", default-features = false, features = [
-    "alloc",
-    "macros",
+	"alloc",
+	"macros",
 ] }
 sha2 = "0.10"
 thiserror = "1"
@@ -56,16 +56,15 @@ serde_cbor_2 = { version = "0.12.0-dev" }
 webauthn-rs-core = { git = "https://github.com/cartridge-gg/webauthn-rs", rev = "a6cea88" }
 webauthn-rs-proto = { git = "https://github.com/cartridge-gg/webauthn-rs", rev = "a6cea88" }
 webauthn-authenticator-rs = { git = "https://github.com/cartridge-gg/webauthn-rs", rev = "a6cea88", features = [
-    "softpasskey",
+	"softpasskey",
 ] }
 
-cainome = { git = "https://github.com/cartridge-gg/cainome", version = "0.9.0", features = [
-    "abigen-rs",
-] }
-cainome-cairo-serde = { git = "https://github.com/cartridge-gg/cainome", version = "0.3.0" }
+# TODO: use the official version once this PR is merged: <https://github.com/cartridge-gg/cainome/pull/108>
+cainome = { git = "https://github.com/kariy/cainome", branch = "feat/rpc0.9", features = [ "abigen-rs" ] }
+cainome-cairo-serde = { git = "https://github.com/kariy/cainome", branch = "feat/rpc0.9" }
 
-starknet = "0.16.0"
-starknet-crypto = { version = "0.7.3", features = ["pedersen_no_lookup"] }
+starknet = "0.17.0-rc.2"
+starknet-crypto = { version = "0.7.4", features = ["pedersen_no_lookup"] }
 starknet-types-core = { version = "0.1", features = ["curve", "hash"] }
 
 chrono = { version = "0.4", features = ["wasmbind", "serde"] }

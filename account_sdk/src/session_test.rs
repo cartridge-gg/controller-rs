@@ -2,9 +2,7 @@ use cainome::cairo_serde::{ContractAddress, U256};
 use cainome_cairo_serde::Zeroable;
 use starknet::{
     accounts::{Account, AccountError, ConnectedAccount},
-    core::types::{
-        BlockId, BlockTag, FeeEstimate, PriceUnit, StarknetError, TransactionExecutionErrorData,
-    },
+    core::types::{BlockId, BlockTag, FeeEstimate, StarknetError, TransactionExecutionErrorData},
     macros::{felt, selector},
     providers::{Provider, ProviderError},
     signers::SigningKey,
@@ -237,7 +235,6 @@ async fn test_create_and_use_registered_session() {
         l1_data_gas_consumed: 0,
         l1_data_gas_price: 0,
         overall_fee: 57780000000000_u128,
-        unit: PriceUnit::Fri,
     };
     let txn = controller
         .register_session(

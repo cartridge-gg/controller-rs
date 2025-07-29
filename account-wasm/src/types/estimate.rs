@@ -34,7 +34,6 @@ pub struct JsFeeEstimate {
     pub l1_data_gas_consumed: u64,
     pub l1_data_gas_price: u128,
     pub overall_fee: u128,
-    pub unit: JsPriceUnit,
 }
 
 impl From<JsFeeEstimate> for FeeEstimate {
@@ -47,7 +46,6 @@ impl From<JsFeeEstimate> for FeeEstimate {
             l1_data_gas_consumed: estimate.l1_data_gas_consumed,
             l1_data_gas_price: estimate.l1_data_gas_price,
             overall_fee: estimate.overall_fee,
-            unit: estimate.unit.into(),
         }
     }
 }
@@ -62,7 +60,6 @@ impl From<FeeEstimate> for JsFeeEstimate {
             l1_data_gas_consumed: estimate.l1_data_gas_consumed,
             l1_data_gas_price: estimate.l1_data_gas_price,
             overall_fee: estimate.overall_fee,
-            unit: estimate.unit.into(),
         }
     }
 }
@@ -101,7 +98,6 @@ mod tests {
             l1_data_gas_consumed: 0,
             l1_data_gas_price: 0,
             overall_fee: 0,
-            unit: JsPriceUnit::Fri,
         };
 
         // Test conversion to FeeEstimate
@@ -114,7 +110,6 @@ mod tests {
         assert_eq!(fee_estimate.l1_data_gas_consumed, 0);
         assert_eq!(fee_estimate.l1_data_gas_price, 0);
         assert_eq!(fee_estimate.overall_fee, 0);
-        assert_eq!(fee_estimate.unit, PriceUnit::Fri);
 
         // Test conversion back to JsFeeEstimate
         let converted_back: JsFeeEstimate = fee_estimate.into();
@@ -126,7 +121,6 @@ mod tests {
         assert_eq!(converted_back.l1_data_gas_consumed, 0);
         assert_eq!(converted_back.l1_data_gas_price, 0);
         assert_eq!(converted_back.overall_fee, 0);
-        assert_eq!(converted_back.unit, JsPriceUnit::Fri);
     }
 
     #[test]
