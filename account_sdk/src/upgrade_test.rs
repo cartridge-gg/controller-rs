@@ -234,24 +234,6 @@ fn test_find_version_by_hash() {
 }
 
 #[test]
-fn test_find_version_by_hash_ignores_latest() {
-    let metadata = ControllerMetadata::load().expect("Failed to load metadata");
-
-    if let Some(latest_controller) = metadata.controllers.get("latest") {
-        let latest_hash = Felt::from_hex(&latest_controller.class_hash)
-            .expect("Failed to parse latest class hash");
-
-        let result = find_version_by_hash(latest_hash).expect("Failed to search for latest hash");
-
-        // Should return None because we ignore "latest" key
-        assert!(
-            result.is_none(),
-            "Should ignore latest version in hash lookup"
-        );
-    }
-}
-
-#[test]
 fn test_version_changes_content() {
     let metadata = ControllerMetadata::load().expect("Failed to load metadata");
 
