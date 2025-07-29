@@ -305,7 +305,7 @@ impl Controller {
                             }
                         }
                         AccountError::Provider(ProviderError::StarknetError(
-                            StarknetError::InvalidTransactionNonce,
+                            StarknetError::InvalidTransactionNonce(..),
                         )) => {
                             if retry_count < max_retries {
                                 // Refetch nonce from the provider
@@ -369,7 +369,7 @@ impl Controller {
                     entry_point_selector: selector!("balanceOf"),
                     calldata: vec![address],
                 },
-                BlockId::Tag(BlockTag::Pending),
+                BlockId::Tag(BlockTag::PreConfirmed),
             )
             .await
             .map_err(ControllerError::ProviderError)?;
@@ -473,7 +473,7 @@ impl ConnectedAccount for Controller {
     }
 
     fn block_id(&self) -> BlockId {
-        BlockId::Tag(BlockTag::Pending)
+        BlockId::Tag(BlockTag::PreConfirmed)
     }
 
     async fn get_nonce(&self) -> Result<Felt, ProviderError> {

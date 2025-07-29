@@ -58,6 +58,8 @@ pub enum ErrorCode {
     StarknetUnsupportedContractClassVersion = 62,
     StarknetUnexpectedError = 63,
     StarknetNoTraceAvailable = 10,
+    StarknetReplacementTransactionUnderpriced = 64,
+    StarknetFeeBelowMinimum = 65,
 
     // Custom errors (101 and onwards)
     SignError = 101,
@@ -324,6 +326,16 @@ impl From<ProviderError> for JsControllerError {
 impl From<StarknetError> for JsControllerError {
     fn from(e: StarknetError) -> Self {
         let (code, message, data) = match e {
+            StarknetError::ReplacementTransactionUnderpriced => (
+                ErrorCode::StarknetReplacementTransactionUnderpriced,
+                "Replacement transaction is underpriced",
+                None,
+            ),
+            StarknetError::FeeBelowMinimum => (
+                ErrorCode::StarknetFeeBelowMinimum,
+                "Transaction fee below minimum",
+                None,
+            ),
             StarknetError::FailedToReceiveTransaction => (
                 ErrorCode::StarknetFailedToReceiveTransaction,
                 "Failed to write transaction",
@@ -393,10 +405,10 @@ impl From<StarknetError> for JsControllerError {
                 "Class already declared",
                 None,
             ),
-            StarknetError::InvalidTransactionNonce => (
+            StarknetError::InvalidTransactionNonce(msg) => (
                 ErrorCode::StarknetInvalidTransactionNonce,
                 "Invalid transaction nonce",
-                None,
+                Some(msg),
             ),
             StarknetError::InsufficientResourcesForValidate => (
                 ErrorCode::StarknetInsufficientMaxFee,

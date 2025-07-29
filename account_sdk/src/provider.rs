@@ -4,10 +4,11 @@ use nom::AsChar;
 use starknet::core::types::{
     BlockHashAndNumber, BlockId, BroadcastedDeclareTransaction,
     BroadcastedDeployAccountTransaction, BroadcastedInvokeTransaction, BroadcastedTransaction,
-    ContractClass, ContractExecutionError, DeclareTransactionResult,
+    ConfirmedBlockId, ContractClass, ContractExecutionError, DeclareTransactionResult,
     DeployAccountTransactionResult, EventFilter, EventsPage, FeeEstimate, Felt, FunctionCall,
-    Hash256, InvokeTransactionResult, MaybePendingBlockWithReceipts, MaybePendingBlockWithTxHashes,
-    MaybePendingBlockWithTxs, MaybePendingStateUpdate, MsgFromL1, SimulatedTransaction,
+    Hash256, InvokeTransactionResult, MaybePreConfirmedBlockWithReceipts,
+    MaybePreConfirmedBlockWithTxHashes, MaybePreConfirmedBlockWithTxs,
+    MaybePreConfirmedStateUpdate, MessageFeeEstimate, MsgFromL1, SimulatedTransaction,
     SimulationFlag, SimulationFlagForEstimateFee, SyncStatusType, Transaction,
     TransactionExecutionErrorData, TransactionReceiptWithBlockInfo, TransactionStatus,
     TransactionTrace, TransactionTraceWithHash,
@@ -114,7 +115,7 @@ impl Provider for CartridgeJsonRpcProvider {
     async fn get_block_with_tx_hashes<B>(
         &self,
         block_id: B,
-    ) -> Result<MaybePendingBlockWithTxHashes, ProviderError>
+    ) -> Result<MaybePreConfirmedBlockWithTxHashes, ProviderError>
     where
         B: AsRef<BlockId> + Send + Sync,
     {
@@ -124,7 +125,7 @@ impl Provider for CartridgeJsonRpcProvider {
     async fn get_block_with_txs<B>(
         &self,
         block_id: B,
-    ) -> Result<MaybePendingBlockWithTxs, ProviderError>
+    ) -> Result<MaybePreConfirmedBlockWithTxs, ProviderError>
     where
         B: AsRef<BlockId> + Send + Sync,
     {
@@ -134,7 +135,7 @@ impl Provider for CartridgeJsonRpcProvider {
     async fn get_block_with_receipts<B>(
         &self,
         block_id: B,
-    ) -> Result<MaybePendingBlockWithReceipts, ProviderError>
+    ) -> Result<MaybePreConfirmedBlockWithReceipts, ProviderError>
     where
         B: AsRef<BlockId> + Send + Sync,
     {
@@ -144,7 +145,7 @@ impl Provider for CartridgeJsonRpcProvider {
     async fn get_state_update<B>(
         &self,
         block_id: B,
-    ) -> Result<MaybePendingStateUpdate, ProviderError>
+    ) -> Result<MaybePreConfirmedStateUpdate, ProviderError>
     where
         B: AsRef<BlockId> + Send + Sync,
     {
@@ -297,7 +298,7 @@ impl Provider for CartridgeJsonRpcProvider {
         &self,
         message: M,
         block_id: B,
-    ) -> Result<FeeEstimate, ProviderError>
+    ) -> Result<MessageFeeEstimate, ProviderError>
     where
         M: AsRef<MsgFromL1> + Send + Sync,
         B: AsRef<BlockId> + Send + Sync,
@@ -422,7 +423,7 @@ impl Provider for CartridgeJsonRpcProvider {
         block_id: B,
     ) -> Result<Vec<TransactionTraceWithHash>, ProviderError>
     where
-        B: AsRef<BlockId> + Send + Sync,
+        B: AsRef<ConfirmedBlockId> + Send + Sync,
     {
         self.inner.trace_block_transactions(block_id).await
     }
@@ -440,7 +441,7 @@ impl Provider for CartridgeJsonRpcProvider {
     async fn get_messages_status(
         &self,
         transaction_hash: Hash256,
-    ) -> Result<Vec<starknet::core::types::MessageWithStatus>, ProviderError> {
+    ) -> Result<Vec<starknet::core::types::MessageStatus>, ProviderError> {
         self.inner.get_messages_status(transaction_hash).await
     }
 
