@@ -155,7 +155,7 @@ impl KatanaRunner {
 
         if self
             .client()
-            .get_class(BlockId::Tag(BlockTag::Pending), class_hash)
+            .get_class(BlockId::Tag(BlockTag::PreConfirmed), class_hash)
             .await
             .is_err()
         {
@@ -223,7 +223,7 @@ where
         encoding,
     );
 
-    account.set_block_id(BlockId::Tag(BlockTag::Pending)); // For fetching valid nonce
+    account.set_block_id(BlockId::Tag(BlockTag::PreConfirmed)); // For fetching valid nonce
     account
 }
 

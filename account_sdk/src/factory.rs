@@ -36,7 +36,7 @@ impl ControllerFactory {
             chain_id,
             owner,
             provider,
-            block_id: BlockId::Tag(BlockTag::Pending),
+            block_id: BlockId::Tag(BlockTag::PreConfirmed),
         }
     }
 

@@ -45,7 +45,7 @@ impl SessionAccount {
             signer,
             address,
             chain_id,
-            block_id: BlockId::Tag(BlockTag::Pending),
+            block_id: BlockId::Tag(BlockTag::PreConfirmed),
             session_authorization,
             session,
         }
