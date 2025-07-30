@@ -211,12 +211,12 @@ fn generate_controller_bindings() {
     .with_types_aliases(HashMap::from([
         (
             String::from(
-                "argent::outside_execution::outside_execution::outside_execution_component::Event",
+                "controller::outside_execution::outside_execution::outside_execution_component::Event",
             ),
             String::from("OutsideExecutionV3Event"),
         ),
         (
-            String::from("argent::outside_execution::interface::OutsideExecution"),
+            String::from("controller::outside_execution::interface::OutsideExecution"),
             String::from("OutsideExecutionV3"),
         ),
         (

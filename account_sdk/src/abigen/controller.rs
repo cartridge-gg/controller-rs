@@ -146,6 +146,195 @@ impl DelegateAccountChanged {
     }
 }
 #[derive(Clone, serde::Serialize, serde::Deserialize, PartialEq, Debug)]
+pub struct DerivePointFromXHint {
+    pub y_last_attempt: U384,
+    pub g_rhs_sqrt: Vec<U384>,
+}
+impl cainome::cairo_serde::CairoSerde for DerivePointFromXHint {
+    type RustType = Self;
+    const SERIALIZED_SIZE: std::option::Option<usize> = None;
+    #[inline]
+    fn cairo_serialized_size(__rust: &Self::RustType) -> usize {
+        let mut __size = 0;
+        __size += U384::cairo_serialized_size(&__rust.y_last_attempt);
+        __size += Vec::<U384>::cairo_serialized_size(&__rust.g_rhs_sqrt);
+        __size
+    }
+    fn cairo_serialize(__rust: &Self::RustType) -> Vec<starknet::core::types::Felt> {
+        let mut __out: Vec<starknet::core::types::Felt> = vec![];
+        __out.extend(U384::cairo_serialize(&__rust.y_last_attempt));
+        __out.extend(Vec::<U384>::cairo_serialize(&__rust.g_rhs_sqrt));
+        __out
+    }
+    fn cairo_deserialize(
+        __felts: &[starknet::core::types::Felt],
+        __offset: usize,
+    ) -> cainome::cairo_serde::Result<Self::RustType> {
+        let mut __offset = __offset;
+        let y_last_attempt = U384::cairo_deserialize(__felts, __offset)?;
+        __offset += U384::cairo_serialized_size(&y_last_attempt);
+        let g_rhs_sqrt = Vec::<U384>::cairo_deserialize(__felts, __offset)?;
+        __offset += Vec::<U384>::cairo_serialized_size(&g_rhs_sqrt);
+        Ok(DerivePointFromXHint {
+            y_last_attempt,
+            g_rhs_sqrt,
+        })
+    }
+}
+#[derive(Clone, serde::Serialize, serde::Deserialize, PartialEq, Debug)]
+pub struct Ed25519Signer {
+    pub pubkey: cainome::cairo_serde::NonZero<cainome::cairo_serde::U256>,
+}
+impl cainome::cairo_serde::CairoSerde for Ed25519Signer {
+    type RustType = Self;
+    const SERIALIZED_SIZE: std::option::Option<usize> = None;
+    #[inline]
+    fn cairo_serialized_size(__rust: &Self::RustType) -> usize {
+        let mut __size = 0;
+        __size +=
+            cainome::cairo_serde::NonZero::<cainome::cairo_serde::U256>::cairo_serialized_size(
+                &__rust.pubkey,
+            );
+        __size
+    }
+    fn cairo_serialize(__rust: &Self::RustType) -> Vec<starknet::core::types::Felt> {
+        let mut __out: Vec<starknet::core::types::Felt> = vec![];
+        __out.extend(
+            cainome::cairo_serde::NonZero::<cainome::cairo_serde::U256>::cairo_serialize(
+                &__rust.pubkey,
+            ),
+        );
+        __out
+    }
+    fn cairo_deserialize(
+        __felts: &[starknet::core::types::Felt],
+        __offset: usize,
+    ) -> cainome::cairo_serde::Result<Self::RustType> {
+        let mut __offset = __offset;
+        let pubkey =
+            cainome::cairo_serde::NonZero::<cainome::cairo_serde::U256>::cairo_deserialize(
+                __felts, __offset,
+            )?;
+        __offset +=
+            cainome::cairo_serde::NonZero::<cainome::cairo_serde::U256>::cairo_serialized_size(
+                &pubkey,
+            );
+        Ok(Ed25519Signer { pubkey })
+    }
+}
+#[derive(Clone, serde::Serialize, serde::Deserialize, PartialEq, Debug)]
+pub struct EdDSASignature {
+    pub Ry_twisted: cainome::cairo_serde::U256,
+    pub s: cainome::cairo_serde::U256,
+    pub Py_twisted: cainome::cairo_serde::U256,
+    pub msg: Vec<u8>,
+}
+impl cainome::cairo_serde::CairoSerde for EdDSASignature {
+    type RustType = Self;
+    const SERIALIZED_SIZE: std::option::Option<usize> = None;
+    #[inline]
+    fn cairo_serialized_size(__rust: &Self::RustType) -> usize {
+        let mut __size = 0;
+        __size += cainome::cairo_serde::U256::cairo_serialized_size(&__rust.Ry_twisted);
+        __size += cainome::cairo_serde::U256::cairo_serialized_size(&__rust.s);
+        __size += cainome::cairo_serde::U256::cairo_serialized_size(&__rust.Py_twisted);
+        __size += Vec::<u8>::cairo_serialized_size(&__rust.msg);
+        __size
+    }
+    fn cairo_serialize(__rust: &Self::RustType) -> Vec<starknet::core::types::Felt> {
+        let mut __out: Vec<starknet::core::types::Felt> = vec![];
+        __out.extend(cainome::cairo_serde::U256::cairo_serialize(
+            &__rust.Ry_twisted,
+        ));
+        __out.extend(cainome::cairo_serde::U256::cairo_serialize(&__rust.s));
+        __out.extend(cainome::cairo_serde::U256::cairo_serialize(
+            &__rust.Py_twisted,
+        ));
+        __out.extend(Vec::<u8>::cairo_serialize(&__rust.msg));
+        __out
+    }
+    fn cairo_deserialize(
+        __felts: &[starknet::core::types::Felt],
+        __offset: usize,
+    ) -> cainome::cairo_serde::Result<Self::RustType> {
+        let mut __offset = __offset;
+        let Ry_twisted = cainome::cairo_serde::U256::cairo_deserialize(__felts, __offset)?;
+        __offset += cainome::cairo_serde::U256::cairo_serialized_size(&Ry_twisted);
+        let s = cainome::cairo_serde::U256::cairo_deserialize(__felts, __offset)?;
+        __offset += cainome::cairo_serde::U256::cairo_serialized_size(&s);
+        let Py_twisted = cainome::cairo_serde::U256::cairo_deserialize(__felts, __offset)?;
+        __offset += cainome::cairo_serde::U256::cairo_serialized_size(&Py_twisted);
+        let msg = Vec::<u8>::cairo_deserialize(__felts, __offset)?;
+        __offset += Vec::<u8>::cairo_serialized_size(&msg);
+        Ok(EdDSASignature {
+            Ry_twisted,
+            s,
+            Py_twisted,
+            msg,
+        })
+    }
+}
+#[derive(Clone, serde::Serialize, serde::Deserialize, PartialEq, Debug)]
+pub struct EdDSASignatureWithHint {
+    pub signature: EdDSASignature,
+    pub msm_hint: MSMHint,
+    pub msm_derive_hint: DerivePointFromXHint,
+    pub sqrt_Rx_hint: cainome::cairo_serde::U256,
+    pub sqrt_Px_hint: cainome::cairo_serde::U256,
+}
+impl cainome::cairo_serde::CairoSerde for EdDSASignatureWithHint {
+    type RustType = Self;
+    const SERIALIZED_SIZE: std::option::Option<usize> = None;
+    #[inline]
+    fn cairo_serialized_size(__rust: &Self::RustType) -> usize {
+        let mut __size = 0;
+        __size += EdDSASignature::cairo_serialized_size(&__rust.signature);
+        __size += MSMHint::cairo_serialized_size(&__rust.msm_hint);
+        __size += DerivePointFromXHint::cairo_serialized_size(&__rust.msm_derive_hint);
+        __size += cainome::cairo_serde::U256::cairo_serialized_size(&__rust.sqrt_Rx_hint);
+        __size += cainome::cairo_serde::U256::cairo_serialized_size(&__rust.sqrt_Px_hint);
+        __size
+    }
+    fn cairo_serialize(__rust: &Self::RustType) -> Vec<starknet::core::types::Felt> {
+        let mut __out: Vec<starknet::core::types::Felt> = vec![];
+        __out.extend(EdDSASignature::cairo_serialize(&__rust.signature));
+        __out.extend(MSMHint::cairo_serialize(&__rust.msm_hint));
+        __out.extend(DerivePointFromXHint::cairo_serialize(
+            &__rust.msm_derive_hint,
+        ));
+        __out.extend(cainome::cairo_serde::U256::cairo_serialize(
+            &__rust.sqrt_Rx_hint,
+        ));
+        __out.extend(cainome::cairo_serde::U256::cairo_serialize(
+            &__rust.sqrt_Px_hint,
+        ));
+        __out
+    }
+    fn cairo_deserialize(
+        __felts: &[starknet::core::types::Felt],
+        __offset: usize,
+    ) -> cainome::cairo_serde::Result<Self::RustType> {
+        let mut __offset = __offset;
+        let signature = EdDSASignature::cairo_deserialize(__felts, __offset)?;
+        __offset += EdDSASignature::cairo_serialized_size(&signature);
+        let msm_hint = MSMHint::cairo_deserialize(__felts, __offset)?;
+        __offset += MSMHint::cairo_serialized_size(&msm_hint);
+        let msm_derive_hint = DerivePointFromXHint::cairo_deserialize(__felts, __offset)?;
+        __offset += DerivePointFromXHint::cairo_serialized_size(&msm_derive_hint);
+        let sqrt_Rx_hint = cainome::cairo_serde::U256::cairo_deserialize(__felts, __offset)?;
+        __offset += cainome::cairo_serde::U256::cairo_serialized_size(&sqrt_Rx_hint);
+        let sqrt_Px_hint = cainome::cairo_serde::U256::cairo_deserialize(__felts, __offset)?;
+        __offset += cainome::cairo_serde::U256::cairo_serialized_size(&sqrt_Px_hint);
+        Ok(EdDSASignatureWithHint {
+            signature,
+            msm_hint,
+            msm_derive_hint,
+            sqrt_Rx_hint,
+            sqrt_Px_hint,
+        })
+    }
+}
+#[derive(Clone, serde::Serialize, serde::Deserialize, PartialEq, Debug)]
 pub struct Eip191Signer {
     pub eth_address: cainome::cairo_serde::EthAddress,
 }
@@ -249,6 +438,135 @@ impl ExternalOwnerRemoved {
     }
     pub fn event_name() -> &'static str {
         "ExternalOwnerRemoved"
+    }
+}
+#[derive(Clone, serde::Serialize, serde::Deserialize, PartialEq, Debug)]
+pub struct FunctionFelt {
+    pub a_num: Vec<U384>,
+    pub a_den: Vec<U384>,
+    pub b_num: Vec<U384>,
+    pub b_den: Vec<U384>,
+}
+impl cainome::cairo_serde::CairoSerde for FunctionFelt {
+    type RustType = Self;
+    const SERIALIZED_SIZE: std::option::Option<usize> = None;
+    #[inline]
+    fn cairo_serialized_size(__rust: &Self::RustType) -> usize {
+        let mut __size = 0;
+        __size += Vec::<U384>::cairo_serialized_size(&__rust.a_num);
+        __size += Vec::<U384>::cairo_serialized_size(&__rust.a_den);
+        __size += Vec::<U384>::cairo_serialized_size(&__rust.b_num);
+        __size += Vec::<U384>::cairo_serialized_size(&__rust.b_den);
+        __size
+    }
+    fn cairo_serialize(__rust: &Self::RustType) -> Vec<starknet::core::types::Felt> {
+        let mut __out: Vec<starknet::core::types::Felt> = vec![];
+        __out.extend(Vec::<U384>::cairo_serialize(&__rust.a_num));
+        __out.extend(Vec::<U384>::cairo_serialize(&__rust.a_den));
+        __out.extend(Vec::<U384>::cairo_serialize(&__rust.b_num));
+        __out.extend(Vec::<U384>::cairo_serialize(&__rust.b_den));
+        __out
+    }
+    fn cairo_deserialize(
+        __felts: &[starknet::core::types::Felt],
+        __offset: usize,
+    ) -> cainome::cairo_serde::Result<Self::RustType> {
+        let mut __offset = __offset;
+        let a_num = Vec::<U384>::cairo_deserialize(__felts, __offset)?;
+        __offset += Vec::<U384>::cairo_serialized_size(&a_num);
+        let a_den = Vec::<U384>::cairo_deserialize(__felts, __offset)?;
+        __offset += Vec::<U384>::cairo_serialized_size(&a_den);
+        let b_num = Vec::<U384>::cairo_deserialize(__felts, __offset)?;
+        __offset += Vec::<U384>::cairo_serialized_size(&b_num);
+        let b_den = Vec::<U384>::cairo_deserialize(__felts, __offset)?;
+        __offset += Vec::<U384>::cairo_serialized_size(&b_den);
+        Ok(FunctionFelt {
+            a_num,
+            a_den,
+            b_num,
+            b_den,
+        })
+    }
+}
+#[derive(Clone, serde::Serialize, serde::Deserialize, PartialEq, Debug)]
+pub struct G1Point {
+    pub x: U384,
+    pub y: U384,
+}
+impl cainome::cairo_serde::CairoSerde for G1Point {
+    type RustType = Self;
+    const SERIALIZED_SIZE: std::option::Option<usize> = None;
+    #[inline]
+    fn cairo_serialized_size(__rust: &Self::RustType) -> usize {
+        let mut __size = 0;
+        __size += U384::cairo_serialized_size(&__rust.x);
+        __size += U384::cairo_serialized_size(&__rust.y);
+        __size
+    }
+    fn cairo_serialize(__rust: &Self::RustType) -> Vec<starknet::core::types::Felt> {
+        let mut __out: Vec<starknet::core::types::Felt> = vec![];
+        __out.extend(U384::cairo_serialize(&__rust.x));
+        __out.extend(U384::cairo_serialize(&__rust.y));
+        __out
+    }
+    fn cairo_deserialize(
+        __felts: &[starknet::core::types::Felt],
+        __offset: usize,
+    ) -> cainome::cairo_serde::Result<Self::RustType> {
+        let mut __offset = __offset;
+        let x = U384::cairo_deserialize(__felts, __offset)?;
+        __offset += U384::cairo_serialized_size(&x);
+        let y = U384::cairo_deserialize(__felts, __offset)?;
+        __offset += U384::cairo_serialized_size(&y);
+        Ok(G1Point { x, y })
+    }
+}
+#[derive(Clone, serde::Serialize, serde::Deserialize, PartialEq, Debug)]
+pub struct MSMHint {
+    pub Q_low: G1Point,
+    pub Q_high: G1Point,
+    pub Q_high_shifted: G1Point,
+    pub RLCSumDlogDiv: FunctionFelt,
+}
+impl cainome::cairo_serde::CairoSerde for MSMHint {
+    type RustType = Self;
+    const SERIALIZED_SIZE: std::option::Option<usize> = None;
+    #[inline]
+    fn cairo_serialized_size(__rust: &Self::RustType) -> usize {
+        let mut __size = 0;
+        __size += G1Point::cairo_serialized_size(&__rust.Q_low);
+        __size += G1Point::cairo_serialized_size(&__rust.Q_high);
+        __size += G1Point::cairo_serialized_size(&__rust.Q_high_shifted);
+        __size += FunctionFelt::cairo_serialized_size(&__rust.RLCSumDlogDiv);
+        __size
+    }
+    fn cairo_serialize(__rust: &Self::RustType) -> Vec<starknet::core::types::Felt> {
+        let mut __out: Vec<starknet::core::types::Felt> = vec![];
+        __out.extend(G1Point::cairo_serialize(&__rust.Q_low));
+        __out.extend(G1Point::cairo_serialize(&__rust.Q_high));
+        __out.extend(G1Point::cairo_serialize(&__rust.Q_high_shifted));
+        __out.extend(FunctionFelt::cairo_serialize(&__rust.RLCSumDlogDiv));
+        __out
+    }
+    fn cairo_deserialize(
+        __felts: &[starknet::core::types::Felt],
+        __offset: usize,
+    ) -> cainome::cairo_serde::Result<Self::RustType> {
+        let mut __offset = __offset;
+        let Q_low = G1Point::cairo_deserialize(__felts, __offset)?;
+        __offset += G1Point::cairo_serialized_size(&Q_low);
+        let Q_high = G1Point::cairo_deserialize(__felts, __offset)?;
+        __offset += G1Point::cairo_serialized_size(&Q_high);
+        let Q_high_shifted = G1Point::cairo_deserialize(__felts, __offset)?;
+        __offset += G1Point::cairo_serialized_size(&Q_high_shifted);
+        let RLCSumDlogDiv = FunctionFelt::cairo_deserialize(__felts, __offset)?;
+        __offset += FunctionFelt::cairo_serialized_size(&RLCSumDlogDiv);
+        Ok(MSMHint {
+            Q_low,
+            Q_high,
+            Q_high_shifted,
+            RLCSumDlogDiv,
+        })
     }
 }
 #[derive(Clone, serde::Serialize, serde::Deserialize, PartialEq, Debug)]
@@ -391,6 +709,44 @@ impl OwnerRemoved {
     }
     pub fn event_name() -> &'static str {
         "OwnerRemoved"
+    }
+}
+#[derive(Clone, serde::Serialize, serde::Deserialize, PartialEq, Debug)]
+pub struct SIWSSignature {
+    pub domain: Vec<u8>,
+    pub signature_with_hint: EdDSASignatureWithHint,
+}
+impl cainome::cairo_serde::CairoSerde for SIWSSignature {
+    type RustType = Self;
+    const SERIALIZED_SIZE: std::option::Option<usize> = None;
+    #[inline]
+    fn cairo_serialized_size(__rust: &Self::RustType) -> usize {
+        let mut __size = 0;
+        __size += Vec::<u8>::cairo_serialized_size(&__rust.domain);
+        __size += EdDSASignatureWithHint::cairo_serialized_size(&__rust.signature_with_hint);
+        __size
+    }
+    fn cairo_serialize(__rust: &Self::RustType) -> Vec<starknet::core::types::Felt> {
+        let mut __out: Vec<starknet::core::types::Felt> = vec![];
+        __out.extend(Vec::<u8>::cairo_serialize(&__rust.domain));
+        __out.extend(EdDSASignatureWithHint::cairo_serialize(
+            &__rust.signature_with_hint,
+        ));
+        __out
+    }
+    fn cairo_deserialize(
+        __felts: &[starknet::core::types::Felt],
+        __offset: usize,
+    ) -> cainome::cairo_serde::Result<Self::RustType> {
+        let mut __offset = __offset;
+        let domain = Vec::<u8>::cairo_deserialize(__felts, __offset)?;
+        __offset += Vec::<u8>::cairo_serialized_size(&domain);
+        let signature_with_hint = EdDSASignatureWithHint::cairo_deserialize(__felts, __offset)?;
+        __offset += EdDSASignatureWithHint::cairo_serialized_size(&signature_with_hint);
+        Ok(SIWSSignature {
+            domain,
+            signature_with_hint,
+        })
     }
 }
 #[derive(Clone, serde::Serialize, serde::Deserialize, PartialEq, Debug)]
@@ -872,6 +1228,54 @@ impl cainome::cairo_serde::CairoSerde for TypedData {
     }
 }
 #[derive(Clone, serde::Serialize, serde::Deserialize, PartialEq, Debug)]
+pub struct U384 {
+    pub limb0: starknet::core::types::Felt,
+    pub limb1: starknet::core::types::Felt,
+    pub limb2: starknet::core::types::Felt,
+    pub limb3: starknet::core::types::Felt,
+}
+impl cainome::cairo_serde::CairoSerde for U384 {
+    type RustType = Self;
+    const SERIALIZED_SIZE: std::option::Option<usize> = None;
+    #[inline]
+    fn cairo_serialized_size(__rust: &Self::RustType) -> usize {
+        let mut __size = 0;
+        __size += starknet::core::types::Felt::cairo_serialized_size(&__rust.limb0);
+        __size += starknet::core::types::Felt::cairo_serialized_size(&__rust.limb1);
+        __size += starknet::core::types::Felt::cairo_serialized_size(&__rust.limb2);
+        __size += starknet::core::types::Felt::cairo_serialized_size(&__rust.limb3);
+        __size
+    }
+    fn cairo_serialize(__rust: &Self::RustType) -> Vec<starknet::core::types::Felt> {
+        let mut __out: Vec<starknet::core::types::Felt> = vec![];
+        __out.extend(starknet::core::types::Felt::cairo_serialize(&__rust.limb0));
+        __out.extend(starknet::core::types::Felt::cairo_serialize(&__rust.limb1));
+        __out.extend(starknet::core::types::Felt::cairo_serialize(&__rust.limb2));
+        __out.extend(starknet::core::types::Felt::cairo_serialize(&__rust.limb3));
+        __out
+    }
+    fn cairo_deserialize(
+        __felts: &[starknet::core::types::Felt],
+        __offset: usize,
+    ) -> cainome::cairo_serde::Result<Self::RustType> {
+        let mut __offset = __offset;
+        let limb0 = starknet::core::types::Felt::cairo_deserialize(__felts, __offset)?;
+        __offset += starknet::core::types::Felt::cairo_serialized_size(&limb0);
+        let limb1 = starknet::core::types::Felt::cairo_deserialize(__felts, __offset)?;
+        __offset += starknet::core::types::Felt::cairo_serialized_size(&limb1);
+        let limb2 = starknet::core::types::Felt::cairo_deserialize(__felts, __offset)?;
+        __offset += starknet::core::types::Felt::cairo_serialized_size(&limb2);
+        let limb3 = starknet::core::types::Felt::cairo_deserialize(__felts, __offset)?;
+        __offset += starknet::core::types::Felt::cairo_serialized_size(&limb3);
+        Ok(U384 {
+            limb0,
+            limb1,
+            limb2,
+            limb3,
+        })
+    }
+}
+#[derive(Clone, serde::Serialize, serde::Deserialize, PartialEq, Debug)]
 pub struct Upgraded {
     pub class_hash: cainome::cairo_serde::ClassHash,
 }
@@ -1026,614 +1430,6 @@ impl cainome::cairo_serde::CairoSerde for WebauthnSigner {
     }
 }
 #[derive(Clone, serde::Serialize, serde::Deserialize, PartialEq, Debug)]
-pub enum ControllerEvent {
-    TransactionExecuted(TransactionExecuted),
-    MultipleOwnersEvent(MultipleOwnersEvent),
-    ReentrancyGuardEvent(ReentrancyGuardEvent),
-    SessionEvent(SessionEvent),
-    ExternalOwnersEvent(ExternalOwnersEvent),
-    ExecuteFromOutsideEvents(OutsideExecutionV3Event),
-    DelegateAccountEvents(DelegateAccountEvent),
-    SRC5Events(Src5ComponentEvent),
-    UpgradeableEvent(UpgradeEvent),
-}
-impl cainome::cairo_serde::CairoSerde for ControllerEvent {
-    type RustType = Self;
-    const SERIALIZED_SIZE: std::option::Option<usize> = std::option::Option::None;
-    #[inline]
-    fn cairo_serialized_size(__rust: &Self::RustType) -> usize {
-        match __rust {
-            ControllerEvent::TransactionExecuted(val) => {
-                TransactionExecuted::cairo_serialized_size(val) + 1
-            }
-            ControllerEvent::MultipleOwnersEvent(val) => {
-                MultipleOwnersEvent::cairo_serialized_size(val) + 1
-            }
-            ControllerEvent::ReentrancyGuardEvent(val) => {
-                ReentrancyGuardEvent::cairo_serialized_size(val) + 1
-            }
-            ControllerEvent::SessionEvent(val) => SessionEvent::cairo_serialized_size(val) + 1,
-            ControllerEvent::ExternalOwnersEvent(val) => {
-                ExternalOwnersEvent::cairo_serialized_size(val) + 1
-            }
-            ControllerEvent::ExecuteFromOutsideEvents(val) => {
-                OutsideExecutionV3Event::cairo_serialized_size(val) + 1
-            }
-            ControllerEvent::DelegateAccountEvents(val) => {
-                DelegateAccountEvent::cairo_serialized_size(val) + 1
-            }
-            ControllerEvent::SRC5Events(val) => Src5ComponentEvent::cairo_serialized_size(val) + 1,
-            ControllerEvent::UpgradeableEvent(val) => UpgradeEvent::cairo_serialized_size(val) + 1,
-            _ => 0,
-        }
-    }
-    fn cairo_serialize(__rust: &Self::RustType) -> Vec<starknet::core::types::Felt> {
-        match __rust {
-            ControllerEvent::TransactionExecuted(val) => {
-                let mut temp = vec![];
-                temp.extend(usize::cairo_serialize(&0usize));
-                temp.extend(TransactionExecuted::cairo_serialize(val));
-                temp
-            }
-            ControllerEvent::MultipleOwnersEvent(val) => {
-                let mut temp = vec![];
-                temp.extend(usize::cairo_serialize(&1usize));
-                temp.extend(MultipleOwnersEvent::cairo_serialize(val));
-                temp
-            }
-            ControllerEvent::ReentrancyGuardEvent(val) => {
-                let mut temp = vec![];
-                temp.extend(usize::cairo_serialize(&2usize));
-                temp.extend(ReentrancyGuardEvent::cairo_serialize(val));
-                temp
-            }
-            ControllerEvent::SessionEvent(val) => {
-                let mut temp = vec![];
-                temp.extend(usize::cairo_serialize(&3usize));
-                temp.extend(SessionEvent::cairo_serialize(val));
-                temp
-            }
-            ControllerEvent::ExternalOwnersEvent(val) => {
-                let mut temp = vec![];
-                temp.extend(usize::cairo_serialize(&4usize));
-                temp.extend(ExternalOwnersEvent::cairo_serialize(val));
-                temp
-            }
-            ControllerEvent::ExecuteFromOutsideEvents(val) => {
-                let mut temp = vec![];
-                temp.extend(usize::cairo_serialize(&5usize));
-                temp.extend(OutsideExecutionV3Event::cairo_serialize(val));
-                temp
-            }
-            ControllerEvent::DelegateAccountEvents(val) => {
-                let mut temp = vec![];
-                temp.extend(usize::cairo_serialize(&6usize));
-                temp.extend(DelegateAccountEvent::cairo_serialize(val));
-                temp
-            }
-            ControllerEvent::SRC5Events(val) => {
-                let mut temp = vec![];
-                temp.extend(usize::cairo_serialize(&7usize));
-                temp.extend(Src5ComponentEvent::cairo_serialize(val));
-                temp
-            }
-            ControllerEvent::UpgradeableEvent(val) => {
-                let mut temp = vec![];
-                temp.extend(usize::cairo_serialize(&8usize));
-                temp.extend(UpgradeEvent::cairo_serialize(val));
-                temp
-            }
-            _ => vec![],
-        }
-    }
-    fn cairo_deserialize(
-        __felts: &[starknet::core::types::Felt],
-        __offset: usize,
-    ) -> cainome::cairo_serde::Result<Self::RustType> {
-        let __f = __felts[__offset];
-        let __index = u128::from_be_bytes(__f.to_bytes_be()[16..].try_into().unwrap());
-        match __index as usize {
-            0usize => Ok(ControllerEvent::TransactionExecuted(
-                TransactionExecuted::cairo_deserialize(__felts, __offset + 1)?,
-            )),
-            1usize => Ok(ControllerEvent::MultipleOwnersEvent(
-                MultipleOwnersEvent::cairo_deserialize(__felts, __offset + 1)?,
-            )),
-            2usize => Ok(ControllerEvent::ReentrancyGuardEvent(
-                ReentrancyGuardEvent::cairo_deserialize(__felts, __offset + 1)?,
-            )),
-            3usize => Ok(ControllerEvent::SessionEvent(
-                SessionEvent::cairo_deserialize(__felts, __offset + 1)?,
-            )),
-            4usize => Ok(ControllerEvent::ExternalOwnersEvent(
-                ExternalOwnersEvent::cairo_deserialize(__felts, __offset + 1)?,
-            )),
-            5usize => Ok(ControllerEvent::ExecuteFromOutsideEvents(
-                OutsideExecutionV3Event::cairo_deserialize(__felts, __offset + 1)?,
-            )),
-            6usize => Ok(ControllerEvent::DelegateAccountEvents(
-                DelegateAccountEvent::cairo_deserialize(__felts, __offset + 1)?,
-            )),
-            7usize => Ok(ControllerEvent::SRC5Events(
-                Src5ComponentEvent::cairo_deserialize(__felts, __offset + 1)?,
-            )),
-            8usize => Ok(ControllerEvent::UpgradeableEvent(
-                UpgradeEvent::cairo_deserialize(__felts, __offset + 1)?,
-            )),
-            _ => {
-                return Err(cainome::cairo_serde::Error::Deserialize(format!(
-                    "Index not handle for enum {}",
-                    "ControllerEvent"
-                )));
-            }
-        }
-    }
-}
-impl TryFrom<&starknet::core::types::EmittedEvent> for ControllerEvent {
-    type Error = String;
-    fn try_from(event: &starknet::core::types::EmittedEvent) -> Result<Self, Self::Error> {
-        use cainome::cairo_serde::CairoSerde;
-        if event.keys.is_empty() {
-            return Err("Event has no key".to_string());
-        }
-        let selector = event.keys[0];
-        if selector
-            == starknet::core::utils::get_selector_from_name("TransactionExecuted")
-                .unwrap_or_else(|_| panic!("Invalid selector for {}", "TransactionExecuted"))
-        {
-            let mut key_offset = 0 + 1;
-            let mut data_offset = 0;
-            let hash = match starknet::core::types::Felt::cairo_deserialize(&event.keys, key_offset)
-            {
-                Ok(v) => v,
-                Err(e) => {
-                    return Err(format!(
-                        "Could not deserialize field {} for {}: {:?}",
-                        "hash", "TransactionExecuted", e
-                    ));
-                }
-            };
-            key_offset += starknet::core::types::Felt::cairo_serialized_size(&hash);
-            let response = match Vec::<Vec<starknet::core::types::Felt>>::cairo_deserialize(
-                &event.data,
-                data_offset,
-            ) {
-                Ok(v) => v,
-                Err(e) => {
-                    return Err(format!(
-                        "Could not deserialize field {} for {}: {:?}",
-                        "response", "TransactionExecuted", e
-                    ));
-                }
-            };
-            data_offset +=
-                Vec::<Vec<starknet::core::types::Felt>>::cairo_serialized_size(&response);
-            return Ok(ControllerEvent::TransactionExecuted(TransactionExecuted {
-                hash,
-                response,
-            }));
-        }
-        let selector = event.keys[0];
-        if selector
-            == starknet::core::utils::get_selector_from_name("OwnerAdded")
-                .unwrap_or_else(|_| panic!("Invalid selector for {}", "OwnerAdded"))
-        {
-            let mut key_offset = 0 + 1;
-            let mut data_offset = 0;
-            let owner = match Signer::cairo_deserialize(&event.data, data_offset) {
-                Ok(v) => v,
-                Err(e) => {
-                    return Err(format!(
-                        "Could not deserialize field {} for {}: {:?}",
-                        "owner", "OwnerAdded", e
-                    ));
-                }
-            };
-            data_offset += Signer::cairo_serialized_size(&owner);
-            return Ok(ControllerEvent::MultipleOwnersEvent(
-                MultipleOwnersEvent::OwnerAdded(OwnerAdded { owner }),
-            ));
-        }
-        let selector = event.keys[0];
-        if selector
-            == starknet::core::utils::get_selector_from_name("OwnerRemoved")
-                .unwrap_or_else(|_| panic!("Invalid selector for {}", "OwnerRemoved"))
-        {
-            let mut key_offset = 0 + 1;
-            let mut data_offset = 0;
-            let owner = match Signer::cairo_deserialize(&event.data, data_offset) {
-                Ok(v) => v,
-                Err(e) => {
-                    return Err(format!(
-                        "Could not deserialize field {} for {}: {:?}",
-                        "owner", "OwnerRemoved", e
-                    ));
-                }
-            };
-            data_offset += Signer::cairo_serialized_size(&owner);
-            return Ok(ControllerEvent::MultipleOwnersEvent(
-                MultipleOwnersEvent::OwnerRemoved(OwnerRemoved { owner }),
-            ));
-        }
-        let selector = event.keys[0];
-        if selector
-            == starknet::core::utils::get_selector_from_name("SessionRevoked")
-                .unwrap_or_else(|_| panic!("Invalid selector for {}", "SessionRevoked"))
-        {
-            let mut key_offset = 0 + 1;
-            let mut data_offset = 0;
-            let session_hash =
-                match starknet::core::types::Felt::cairo_deserialize(&event.data, data_offset) {
-                    Ok(v) => v,
-                    Err(e) => {
-                        return Err(format!(
-                            "Could not deserialize field {} for {}: {:?}",
-                            "session_hash", "SessionRevoked", e
-                        ));
-                    }
-                };
-            data_offset += starknet::core::types::Felt::cairo_serialized_size(&session_hash);
-            return Ok(ControllerEvent::SessionEvent(SessionEvent::SessionRevoked(
-                SessionRevoked { session_hash },
-            )));
-        }
-        let selector = event.keys[0];
-        if selector
-            == starknet::core::utils::get_selector_from_name("SessionRegistered")
-                .unwrap_or_else(|_| panic!("Invalid selector for {}", "SessionRegistered"))
-        {
-            let mut key_offset = 0 + 1;
-            let mut data_offset = 0;
-            let session_hash =
-                match starknet::core::types::Felt::cairo_deserialize(&event.data, data_offset) {
-                    Ok(v) => v,
-                    Err(e) => {
-                        return Err(format!(
-                            "Could not deserialize field {} for {}: {:?}",
-                            "session_hash", "SessionRegistered", e
-                        ));
-                    }
-                };
-            data_offset += starknet::core::types::Felt::cairo_serialized_size(&session_hash);
-            return Ok(ControllerEvent::SessionEvent(
-                SessionEvent::SessionRegistered(SessionRegistered { session_hash }),
-            ));
-        }
-        let selector = event.keys[0];
-        if selector
-            == starknet::core::utils::get_selector_from_name("ExternalOwnerRegistered")
-                .unwrap_or_else(|_| panic!("Invalid selector for {}", "ExternalOwnerRegistered"))
-        {
-            let mut key_offset = 0 + 1;
-            let mut data_offset = 0;
-            let address = match cainome::cairo_serde::ContractAddress::cairo_deserialize(
-                &event.data,
-                data_offset,
-            ) {
-                Ok(v) => v,
-                Err(e) => {
-                    return Err(format!(
-                        "Could not deserialize field {} for {}: {:?}",
-                        "address", "ExternalOwnerRegistered", e
-                    ));
-                }
-            };
-            data_offset += cainome::cairo_serde::ContractAddress::cairo_serialized_size(&address);
-            return Ok(ControllerEvent::ExternalOwnersEvent(
-                ExternalOwnersEvent::ExternalOwnerRegistered(ExternalOwnerRegistered { address }),
-            ));
-        }
-        let selector = event.keys[0];
-        if selector
-            == starknet::core::utils::get_selector_from_name("ExternalOwnerRemoved")
-                .unwrap_or_else(|_| panic!("Invalid selector for {}", "ExternalOwnerRemoved"))
-        {
-            let mut key_offset = 0 + 1;
-            let mut data_offset = 0;
-            let address = match cainome::cairo_serde::ContractAddress::cairo_deserialize(
-                &event.data,
-                data_offset,
-            ) {
-                Ok(v) => v,
-                Err(e) => {
-                    return Err(format!(
-                        "Could not deserialize field {} for {}: {:?}",
-                        "address", "ExternalOwnerRemoved", e
-                    ));
-                }
-            };
-            data_offset += cainome::cairo_serde::ContractAddress::cairo_serialized_size(&address);
-            return Ok(ControllerEvent::ExternalOwnersEvent(
-                ExternalOwnersEvent::ExternalOwnerRemoved(ExternalOwnerRemoved { address }),
-            ));
-        }
-        let selector = event.keys[0];
-        if selector
-            == starknet::core::utils::get_selector_from_name("DelegateAccountChanged")
-                .unwrap_or_else(|_| panic!("Invalid selector for {}", "DelegateAccountChanged"))
-        {
-            let mut key_offset = 0 + 1;
-            let mut data_offset = 0;
-            let address = match cainome::cairo_serde::ContractAddress::cairo_deserialize(
-                &event.data,
-                data_offset,
-            ) {
-                Ok(v) => v,
-                Err(e) => {
-                    return Err(format!(
-                        "Could not deserialize field {} for {}: {:?}",
-                        "address", "DelegateAccountChanged", e
-                    ));
-                }
-            };
-            data_offset += cainome::cairo_serde::ContractAddress::cairo_serialized_size(&address);
-            return Ok(ControllerEvent::DelegateAccountEvents(
-                DelegateAccountEvent::DelegateAccountChanged(DelegateAccountChanged { address }),
-            ));
-        }
-        let selector = event.keys[0];
-        if selector
-            == starknet::core::utils::get_selector_from_name("Upgraded")
-                .unwrap_or_else(|_| panic!("Invalid selector for {}", "Upgraded"))
-        {
-            let mut key_offset = 0 + 1;
-            let mut data_offset = 0;
-            let class_hash = match cainome::cairo_serde::ClassHash::cairo_deserialize(
-                &event.data,
-                data_offset,
-            ) {
-                Ok(v) => v,
-                Err(e) => {
-                    return Err(format!(
-                        "Could not deserialize field {} for {}: {:?}",
-                        "class_hash", "Upgraded", e
-                    ));
-                }
-            };
-            data_offset += cainome::cairo_serde::ClassHash::cairo_serialized_size(&class_hash);
-            return Ok(ControllerEvent::UpgradeableEvent(UpgradeEvent::Upgraded(
-                Upgraded { class_hash },
-            )));
-        }
-        Err(format!(
-            "Could not match any event from keys {:?}",
-            event.keys
-        ))
-    }
-}
-impl TryFrom<&starknet::core::types::Event> for ControllerEvent {
-    type Error = String;
-    fn try_from(event: &starknet::core::types::Event) -> Result<Self, Self::Error> {
-        use cainome::cairo_serde::CairoSerde;
-        if event.keys.is_empty() {
-            return Err("Event has no key".to_string());
-        }
-        let selector = event.keys[0];
-        if selector
-            == starknet::core::utils::get_selector_from_name("TransactionExecuted")
-                .unwrap_or_else(|_| panic!("Invalid selector for {}", "TransactionExecuted"))
-        {
-            let mut key_offset = 0 + 1;
-            let mut data_offset = 0;
-            let hash = match starknet::core::types::Felt::cairo_deserialize(&event.keys, key_offset)
-            {
-                Ok(v) => v,
-                Err(e) => {
-                    return Err(format!(
-                        "Could not deserialize field {} for {}: {:?}",
-                        "hash", "TransactionExecuted", e
-                    ));
-                }
-            };
-            key_offset += starknet::core::types::Felt::cairo_serialized_size(&hash);
-            let response = match Vec::<Vec<starknet::core::types::Felt>>::cairo_deserialize(
-                &event.data,
-                data_offset,
-            ) {
-                Ok(v) => v,
-                Err(e) => {
-                    return Err(format!(
-                        "Could not deserialize field {} for {}: {:?}",
-                        "response", "TransactionExecuted", e
-                    ));
-                }
-            };
-            data_offset +=
-                Vec::<Vec<starknet::core::types::Felt>>::cairo_serialized_size(&response);
-            return Ok(ControllerEvent::TransactionExecuted(TransactionExecuted {
-                hash,
-                response,
-            }));
-        }
-        let selector = event.keys[0];
-        if selector
-            == starknet::core::utils::get_selector_from_name("OwnerAdded")
-                .unwrap_or_else(|_| panic!("Invalid selector for {}", "OwnerAdded"))
-        {
-            let mut key_offset = 0 + 1;
-            let mut data_offset = 0;
-            let owner = match Signer::cairo_deserialize(&event.data, data_offset) {
-                Ok(v) => v,
-                Err(e) => {
-                    return Err(format!(
-                        "Could not deserialize field {} for {}: {:?}",
-                        "owner", "OwnerAdded", e
-                    ));
-                }
-            };
-            data_offset += Signer::cairo_serialized_size(&owner);
-            return Ok(ControllerEvent::MultipleOwnersEvent(
-                MultipleOwnersEvent::OwnerAdded(OwnerAdded { owner }),
-            ));
-        }
-        let selector = event.keys[0];
-        if selector
-            == starknet::core::utils::get_selector_from_name("OwnerRemoved")
-                .unwrap_or_else(|_| panic!("Invalid selector for {}", "OwnerRemoved"))
-        {
-            let mut key_offset = 0 + 1;
-            let mut data_offset = 0;
-            let owner = match Signer::cairo_deserialize(&event.data, data_offset) {
-                Ok(v) => v,
-                Err(e) => {
-                    return Err(format!(
-                        "Could not deserialize field {} for {}: {:?}",
-                        "owner", "OwnerRemoved", e
-                    ));
-                }
-            };
-            data_offset += Signer::cairo_serialized_size(&owner);
-            return Ok(ControllerEvent::MultipleOwnersEvent(
-                MultipleOwnersEvent::OwnerRemoved(OwnerRemoved { owner }),
-            ));
-        }
-        let selector = event.keys[0];
-        if selector
-            == starknet::core::utils::get_selector_from_name("SessionRevoked")
-                .unwrap_or_else(|_| panic!("Invalid selector for {}", "SessionRevoked"))
-        {
-            let mut key_offset = 0 + 1;
-            let mut data_offset = 0;
-            let session_hash =
-                match starknet::core::types::Felt::cairo_deserialize(&event.data, data_offset) {
-                    Ok(v) => v,
-                    Err(e) => {
-                        return Err(format!(
-                            "Could not deserialize field {} for {}: {:?}",
-                            "session_hash", "SessionRevoked", e
-                        ));
-                    }
-                };
-            data_offset += starknet::core::types::Felt::cairo_serialized_size(&session_hash);
-            return Ok(ControllerEvent::SessionEvent(SessionEvent::SessionRevoked(
-                SessionRevoked { session_hash },
-            )));
-        }
-        let selector = event.keys[0];
-        if selector
-            == starknet::core::utils::get_selector_from_name("SessionRegistered")
-                .unwrap_or_else(|_| panic!("Invalid selector for {}", "SessionRegistered"))
-        {
-            let mut key_offset = 0 + 1;
-            let mut data_offset = 0;
-            let session_hash =
-                match starknet::core::types::Felt::cairo_deserialize(&event.data, data_offset) {
-                    Ok(v) => v,
-                    Err(e) => {
-                        return Err(format!(
-                            "Could not deserialize field {} for {}: {:?}",
-                            "session_hash", "SessionRegistered", e
-                        ));
-                    }
-                };
-            data_offset += starknet::core::types::Felt::cairo_serialized_size(&session_hash);
-            return Ok(ControllerEvent::SessionEvent(
-                SessionEvent::SessionRegistered(SessionRegistered { session_hash }),
-            ));
-        }
-        let selector = event.keys[0];
-        if selector
-            == starknet::core::utils::get_selector_from_name("ExternalOwnerRegistered")
-                .unwrap_or_else(|_| panic!("Invalid selector for {}", "ExternalOwnerRegistered"))
-        {
-            let mut key_offset = 0 + 1;
-            let mut data_offset = 0;
-            let address = match cainome::cairo_serde::ContractAddress::cairo_deserialize(
-                &event.data,
-                data_offset,
-            ) {
-                Ok(v) => v,
-                Err(e) => {
-                    return Err(format!(
-                        "Could not deserialize field {} for {}: {:?}",
-                        "address", "ExternalOwnerRegistered", e
-                    ));
-                }
-            };
-            data_offset += cainome::cairo_serde::ContractAddress::cairo_serialized_size(&address);
-            return Ok(ControllerEvent::ExternalOwnersEvent(
-                ExternalOwnersEvent::ExternalOwnerRegistered(ExternalOwnerRegistered { address }),
-            ));
-        }
-        let selector = event.keys[0];
-        if selector
-            == starknet::core::utils::get_selector_from_name("ExternalOwnerRemoved")
-                .unwrap_or_else(|_| panic!("Invalid selector for {}", "ExternalOwnerRemoved"))
-        {
-            let mut key_offset = 0 + 1;
-            let mut data_offset = 0;
-            let address = match cainome::cairo_serde::ContractAddress::cairo_deserialize(
-                &event.data,
-                data_offset,
-            ) {
-                Ok(v) => v,
-                Err(e) => {
-                    return Err(format!(
-                        "Could not deserialize field {} for {}: {:?}",
-                        "address", "ExternalOwnerRemoved", e
-                    ));
-                }
-            };
-            data_offset += cainome::cairo_serde::ContractAddress::cairo_serialized_size(&address);
-            return Ok(ControllerEvent::ExternalOwnersEvent(
-                ExternalOwnersEvent::ExternalOwnerRemoved(ExternalOwnerRemoved { address }),
-            ));
-        }
-        let selector = event.keys[0];
-        if selector
-            == starknet::core::utils::get_selector_from_name("DelegateAccountChanged")
-                .unwrap_or_else(|_| panic!("Invalid selector for {}", "DelegateAccountChanged"))
-        {
-            let mut key_offset = 0 + 1;
-            let mut data_offset = 0;
-            let address = match cainome::cairo_serde::ContractAddress::cairo_deserialize(
-                &event.data,
-                data_offset,
-            ) {
-                Ok(v) => v,
-                Err(e) => {
-                    return Err(format!(
-                        "Could not deserialize field {} for {}: {:?}",
-                        "address", "DelegateAccountChanged", e
-                    ));
-                }
-            };
-            data_offset += cainome::cairo_serde::ContractAddress::cairo_serialized_size(&address);
-            return Ok(ControllerEvent::DelegateAccountEvents(
-                DelegateAccountEvent::DelegateAccountChanged(DelegateAccountChanged { address }),
-            ));
-        }
-        let selector = event.keys[0];
-        if selector
-            == starknet::core::utils::get_selector_from_name("Upgraded")
-                .unwrap_or_else(|_| panic!("Invalid selector for {}", "Upgraded"))
-        {
-            let mut key_offset = 0 + 1;
-            let mut data_offset = 0;
-            let class_hash = match cainome::cairo_serde::ClassHash::cairo_deserialize(
-                &event.data,
-                data_offset,
-            ) {
-                Ok(v) => v,
-                Err(e) => {
-                    return Err(format!(
-                        "Could not deserialize field {} for {}: {:?}",
-                        "class_hash", "Upgraded", e
-                    ));
-                }
-            };
-            data_offset += cainome::cairo_serde::ClassHash::cairo_serialized_size(&class_hash);
-            return Ok(ControllerEvent::UpgradeableEvent(UpgradeEvent::Upgraded(
-                Upgraded { class_hash },
-            )));
-        }
-        Err(format!(
-            "Could not match any event from keys {:?}",
-            event.keys
-        ))
-    }
-}
-#[derive(Clone, serde::Serialize, serde::Deserialize, PartialEq, Debug)]
 pub enum DelegateAccountEvent {
     DelegateAccountChanged(DelegateAccountChanged),
 }
@@ -1746,6 +1542,611 @@ impl TryFrom<&starknet::core::types::Event> for DelegateAccountEvent {
             return Ok(DelegateAccountEvent::DelegateAccountChanged(
                 DelegateAccountChanged { address },
             ));
+        }
+        Err(format!(
+            "Could not match any event from keys {:?}",
+            event.keys
+        ))
+    }
+}
+#[derive(Clone, serde::Serialize, serde::Deserialize, PartialEq, Debug)]
+pub enum Event {
+    TransactionExecuted(TransactionExecuted),
+    MultipleOwnersEvent(MultipleOwnersEvent),
+    ReentrancyGuardEvent(ReentrancyGuardEvent),
+    SessionEvent(SessionEvent),
+    ExternalOwnersEvent(ExternalOwnersEvent),
+    ExecuteFromOutsideEvents(OutsideExecutionV3Event),
+    DelegateAccountEvents(DelegateAccountEvent),
+    SRC5Events(Src5ComponentEvent),
+    UpgradeableEvent(UpgradeEvent),
+}
+impl cainome::cairo_serde::CairoSerde for Event {
+    type RustType = Self;
+    const SERIALIZED_SIZE: std::option::Option<usize> = std::option::Option::None;
+    #[inline]
+    fn cairo_serialized_size(__rust: &Self::RustType) -> usize {
+        match __rust {
+            Event::TransactionExecuted(val) => TransactionExecuted::cairo_serialized_size(val) + 1,
+            Event::MultipleOwnersEvent(val) => MultipleOwnersEvent::cairo_serialized_size(val) + 1,
+            Event::ReentrancyGuardEvent(val) => {
+                ReentrancyGuardEvent::cairo_serialized_size(val) + 1
+            }
+            Event::SessionEvent(val) => SessionEvent::cairo_serialized_size(val) + 1,
+            Event::ExternalOwnersEvent(val) => ExternalOwnersEvent::cairo_serialized_size(val) + 1,
+            Event::ExecuteFromOutsideEvents(val) => {
+                OutsideExecutionV3Event::cairo_serialized_size(val) + 1
+            }
+            Event::DelegateAccountEvents(val) => {
+                DelegateAccountEvent::cairo_serialized_size(val) + 1
+            }
+            Event::SRC5Events(val) => Src5ComponentEvent::cairo_serialized_size(val) + 1,
+            Event::UpgradeableEvent(val) => UpgradeEvent::cairo_serialized_size(val) + 1,
+            _ => 0,
+        }
+    }
+    fn cairo_serialize(__rust: &Self::RustType) -> Vec<starknet::core::types::Felt> {
+        match __rust {
+            Event::TransactionExecuted(val) => {
+                let mut temp = vec![];
+                temp.extend(usize::cairo_serialize(&0usize));
+                temp.extend(TransactionExecuted::cairo_serialize(val));
+                temp
+            }
+            Event::MultipleOwnersEvent(val) => {
+                let mut temp = vec![];
+                temp.extend(usize::cairo_serialize(&1usize));
+                temp.extend(MultipleOwnersEvent::cairo_serialize(val));
+                temp
+            }
+            Event::ReentrancyGuardEvent(val) => {
+                let mut temp = vec![];
+                temp.extend(usize::cairo_serialize(&2usize));
+                temp.extend(ReentrancyGuardEvent::cairo_serialize(val));
+                temp
+            }
+            Event::SessionEvent(val) => {
+                let mut temp = vec![];
+                temp.extend(usize::cairo_serialize(&3usize));
+                temp.extend(SessionEvent::cairo_serialize(val));
+                temp
+            }
+            Event::ExternalOwnersEvent(val) => {
+                let mut temp = vec![];
+                temp.extend(usize::cairo_serialize(&4usize));
+                temp.extend(ExternalOwnersEvent::cairo_serialize(val));
+                temp
+            }
+            Event::ExecuteFromOutsideEvents(val) => {
+                let mut temp = vec![];
+                temp.extend(usize::cairo_serialize(&5usize));
+                temp.extend(OutsideExecutionV3Event::cairo_serialize(val));
+                temp
+            }
+            Event::DelegateAccountEvents(val) => {
+                let mut temp = vec![];
+                temp.extend(usize::cairo_serialize(&6usize));
+                temp.extend(DelegateAccountEvent::cairo_serialize(val));
+                temp
+            }
+            Event::SRC5Events(val) => {
+                let mut temp = vec![];
+                temp.extend(usize::cairo_serialize(&7usize));
+                temp.extend(Src5ComponentEvent::cairo_serialize(val));
+                temp
+            }
+            Event::UpgradeableEvent(val) => {
+                let mut temp = vec![];
+                temp.extend(usize::cairo_serialize(&8usize));
+                temp.extend(UpgradeEvent::cairo_serialize(val));
+                temp
+            }
+            _ => vec![],
+        }
+    }
+    fn cairo_deserialize(
+        __felts: &[starknet::core::types::Felt],
+        __offset: usize,
+    ) -> cainome::cairo_serde::Result<Self::RustType> {
+        let __f = __felts[__offset];
+        let __index = u128::from_be_bytes(__f.to_bytes_be()[16..].try_into().unwrap());
+        match __index as usize {
+            0usize => Ok(Event::TransactionExecuted(
+                TransactionExecuted::cairo_deserialize(__felts, __offset + 1)?,
+            )),
+            1usize => Ok(Event::MultipleOwnersEvent(
+                MultipleOwnersEvent::cairo_deserialize(__felts, __offset + 1)?,
+            )),
+            2usize => Ok(Event::ReentrancyGuardEvent(
+                ReentrancyGuardEvent::cairo_deserialize(__felts, __offset + 1)?,
+            )),
+            3usize => Ok(Event::SessionEvent(SessionEvent::cairo_deserialize(
+                __felts,
+                __offset + 1,
+            )?)),
+            4usize => Ok(Event::ExternalOwnersEvent(
+                ExternalOwnersEvent::cairo_deserialize(__felts, __offset + 1)?,
+            )),
+            5usize => Ok(Event::ExecuteFromOutsideEvents(
+                OutsideExecutionV3Event::cairo_deserialize(__felts, __offset + 1)?,
+            )),
+            6usize => Ok(Event::DelegateAccountEvents(
+                DelegateAccountEvent::cairo_deserialize(__felts, __offset + 1)?,
+            )),
+            7usize => Ok(Event::SRC5Events(Src5ComponentEvent::cairo_deserialize(
+                __felts,
+                __offset + 1,
+            )?)),
+            8usize => Ok(Event::UpgradeableEvent(UpgradeEvent::cairo_deserialize(
+                __felts,
+                __offset + 1,
+            )?)),
+            _ => {
+                return Err(cainome::cairo_serde::Error::Deserialize(format!(
+                    "Index not handle for enum {}",
+                    "Event"
+                )));
+            }
+        }
+    }
+}
+impl TryFrom<&starknet::core::types::EmittedEvent> for Event {
+    type Error = String;
+    fn try_from(event: &starknet::core::types::EmittedEvent) -> Result<Self, Self::Error> {
+        use cainome::cairo_serde::CairoSerde;
+        if event.keys.is_empty() {
+            return Err("Event has no key".to_string());
+        }
+        let selector = event.keys[0];
+        if selector
+            == starknet::core::utils::get_selector_from_name("TransactionExecuted")
+                .unwrap_or_else(|_| panic!("Invalid selector for {}", "TransactionExecuted"))
+        {
+            let mut key_offset = 0 + 1;
+            let mut data_offset = 0;
+            let hash = match starknet::core::types::Felt::cairo_deserialize(&event.keys, key_offset)
+            {
+                Ok(v) => v,
+                Err(e) => {
+                    return Err(format!(
+                        "Could not deserialize field {} for {}: {:?}",
+                        "hash", "TransactionExecuted", e
+                    ));
+                }
+            };
+            key_offset += starknet::core::types::Felt::cairo_serialized_size(&hash);
+            let response = match Vec::<Vec<starknet::core::types::Felt>>::cairo_deserialize(
+                &event.data,
+                data_offset,
+            ) {
+                Ok(v) => v,
+                Err(e) => {
+                    return Err(format!(
+                        "Could not deserialize field {} for {}: {:?}",
+                        "response", "TransactionExecuted", e
+                    ));
+                }
+            };
+            data_offset +=
+                Vec::<Vec<starknet::core::types::Felt>>::cairo_serialized_size(&response);
+            return Ok(Event::TransactionExecuted(TransactionExecuted {
+                hash,
+                response,
+            }));
+        }
+        let selector = event.keys[0];
+        if selector
+            == starknet::core::utils::get_selector_from_name("OwnerAdded")
+                .unwrap_or_else(|_| panic!("Invalid selector for {}", "OwnerAdded"))
+        {
+            let mut key_offset = 0 + 1;
+            let mut data_offset = 0;
+            let owner = match Signer::cairo_deserialize(&event.data, data_offset) {
+                Ok(v) => v,
+                Err(e) => {
+                    return Err(format!(
+                        "Could not deserialize field {} for {}: {:?}",
+                        "owner", "OwnerAdded", e
+                    ));
+                }
+            };
+            data_offset += Signer::cairo_serialized_size(&owner);
+            return Ok(Event::MultipleOwnersEvent(MultipleOwnersEvent::OwnerAdded(
+                OwnerAdded { owner },
+            )));
+        }
+        let selector = event.keys[0];
+        if selector
+            == starknet::core::utils::get_selector_from_name("OwnerRemoved")
+                .unwrap_or_else(|_| panic!("Invalid selector for {}", "OwnerRemoved"))
+        {
+            let mut key_offset = 0 + 1;
+            let mut data_offset = 0;
+            let owner = match Signer::cairo_deserialize(&event.data, data_offset) {
+                Ok(v) => v,
+                Err(e) => {
+                    return Err(format!(
+                        "Could not deserialize field {} for {}: {:?}",
+                        "owner", "OwnerRemoved", e
+                    ));
+                }
+            };
+            data_offset += Signer::cairo_serialized_size(&owner);
+            return Ok(Event::MultipleOwnersEvent(
+                MultipleOwnersEvent::OwnerRemoved(OwnerRemoved { owner }),
+            ));
+        }
+        let selector = event.keys[0];
+        if selector
+            == starknet::core::utils::get_selector_from_name("SessionRevoked")
+                .unwrap_or_else(|_| panic!("Invalid selector for {}", "SessionRevoked"))
+        {
+            let mut key_offset = 0 + 1;
+            let mut data_offset = 0;
+            let session_hash =
+                match starknet::core::types::Felt::cairo_deserialize(&event.data, data_offset) {
+                    Ok(v) => v,
+                    Err(e) => {
+                        return Err(format!(
+                            "Could not deserialize field {} for {}: {:?}",
+                            "session_hash", "SessionRevoked", e
+                        ));
+                    }
+                };
+            data_offset += starknet::core::types::Felt::cairo_serialized_size(&session_hash);
+            return Ok(Event::SessionEvent(SessionEvent::SessionRevoked(
+                SessionRevoked { session_hash },
+            )));
+        }
+        let selector = event.keys[0];
+        if selector
+            == starknet::core::utils::get_selector_from_name("SessionRegistered")
+                .unwrap_or_else(|_| panic!("Invalid selector for {}", "SessionRegistered"))
+        {
+            let mut key_offset = 0 + 1;
+            let mut data_offset = 0;
+            let session_hash =
+                match starknet::core::types::Felt::cairo_deserialize(&event.data, data_offset) {
+                    Ok(v) => v,
+                    Err(e) => {
+                        return Err(format!(
+                            "Could not deserialize field {} for {}: {:?}",
+                            "session_hash", "SessionRegistered", e
+                        ));
+                    }
+                };
+            data_offset += starknet::core::types::Felt::cairo_serialized_size(&session_hash);
+            return Ok(Event::SessionEvent(SessionEvent::SessionRegistered(
+                SessionRegistered { session_hash },
+            )));
+        }
+        let selector = event.keys[0];
+        if selector
+            == starknet::core::utils::get_selector_from_name("ExternalOwnerRegistered")
+                .unwrap_or_else(|_| panic!("Invalid selector for {}", "ExternalOwnerRegistered"))
+        {
+            let mut key_offset = 0 + 1;
+            let mut data_offset = 0;
+            let address = match cainome::cairo_serde::ContractAddress::cairo_deserialize(
+                &event.data,
+                data_offset,
+            ) {
+                Ok(v) => v,
+                Err(e) => {
+                    return Err(format!(
+                        "Could not deserialize field {} for {}: {:?}",
+                        "address", "ExternalOwnerRegistered", e
+                    ));
+                }
+            };
+            data_offset += cainome::cairo_serde::ContractAddress::cairo_serialized_size(&address);
+            return Ok(Event::ExternalOwnersEvent(
+                ExternalOwnersEvent::ExternalOwnerRegistered(ExternalOwnerRegistered { address }),
+            ));
+        }
+        let selector = event.keys[0];
+        if selector
+            == starknet::core::utils::get_selector_from_name("ExternalOwnerRemoved")
+                .unwrap_or_else(|_| panic!("Invalid selector for {}", "ExternalOwnerRemoved"))
+        {
+            let mut key_offset = 0 + 1;
+            let mut data_offset = 0;
+            let address = match cainome::cairo_serde::ContractAddress::cairo_deserialize(
+                &event.data,
+                data_offset,
+            ) {
+                Ok(v) => v,
+                Err(e) => {
+                    return Err(format!(
+                        "Could not deserialize field {} for {}: {:?}",
+                        "address", "ExternalOwnerRemoved", e
+                    ));
+                }
+            };
+            data_offset += cainome::cairo_serde::ContractAddress::cairo_serialized_size(&address);
+            return Ok(Event::ExternalOwnersEvent(
+                ExternalOwnersEvent::ExternalOwnerRemoved(ExternalOwnerRemoved { address }),
+            ));
+        }
+        let selector = event.keys[0];
+        if selector
+            == starknet::core::utils::get_selector_from_name("DelegateAccountChanged")
+                .unwrap_or_else(|_| panic!("Invalid selector for {}", "DelegateAccountChanged"))
+        {
+            let mut key_offset = 0 + 1;
+            let mut data_offset = 0;
+            let address = match cainome::cairo_serde::ContractAddress::cairo_deserialize(
+                &event.data,
+                data_offset,
+            ) {
+                Ok(v) => v,
+                Err(e) => {
+                    return Err(format!(
+                        "Could not deserialize field {} for {}: {:?}",
+                        "address", "DelegateAccountChanged", e
+                    ));
+                }
+            };
+            data_offset += cainome::cairo_serde::ContractAddress::cairo_serialized_size(&address);
+            return Ok(Event::DelegateAccountEvents(
+                DelegateAccountEvent::DelegateAccountChanged(DelegateAccountChanged { address }),
+            ));
+        }
+        let selector = event.keys[0];
+        if selector
+            == starknet::core::utils::get_selector_from_name("Upgraded")
+                .unwrap_or_else(|_| panic!("Invalid selector for {}", "Upgraded"))
+        {
+            let mut key_offset = 0 + 1;
+            let mut data_offset = 0;
+            let class_hash = match cainome::cairo_serde::ClassHash::cairo_deserialize(
+                &event.data,
+                data_offset,
+            ) {
+                Ok(v) => v,
+                Err(e) => {
+                    return Err(format!(
+                        "Could not deserialize field {} for {}: {:?}",
+                        "class_hash", "Upgraded", e
+                    ));
+                }
+            };
+            data_offset += cainome::cairo_serde::ClassHash::cairo_serialized_size(&class_hash);
+            return Ok(Event::UpgradeableEvent(UpgradeEvent::Upgraded(Upgraded {
+                class_hash,
+            })));
+        }
+        Err(format!(
+            "Could not match any event from keys {:?}",
+            event.keys
+        ))
+    }
+}
+impl TryFrom<&starknet::core::types::Event> for Event {
+    type Error = String;
+    fn try_from(event: &starknet::core::types::Event) -> Result<Self, Self::Error> {
+        use cainome::cairo_serde::CairoSerde;
+        if event.keys.is_empty() {
+            return Err("Event has no key".to_string());
+        }
+        let selector = event.keys[0];
+        if selector
+            == starknet::core::utils::get_selector_from_name("TransactionExecuted")
+                .unwrap_or_else(|_| panic!("Invalid selector for {}", "TransactionExecuted"))
+        {
+            let mut key_offset = 0 + 1;
+            let mut data_offset = 0;
+            let hash = match starknet::core::types::Felt::cairo_deserialize(&event.keys, key_offset)
+            {
+                Ok(v) => v,
+                Err(e) => {
+                    return Err(format!(
+                        "Could not deserialize field {} for {}: {:?}",
+                        "hash", "TransactionExecuted", e
+                    ));
+                }
+            };
+            key_offset += starknet::core::types::Felt::cairo_serialized_size(&hash);
+            let response = match Vec::<Vec<starknet::core::types::Felt>>::cairo_deserialize(
+                &event.data,
+                data_offset,
+            ) {
+                Ok(v) => v,
+                Err(e) => {
+                    return Err(format!(
+                        "Could not deserialize field {} for {}: {:?}",
+                        "response", "TransactionExecuted", e
+                    ));
+                }
+            };
+            data_offset +=
+                Vec::<Vec<starknet::core::types::Felt>>::cairo_serialized_size(&response);
+            return Ok(Event::TransactionExecuted(TransactionExecuted {
+                hash,
+                response,
+            }));
+        }
+        let selector = event.keys[0];
+        if selector
+            == starknet::core::utils::get_selector_from_name("OwnerAdded")
+                .unwrap_or_else(|_| panic!("Invalid selector for {}", "OwnerAdded"))
+        {
+            let mut key_offset = 0 + 1;
+            let mut data_offset = 0;
+            let owner = match Signer::cairo_deserialize(&event.data, data_offset) {
+                Ok(v) => v,
+                Err(e) => {
+                    return Err(format!(
+                        "Could not deserialize field {} for {}: {:?}",
+                        "owner", "OwnerAdded", e
+                    ));
+                }
+            };
+            data_offset += Signer::cairo_serialized_size(&owner);
+            return Ok(Event::MultipleOwnersEvent(MultipleOwnersEvent::OwnerAdded(
+                OwnerAdded { owner },
+            )));
+        }
+        let selector = event.keys[0];
+        if selector
+            == starknet::core::utils::get_selector_from_name("OwnerRemoved")
+                .unwrap_or_else(|_| panic!("Invalid selector for {}", "OwnerRemoved"))
+        {
+            let mut key_offset = 0 + 1;
+            let mut data_offset = 0;
+            let owner = match Signer::cairo_deserialize(&event.data, data_offset) {
+                Ok(v) => v,
+                Err(e) => {
+                    return Err(format!(
+                        "Could not deserialize field {} for {}: {:?}",
+                        "owner", "OwnerRemoved", e
+                    ));
+                }
+            };
+            data_offset += Signer::cairo_serialized_size(&owner);
+            return Ok(Event::MultipleOwnersEvent(
+                MultipleOwnersEvent::OwnerRemoved(OwnerRemoved { owner }),
+            ));
+        }
+        let selector = event.keys[0];
+        if selector
+            == starknet::core::utils::get_selector_from_name("SessionRevoked")
+                .unwrap_or_else(|_| panic!("Invalid selector for {}", "SessionRevoked"))
+        {
+            let mut key_offset = 0 + 1;
+            let mut data_offset = 0;
+            let session_hash =
+                match starknet::core::types::Felt::cairo_deserialize(&event.data, data_offset) {
+                    Ok(v) => v,
+                    Err(e) => {
+                        return Err(format!(
+                            "Could not deserialize field {} for {}: {:?}",
+                            "session_hash", "SessionRevoked", e
+                        ));
+                    }
+                };
+            data_offset += starknet::core::types::Felt::cairo_serialized_size(&session_hash);
+            return Ok(Event::SessionEvent(SessionEvent::SessionRevoked(
+                SessionRevoked { session_hash },
+            )));
+        }
+        let selector = event.keys[0];
+        if selector
+            == starknet::core::utils::get_selector_from_name("SessionRegistered")
+                .unwrap_or_else(|_| panic!("Invalid selector for {}", "SessionRegistered"))
+        {
+            let mut key_offset = 0 + 1;
+            let mut data_offset = 0;
+            let session_hash =
+                match starknet::core::types::Felt::cairo_deserialize(&event.data, data_offset) {
+                    Ok(v) => v,
+                    Err(e) => {
+                        return Err(format!(
+                            "Could not deserialize field {} for {}: {:?}",
+                            "session_hash", "SessionRegistered", e
+                        ));
+                    }
+                };
+            data_offset += starknet::core::types::Felt::cairo_serialized_size(&session_hash);
+            return Ok(Event::SessionEvent(SessionEvent::SessionRegistered(
+                SessionRegistered { session_hash },
+            )));
+        }
+        let selector = event.keys[0];
+        if selector
+            == starknet::core::utils::get_selector_from_name("ExternalOwnerRegistered")
+                .unwrap_or_else(|_| panic!("Invalid selector for {}", "ExternalOwnerRegistered"))
+        {
+            let mut key_offset = 0 + 1;
+            let mut data_offset = 0;
+            let address = match cainome::cairo_serde::ContractAddress::cairo_deserialize(
+                &event.data,
+                data_offset,
+            ) {
+                Ok(v) => v,
+                Err(e) => {
+                    return Err(format!(
+                        "Could not deserialize field {} for {}: {:?}",
+                        "address", "ExternalOwnerRegistered", e
+                    ));
+                }
+            };
+            data_offset += cainome::cairo_serde::ContractAddress::cairo_serialized_size(&address);
+            return Ok(Event::ExternalOwnersEvent(
+                ExternalOwnersEvent::ExternalOwnerRegistered(ExternalOwnerRegistered { address }),
+            ));
+        }
+        let selector = event.keys[0];
+        if selector
+            == starknet::core::utils::get_selector_from_name("ExternalOwnerRemoved")
+                .unwrap_or_else(|_| panic!("Invalid selector for {}", "ExternalOwnerRemoved"))
+        {
+            let mut key_offset = 0 + 1;
+            let mut data_offset = 0;
+            let address = match cainome::cairo_serde::ContractAddress::cairo_deserialize(
+                &event.data,
+                data_offset,
+            ) {
+                Ok(v) => v,
+                Err(e) => {
+                    return Err(format!(
+                        "Could not deserialize field {} for {}: {:?}",
+                        "address", "ExternalOwnerRemoved", e
+                    ));
+                }
+            };
+            data_offset += cainome::cairo_serde::ContractAddress::cairo_serialized_size(&address);
+            return Ok(Event::ExternalOwnersEvent(
+                ExternalOwnersEvent::ExternalOwnerRemoved(ExternalOwnerRemoved { address }),
+            ));
+        }
+        let selector = event.keys[0];
+        if selector
+            == starknet::core::utils::get_selector_from_name("DelegateAccountChanged")
+                .unwrap_or_else(|_| panic!("Invalid selector for {}", "DelegateAccountChanged"))
+        {
+            let mut key_offset = 0 + 1;
+            let mut data_offset = 0;
+            let address = match cainome::cairo_serde::ContractAddress::cairo_deserialize(
+                &event.data,
+                data_offset,
+            ) {
+                Ok(v) => v,
+                Err(e) => {
+                    return Err(format!(
+                        "Could not deserialize field {} for {}: {:?}",
+                        "address", "DelegateAccountChanged", e
+                    ));
+                }
+            };
+            data_offset += cainome::cairo_serde::ContractAddress::cairo_serialized_size(&address);
+            return Ok(Event::DelegateAccountEvents(
+                DelegateAccountEvent::DelegateAccountChanged(DelegateAccountChanged { address }),
+            ));
+        }
+        let selector = event.keys[0];
+        if selector
+            == starknet::core::utils::get_selector_from_name("Upgraded")
+                .unwrap_or_else(|_| panic!("Invalid selector for {}", "Upgraded"))
+        {
+            let mut key_offset = 0 + 1;
+            let mut data_offset = 0;
+            let class_hash = match cainome::cairo_serde::ClassHash::cairo_deserialize(
+                &event.data,
+                data_offset,
+            ) {
+                Ok(v) => v,
+                Err(e) => {
+                    return Err(format!(
+                        "Could not deserialize field {} for {}: {:?}",
+                        "class_hash", "Upgraded", e
+                    ));
+                }
+            };
+            data_offset += cainome::cairo_serde::ClassHash::cairo_serialized_size(&class_hash);
+            return Ok(Event::UpgradeableEvent(UpgradeEvent::Upgraded(Upgraded {
+                class_hash,
+            })));
         }
         Err(format!(
             "Could not match any event from keys {:?}",
@@ -2443,6 +2844,7 @@ pub enum Signer {
     Secp256r1(Secp256r1Signer),
     Eip191(Eip191Signer),
     Webauthn(WebauthnSigner),
+    SIWS(Ed25519Signer),
 }
 impl cainome::cairo_serde::CairoSerde for Signer {
     type RustType = Self;
@@ -2455,6 +2857,7 @@ impl cainome::cairo_serde::CairoSerde for Signer {
             Signer::Secp256r1(val) => Secp256r1Signer::cairo_serialized_size(val) + 1,
             Signer::Eip191(val) => Eip191Signer::cairo_serialized_size(val) + 1,
             Signer::Webauthn(val) => WebauthnSigner::cairo_serialized_size(val) + 1,
+            Signer::SIWS(val) => Ed25519Signer::cairo_serialized_size(val) + 1,
             _ => 0,
         }
     }
@@ -2490,6 +2893,12 @@ impl cainome::cairo_serde::CairoSerde for Signer {
                 temp.extend(WebauthnSigner::cairo_serialize(val));
                 temp
             }
+            Signer::SIWS(val) => {
+                let mut temp = vec![];
+                temp.extend(usize::cairo_serialize(&5usize));
+                temp.extend(Ed25519Signer::cairo_serialize(val));
+                temp
+            }
             _ => vec![],
         }
     }
@@ -2520,6 +2929,10 @@ impl cainome::cairo_serde::CairoSerde for Signer {
                 __felts,
                 __offset + 1,
             )?)),
+            5usize => Ok(Signer::SIWS(Ed25519Signer::cairo_deserialize(
+                __felts,
+                __offset + 1,
+            )?)),
             _ => {
                 return Err(cainome::cairo_serde::Error::Deserialize(format!(
                     "Index not handle for enum {}",
@@ -2536,6 +2949,7 @@ pub enum SignerSignature {
     Secp256r1((Secp256r1Signer, Signature)),
     Eip191((Eip191Signer, Signature)),
     Webauthn((WebauthnSigner, WebauthnSignature)),
+    SIWS((Ed25519Signer, SIWSSignature)),
 }
 impl cainome::cairo_serde::CairoSerde for SignerSignature {
     type RustType = Self;
@@ -2557,6 +2971,9 @@ impl cainome::cairo_serde::CairoSerde for SignerSignature {
             }
             SignerSignature::Webauthn(val) => {
                 <(WebauthnSigner, WebauthnSignature)>::cairo_serialized_size(val) + 1
+            }
+            SignerSignature::SIWS(val) => {
+                <(Ed25519Signer, SIWSSignature)>::cairo_serialized_size(val) + 1
             }
             _ => 0,
         }
@@ -2593,6 +3010,12 @@ impl cainome::cairo_serde::CairoSerde for SignerSignature {
                 temp.extend(<(WebauthnSigner, WebauthnSignature)>::cairo_serialize(val));
                 temp
             }
+            SignerSignature::SIWS(val) => {
+                let mut temp = vec![];
+                temp.extend(usize::cairo_serialize(&5usize));
+                temp.extend(<(Ed25519Signer, SIWSSignature)>::cairo_serialize(val));
+                temp
+            }
             _ => vec![],
         }
     }
@@ -2624,6 +3047,9 @@ impl cainome::cairo_serde::CairoSerde for SignerSignature {
             )>::cairo_deserialize(
                 __felts, __offset + 1
             )?)),
+            5usize => Ok(SignerSignature::SIWS(
+                <(Ed25519Signer, SIWSSignature)>::cairo_deserialize(__felts, __offset + 1)?,
+            )),
             _ => {
                 return Err(cainome::cairo_serde::Error::Deserialize(format!(
                     "Index not handle for enum {}",
