@@ -40,14 +40,10 @@ impl Controller {
             .collect::<Vec<_>>()
             .join("&");
 
-        let url = if rp_id.contains("localhost") {
-            format!("http://{rp_id}:3001/authenticate?{query_string}")
-        } else {
-            format!("https://{rp_id}/authenticate?{query_string}")
-        };
+        let url = format!("/authenticate?{query_string}");
 
         let popup = window
-            .open_with_url_and_target_and_features(&url, "_blank", "")
+            .open_with_url_and_target_and_features(&url, "Cartridge Signup", "")
             .map_err(|e| {
                 ControllerError::InvalidResponseData(format!("Failed to open popup: {e:?}"))
             })?;
@@ -61,12 +57,20 @@ impl Controller {
         let (tx, rx) = futures::channel::oneshot::channel();
         let tx = std::rc::Rc::new(std::cell::RefCell::new(Some(tx)));
 
-        let rp_id_clone = rp_id.clone();
+        let origin = window.location().origin();
+        if origin.is_err() {
+            web_sys::console::log_1(&format!("origin error {:?}", origin.err()).into());
+            return Err(ControllerError::InvalidResponseData(
+                "Failed to get iFrame origin".to_string(),
+            ));
+        }
+        let origin = origin.unwrap();
         let closure: Closure<dyn Fn(web_sys::MessageEvent)> =
             Closure::new(move |event: web_sys::MessageEvent| {
                 let data = event.data();
-                let origin = event.origin();
-                if !origin.contains(rp_id_clone.as_str()) {
+                let event_origin = event.origin();
+
+                if event_origin != origin {
                     return;
                 }
 
