@@ -26,7 +26,7 @@ use crate::types::owner::Owner;
 use crate::types::policy::{CallPolicy, Policy, TypedDataPolicy};
 use crate::types::register::{JsRegister, JsRegisterResponse};
 use crate::types::session::{AuthorizedSession, JsRevokableSession};
-use crate::types::signer::{JsSignerInput, Signer};
+use crate::types::signer::{JsAddSignerInput, JsRemoveSignerInput, Signer};
 use crate::types::{Felts, JsFeeSource, JsFelt};
 use crate::utils::set_panic_hook;
 
@@ -407,7 +407,7 @@ impl CartridgeAccount {
     pub async fn add_owner(
         &mut self,
         owner: Option<Signer>,
-        signer_input: Option<JsSignerInput>,
+        signer_input: Option<JsAddSignerInput>,
         rp_id: Option<String>,
     ) -> std::result::Result<(), JsControllerError> {
         set_panic_hook();
@@ -445,18 +445,57 @@ impl CartridgeAccount {
         Ok(())
     }
 
+    #[wasm_bindgen(js_name = removeOwner)]
+    pub async fn remove_owner(
+        &mut self,
+        signer: JsRemoveSignerInput,
+    ) -> std::result::Result<(), JsControllerError> {
+        set_panic_hook();
+
+        let mut remove_owner_input: account_sdk::graphql::owner::remove_owner::SignerInput =
+            signer.into();
+        let signer: account_sdk::signers::Signer = remove_owner_input.clone().try_into()?;
+        let mut controller = self.controller.lock().await;
+        let tx_result = controller.remove_owner(signer.clone()).await?;
+
+        TransactionWaiter::new(tx_result.transaction_hash, controller.provider())
+            .with_timeout(std::time::Duration::from_secs(20))
+            .wait()
+            .await
+            .map_err(Into::<ControllerError>::into)?;
+        let signer_guid: Felt = signer.into();
+
+        let mut credentials: serde_json::Value =
+            serde_json::from_str(&remove_owner_input.credential).map_err(|e| {
+                JsControllerError::from(ControllerError::InvalidResponseData(e.to_string()))
+            })?;
+        let _ = credentials.as_object_mut().unwrap().remove("rpId");
+        remove_owner_input.credential = serde_json::to_string(&credentials).map_err(|e| {
+            JsControllerError::from(ControllerError::InvalidResponseData(e.to_string()))
+        })?;
+        controller
+            .remove_owner_with_cartridge(
+                remove_owner_input,
+                signer_guid,
+                self.cartridge_api_url.clone(),
+            )
+            .await?;
+
+        Ok(())
+    }
+
     #[wasm_bindgen(js_name = createPasskeySigner)]
     pub async fn create_passkey_signer(
         &self,
         rp_id: String,
-    ) -> std::result::Result<JsSignerInput, JsControllerError> {
+    ) -> std::result::Result<JsAddSignerInput, JsControllerError> {
         set_panic_hook();
 
         let mut controller = self.controller.lock().await;
 
         let (_, signer_input) = controller.create_passkey(rp_id, false).await?;
 
-        Ok(JsSignerInput(signer_input))
+        Ok(JsAddSignerInput(signer_input))
     }
 
     #[wasm_bindgen(js_name = estimateInvokeFee)]

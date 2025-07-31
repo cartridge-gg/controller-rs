@@ -186,10 +186,22 @@ impl From<account_sdk::signers::eip191::Eip191Signer> for Eip191Signer {
 #[derive(Tsify, Serialize, Deserialize, Debug, Clone)]
 #[tsify(into_wasm_abi, from_wasm_abi)]
 #[serde(rename_all = "camelCase")]
-pub struct JsSignerInput(pub account_sdk::graphql::owner::add_owner::SignerInput);
+pub struct JsAddSignerInput(pub account_sdk::graphql::owner::add_owner::SignerInput);
 
-impl From<JsSignerInput> for account_sdk::graphql::owner::add_owner::SignerInput {
-    fn from(value: JsSignerInput) -> Self {
+impl From<JsAddSignerInput> for account_sdk::graphql::owner::add_owner::SignerInput {
+    fn from(value: JsAddSignerInput) -> Self {
+        value.0
+    }
+}
+
+#[allow(non_snake_case)]
+#[derive(Tsify, Serialize, Deserialize, Debug, Clone)]
+#[tsify(into_wasm_abi, from_wasm_abi)]
+#[serde(rename_all = "camelCase")]
+pub struct JsRemoveSignerInput(pub account_sdk::graphql::owner::remove_owner::SignerInput);
+
+impl From<JsRemoveSignerInput> for account_sdk::graphql::owner::remove_owner::SignerInput {
+    fn from(value: JsRemoveSignerInput) -> Self {
         value.0
     }
 }

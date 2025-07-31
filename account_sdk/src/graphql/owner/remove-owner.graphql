@@ -1,0 +1,8 @@
+mutation RemoveOwner(
+  $username: String!
+  $chainID: String!
+  $signerGuid: Felt!
+  $owner: SignerInput!
+) {
+  removeOwner(username: $username, chainID: $chainID, signerGuid: $signerGuid, owner: $owner)
+}
