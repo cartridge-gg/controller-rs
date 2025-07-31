@@ -257,6 +257,39 @@ impl Controller {
 
         Ok(())
     }
+
+    pub async fn remove_owner(
+        &mut self,
+        signer: Signer,
+    ) -> Result<InvokeTransactionResult, ControllerError> {
+        let call = self.contract().remove_owner_getcall(&signer.into());
+
+        let result = self
+            .execute_from_outside_v3(vec![call], Some(FeeSource::Paymaster))
+            .await?;
+
+        Ok(result)
+    }
+
+    pub async fn remove_owner_with_cartridge(
+        &mut self,
+        signer: crate::graphql::owner::remove_owner::SignerInput,
+        signer_guid: Felt,
+        cartridge_api_url: String,
+    ) -> Result<(), ControllerError> {
+        let input = crate::graphql::owner::RemoveOwnerInput {
+            username: self.username.clone(),
+            chain_id: parse_cairo_short_string(&self.chain_id).map_err(|e| {
+                ControllerError::InvalidResponseData(format!("Failed to parse chain ID: {e}"))
+            })?,
+            signer_guid,
+            owner: signer,
+        };
+
+        let _ = crate::graphql::owner::remove_owner(input, cartridge_api_url).await?;
+
+        Ok(())
+    }
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
