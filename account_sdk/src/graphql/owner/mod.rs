@@ -5,7 +5,6 @@ use crate::errors::ControllerError;
 use crate::signers::eip191::Eip191Signer;
 use crate::signers::Signer;
 use anyhow::Result;
-use coset::{CborSerializable, CoseKey};
 use graphql_client::GraphQLQuery;
 use starknet::core::types::EthAddress;
 use starknet_crypto::Felt;
@@ -81,7 +80,6 @@ impl TryFrom<remove_owner::SignerInput> for Signer {
     type Error = ControllerError;
 
     fn try_from(value: remove_owner::SignerInput) -> Result<Self, ControllerError> {
-        use base64::Engine;
         match value.type_ {
             remove_owner::SignerType::eip191 => {
                 let eth_signer: serde_json::Value = serde_json::from_str(&value.credential)
@@ -108,49 +106,61 @@ impl TryFrom<remove_owner::SignerInput> for Signer {
                 Ok(Self::Eip191(Eip191Signer { address }))
             }
             remove_owner::SignerType::webauthn => {
-                let webauthn_signer: serde_json::Value = serde_json::from_str(&value.credential)
-                    .map_err(|e| ControllerError::InvalidOwner(e.to_string()))?;
-                let credential_id =
-                    webauthn_signer.get("id").unwrap().as_str().ok_or_else(|| {
-                        ControllerError::InvalidOwner("credential id is not a string".to_string())
+                #[cfg(not(feature = "webauthn"))]
+                panic!("webauthn is not enabled");
+
+                #[cfg(feature = "webauthn")]
+                {
+                    use base64::Engine;
+                    use coset::{CborSerializable, CoseKey};
+
+                    let webauthn_signer: serde_json::Value =
+                        serde_json::from_str(&value.credential)
+                            .map_err(|e| ControllerError::InvalidOwner(e.to_string()))?;
+                    let credential_id =
+                        webauthn_signer.get("id").unwrap().as_str().ok_or_else(|| {
+                            ControllerError::InvalidOwner(
+                                "credential id is not a string".to_string(),
+                            )
+                        })?;
+                    let public_key_base_64 = webauthn_signer
+                        .get("publicKey")
+                        .unwrap()
+                        .as_str()
+                        .ok_or_else(|| {
+                            ControllerError::InvalidOwner("public key is not a string".to_string())
+                        })?;
+                    let cose_bytes = base64::engine::general_purpose::URL_SAFE_NO_PAD
+                        .decode(public_key_base_64)
+                        .map_err(|e| {
+                            ControllerError::InvalidOwner(format!(
+                                "Failed to decode public key base64: {e}"
+                            ))
+                        })?;
+                    let pub_key = CoseKey::from_slice(&cose_bytes).map_err(|e| {
+                        ControllerError::InvalidOwner(format!("Failed to parse COSE key: {e}"))
                     })?;
-                let public_key_base_64 = webauthn_signer
-                    .get("publicKey")
-                    .unwrap()
-                    .as_str()
-                    .ok_or_else(|| {
-                        ControllerError::InvalidOwner("public key is not a string".to_string())
-                    })?;
-                let cose_bytes = base64::engine::general_purpose::URL_SAFE_NO_PAD
-                    .decode(public_key_base_64)
-                    .map_err(|e| {
-                        ControllerError::InvalidOwner(format!(
-                            "Failed to decode public key base64: {e}"
-                        ))
-                    })?;
-                let pub_key = CoseKey::from_slice(&cose_bytes).map_err(|e| {
-                    ControllerError::InvalidOwner(format!("Failed to parse COSE key: {e}"))
-                })?;
-                let rp_id = webauthn_signer
-                    .get("rpId")
-                    .unwrap()
-                    .as_str()
-                    .ok_or_else(|| {
-                        ControllerError::InvalidOwner("rpId is not a string".to_string())
-                    })?;
-                let credential_id_bytes = base64::engine::general_purpose::URL_SAFE_NO_PAD
-                    .decode(credential_id)
-                    .map_err(|e| {
-                        ControllerError::InvalidResponseData(format!(
-                            "Failed to decode credential ID base64: {e}"
-                        ))
-                    })?;
-                let webauthn_signer = crate::signers::webauthn::WebauthnSigner::new(
-                    rp_id.to_string(),
-                    credential_id_bytes.into(),
-                    pub_key,
-                );
-                Ok(Self::Webauthn(webauthn_signer))
+                    let rp_id = webauthn_signer
+                        .get("rpId")
+                        .unwrap()
+                        .as_str()
+                        .ok_or_else(|| {
+                            ControllerError::InvalidOwner("rpId is not a string".to_string())
+                        })?;
+                    let credential_id_bytes = base64::engine::general_purpose::URL_SAFE_NO_PAD
+                        .decode(credential_id)
+                        .map_err(|e| {
+                            ControllerError::InvalidResponseData(format!(
+                                "Failed to decode credential ID base64: {e}"
+                            ))
+                        })?;
+                    let webauthn_signer = crate::signers::webauthn::WebauthnSigner::new(
+                        rp_id.to_string(),
+                        credential_id_bytes.into(),
+                        pub_key,
+                    );
+                    Ok(Self::Webauthn(webauthn_signer))
+                }
             }
             remove_owner::SignerType::starknet => todo!(),
             remove_owner::SignerType::siws => todo!(),
