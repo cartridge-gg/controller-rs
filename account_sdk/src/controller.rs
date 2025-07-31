@@ -197,7 +197,7 @@ impl Controller {
             .execute_v3(calls.clone())
             .nonce(Felt::from(u64::MAX))
             .gas_estimate_multiplier(1.5)
-            .gas_price_estimate_multiplier(1.5)
+            .gas_price_estimate_multiplier(2.0)
             .estimate_fee()
             .await;
 
