@@ -59,12 +59,12 @@ webauthn-authenticator-rs = { git = "https://github.com/cartridge-gg/webauthn-rs
     "softpasskey",
 ] }
 
-cainome = { git = "https://github.com/cartridge-gg/cainome", branch = "snip12", features = [
+cainome = { git = "https://github.com/cartridge-gg/cainome", version = "0.9.0", features = [
     "abigen-rs",
 ] }
-cainome-cairo-serde = { git = "https://github.com/cartridge-gg/cainome", branch = "snip12" }
+cainome-cairo-serde = { git = "https://github.com/cartridge-gg/cainome", version = "0.3.0" }
 
-starknet = { git = "https://github.com/xJonathanLEI/starknet-rs", rev = "ff4222e" }
+starknet = "0.16.0"
 starknet-crypto = { version = "0.7.3", features = ["pedersen_no_lookup"] }
 starknet-types-core = { version = "0.1", features = ["curve", "hash"] }
 
