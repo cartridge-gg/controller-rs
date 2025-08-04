@@ -22,6 +22,7 @@ use starknet_crypto::PoseidonHasher;
 use std::collections::BTreeMap;
 use std::ops::Neg;
 use std::result::Result;
+use webauthn_rs_proto::PublicKeyCredentialHints;
 use webauthn_rs_proto::{
     AllowCredentials, AttestationConveyancePreference, AuthenticatorSelectionCriteria,
     CredentialProtectionPolicy, PubKeyCredParams, PublicKeyCredential,
@@ -425,7 +426,11 @@ impl HashSigner for WebauthnSigners {
                 })
                 .collect(),
             user_verification: UserVerificationPolicy::Required,
-            hints: None,
+            hints: Some(vec![
+                PublicKeyCredentialHints::ClientDevice,
+                PublicKeyCredentialHints::SecurityKey,
+                PublicKeyCredentialHints::Hybrid,
+            ]),
             extensions: None,
         };
 
