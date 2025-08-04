@@ -1,0 +1,64 @@
+name: Lint
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup Rust toolchain
+      uses: actions-rust-lang/setup-rust-toolchain@v1
+      with:
+        toolchain: stable
+        components: rustfmt, clippy
+
+    - name: Setup Scarb
+      uses: software-mansion/setup-scarb@v1
+      with:
+        scarb-version: "2.8.4"
+
+    - name: Setup Node.js for Prettier
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+        cache-dependency-path: account-wasm/package.json
+
+    - name: Install Prettier
+      run: npm install -g prettier
+
+    - name: Check Rust formatting
+      run: cargo fmt --all -- --check
+
+    - name: Run Rust linting (Clippy)
+      run: cargo clippy --all-targets --all-features -- -D warnings
+
+    - name: Check Cairo formatting in contracts
+      run: |
+        for contract_dir in contracts/*/; do
+          if [ -d "$contract_dir" ]; then
+            echo "Checking Cairo formatting in $contract_dir..."
+            (cd "$contract_dir" && scarb fmt --check)
+          fi
+        done
+
+    - name: Check documentation formatting
+      run: |
+        # Find and check formatting for documentation files, excluding CLAUDE.md
+        find . -name "*.md" -not -name "CLAUDE.md" -o -name "*.yml" -o -name "*.yaml" -o -name "*.json" | \
+        head -20 | \
+        xargs prettier --check || (echo "Some files need formatting. Run 'prettier --write <files>' to fix." && exit 1)
+
+    - name: Build project
+      run: cargo build --all-targets
+
+    - name: Run tests
+      run: cargo test --all-features
