@@ -432,7 +432,7 @@ impl CartridgeAccount {
         let tx_result = controller.add_owner(signer.clone()).await?;
 
         TransactionWaiter::new(tx_result.transaction_hash, controller.provider())
-            .with_timeout(std::time::Duration::from_secs(20))
+            .with_timeout(std::time::Duration::from_secs(DEFAULT_TIMEOUT))
             .wait()
             .await
             .map_err(Into::<ControllerError>::into)?;
@@ -459,7 +459,7 @@ impl CartridgeAccount {
         let tx_result = controller.remove_owner(signer.clone()).await?;
 
         TransactionWaiter::new(tx_result.transaction_hash, controller.provider())
-            .with_timeout(std::time::Duration::from_secs(20))
+            .with_timeout(std::time::Duration::from_secs(DEFAULT_TIMEOUT))
             .wait()
             .await
             .map_err(Into::<ControllerError>::into)?;
@@ -660,7 +660,7 @@ impl CartridgeAccount {
         let tx = controller.revoke_sessions(to_revoke).await?;
 
         TransactionWaiter::new(tx.transaction_hash, controller.provider())
-            .with_timeout(std::time::Duration::from_secs(20))
+            .with_timeout(std::time::Duration::from_secs(DEFAULT_TIMEOUT))
             .wait()
             .await
             .map_err(Into::<ControllerError>::into)?;
@@ -936,3 +936,5 @@ pub fn compute_account_address(class_hash: JsFelt, owner: Owner, salt: JsFelt) -
 
     Ok(address.into())
 }
+
+const DEFAULT_TIMEOUT: u64 = 30;
