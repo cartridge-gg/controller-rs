@@ -7,12 +7,13 @@ use account_sdk::storage::selectors::Selectors;
 use account_sdk::storage::StorageBackend;
 
 use account_sdk::transaction_waiter::TransactionWaiter;
+use cainome::cairo_serde::Zeroable;
 use serde_wasm_bindgen::to_value;
 use starknet::accounts::ConnectedAccount;
 use starknet::core::types::{BlockId, BlockTag, Call, FeeEstimate, FunctionCall, TypedData};
 
 use starknet::macros::selector;
-use starknet::providers::Provider;
+use starknet::providers::{Provider, ProviderRequestData, ProviderResponseData};
 use starknet_types_core::felt::Felt;
 use url::Url;
 use wasm_bindgen::prelude::*;
@@ -638,26 +639,42 @@ impl CartridgeAccount {
         let mut controller = self.controller.lock().await;
 
         let provider = controller.provider();
-        let block_id = BlockId::Tag(BlockTag::PreConfirmed);
 
-        let mut to_revoke = vec![];
-        for session in sessions.clone() {
-            let result = provider
-                .call(
-                    &FunctionCall {
-                        contract_address: controller.address,
-                        entry_point_selector: selector!("is_session_revoked"),
-                        calldata: vec![session.session_hash],
-                    },
-                    block_id,
-                )
-                .await?;
-            if result[0] == Felt::from(0) {
-                to_revoke.push(session);
-            }
-        }
+        let results = provider
+            .batch_requests(
+                sessions
+                    .iter()
+                    .map(|session| {
+                        ProviderRequestData::Call(starknet::core::types::requests::CallRequest {
+                            request: FunctionCall {
+                                contract_address: controller.address,
+                                entry_point_selector: selector!("is_session_revoked"),
+                                calldata: vec![session.session_hash],
+                            },
+                            block_id: BlockId::Tag(BlockTag::PreConfirmed),
+                        })
+                    })
+                    .collect::<Vec<_>>(),
+            )
+            .await?;
 
-        let tx = controller.revoke_sessions(to_revoke).await?;
+        let unrevoked_sessions = results
+            .iter()
+            .zip(sessions.iter())
+            .filter_map(|(result, session)| {
+                if let ProviderResponseData::Call(call_response) = result {
+                    if call_response[0].is_zero() {
+                        Some(session.clone())
+                    } else {
+                        None
+                    }
+                } else {
+                    None
+                }
+            })
+            .collect::<Vec<_>>();
+
+        let tx = controller.revoke_sessions(unrevoked_sessions).await?;
 
         TransactionWaiter::new(tx.transaction_hash, controller.provider())
             .with_timeout(std::time::Duration::from_secs(DEFAULT_TIMEOUT))
