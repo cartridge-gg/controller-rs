@@ -1,5 +1,6 @@
 use std::borrow::BorrowMut;
 
+use account_sdk::abigen::controller::SignerSignature;
 use account_sdk::controller::Controller;
 use account_sdk::errors::ControllerError;
 use account_sdk::session::RevokableSession;
@@ -7,7 +8,7 @@ use account_sdk::storage::selectors::Selectors;
 use account_sdk::storage::StorageBackend;
 
 use account_sdk::transaction_waiter::TransactionWaiter;
-use cainome::cairo_serde::Zeroable;
+use cainome::cairo_serde::{CairoSerde, Zeroable};
 use serde_wasm_bindgen::to_value;
 use starknet::accounts::ConnectedAccount;
 use starknet::core::types::{BlockId, BlockTag, Call, FeeEstimate, FunctionCall, TypedData};
@@ -28,7 +29,7 @@ use crate::types::policy::{CallPolicy, Policy, TypedDataPolicy};
 use crate::types::register::{JsRegister, JsRegisterResponse};
 use crate::types::session::{AuthorizedSession, JsRevokableSession};
 use crate::types::signer::{JsAddSignerInput, JsRemoveSignerInput, Signer};
-use crate::types::{Felts, JsFeeSource, JsFelt};
+use crate::types::{EncodingError, Felts, JsFeeSource, JsFelt};
 use crate::utils::set_panic_hook;
 
 type Result<T> = std::result::Result<T, JsError>;
@@ -219,6 +220,19 @@ impl CartridgeAccount {
         })
     }
 
+    #[wasm_bindgen(js_name = owner)]
+    pub async fn owner(&self) -> std::result::Result<Owner, JsControllerError> {
+        let owner = self.controller.lock().await.owner.clone();
+        Ok(owner.into())
+    }
+
+    #[wasm_bindgen(js_name = ownerGuid)]
+    pub async fn owner_guid(&self) -> std::result::Result<JsFelt, JsControllerError> {
+        let owner = self.controller.lock().await.owner.clone();
+        let owner_guid: Felt = owner.into();
+        Ok(owner_guid.into())
+    }
+
     #[wasm_bindgen(js_name = login)]
     pub async fn login(
         &self,
@@ -228,8 +242,9 @@ impl CartridgeAccount {
     ) -> std::result::Result<AuthorizedSession, JsControllerError> {
         set_panic_hook();
 
+        let mut requires_owner_change = false;
         let mut controller = self.controller.lock().await;
-        if let Some(signers) = signers {
+        if let Some(signers) = signers.clone() {
             if let Some(webauthns) = signers.webauthns {
                 let converted_webauthns: Vec<account_sdk::signers::webauthn::WebauthnSigner> =
                     webauthns
@@ -240,10 +255,56 @@ impl CartridgeAccount {
                 controller.owner = account_sdk::signers::Owner::Signer(
                     account_sdk::signers::Signer::Webauthns(converted_webauthns),
                 );
+                requires_owner_change = true;
             }
         }
 
         let account = controller.create_wildcard_session(expires_at).await?;
+
+        if requires_owner_change {
+            let session_signer = Vec::<SignerSignature>::cairo_deserialize(
+                &account.session_authorization.clone(),
+                0,
+            )
+            .map_err(|e| {
+                JsControllerError::from(ControllerError::InvalidResponseData(e.to_string()))
+            })?;
+            if session_signer.is_empty() {
+                return Err(JsControllerError::from(
+                    ControllerError::InvalidResponseData("No session signer found".to_string()),
+                ));
+            }
+
+            let session_signer = session_signer[0].clone();
+            if let SignerSignature::Webauthn((signer, _)) = session_signer {
+                let used_signer_guid: Felt = signer.into();
+                let webauthns = signers.unwrap().webauthns.unwrap();
+                let used_signer = webauthns
+                    .iter()
+                    .find(|s| {
+                        let sdk_signer: account_sdk::signers::webauthn::WebauthnSigner =
+                            (*s).clone().try_into().unwrap();
+                        let abigen_signer: account_sdk::abigen::controller::WebauthnSigner =
+                            sdk_signer.into();
+                        let s_guid: Felt = abigen_signer.into();
+                        s_guid == used_signer_guid
+                    })
+                    .unwrap();
+                controller.owner =
+                    account_sdk::signers::Owner::Signer(account_sdk::signers::Signer::Webauthn(
+                        used_signer
+                            .clone()
+                            .try_into()
+                            .map_err(|e: EncodingError| JsControllerError::from(e))?,
+                    ));
+            } else {
+                return Err(JsControllerError::from(
+                    ControllerError::InvalidResponseData(
+                        "Shouldn't require an owner change".to_string(),
+                    ),
+                ));
+            }
+        }
 
         if is_controller_registered.unwrap_or(false) {
             let controller_response = controller
@@ -842,8 +903,6 @@ pub struct CartridgeAccountMeta {
     class_hash: String,
     rpc_url: String,
     chain_id: String,
-    owner_guid: JsFelt,
-    owner: Owner,
 }
 
 impl CartridgeAccountMeta {
@@ -855,8 +914,6 @@ impl CartridgeAccountMeta {
             class_hash: controller.class_hash.to_hex_string(),
             rpc_url: controller.rpc_url.to_string(),
             chain_id: controller.chain_id.to_hex_string(),
-            owner_guid: controller.owner_guid().into(),
-            owner: controller.owner.clone().into(),
         }
     }
 }
@@ -891,16 +948,6 @@ impl CartridgeAccountMeta {
     #[wasm_bindgen(js_name = chainId)]
     pub fn chain_id(&self) -> String {
         self.chain_id.clone()
-    }
-
-    #[wasm_bindgen(js_name = ownerGuid)]
-    pub fn owner_guid(&self) -> JsFelt {
-        self.owner_guid.clone()
-    }
-
-    #[wasm_bindgen(js_name = owner)]
-    pub fn owner(&self) -> Owner {
-        self.owner.clone()
     }
 }
 

@@ -117,8 +117,8 @@ impl From<Signer> for crate::abigen::controller::Signer {
             #[cfg(feature = "webauthn")]
             Signer::Webauthn(s) => crate::abigen::controller::Signer::Webauthn(s.into()),
             #[cfg(feature = "webauthn")]
-            Signer::Webauthns(s) => {
-                crate::abigen::controller::Signer::Webauthn(s[0].clone().into())
+            Signer::Webauthns(_) => {
+                panic!("Webauthns is not supported");
             }
             Signer::Eip191(s) => {
                 crate::abigen::controller::Signer::Eip191(crate::abigen::controller::Eip191Signer {
