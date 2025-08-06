@@ -59,9 +59,8 @@ webauthn-authenticator-rs = { git = "https://github.com/cartridge-gg/webauthn-rs
 	"softpasskey",
 ] }
 
-# TODO: use the official version once this PR is merged: <https://github.com/cartridge-gg/cainome/pull/108>
-cainome = { git = "https://github.com/kariy/cainome", branch = "feat/rpc0.9", features = [ "abigen-rs" ] }
-cainome-cairo-serde = { git = "https://github.com/kariy/cainome", branch = "feat/rpc0.9" }
+cainome = { git = "https://github.com/cartridge-gg/cainome", rev = "7d60de1", features = [ "abigen-rs" ] }
+cainome-cairo-serde = { git = "https://github.com/cartridge-gg/cainome", rev = "7d60de1" }
 
 starknet = "0.17.0-rc.2"
 starknet-crypto = { version = "0.7.4", features = ["pedersen_no_lookup"] }
