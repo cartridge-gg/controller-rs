@@ -663,7 +663,24 @@ impl CartridgeAccount {
             .zip(sessions.iter())
             .filter_map(|(result, session)| {
                 if let ProviderResponseData::Call(call_response) = result {
-                    if call_response[0].is_zero() {
+                    if call_response.len() != 1 {
+                        #[cfg(target_arch = "wasm32")]
+                        web_sys::console::error_1(
+                            &format!("Expected 1 response, got {:?}", call_response).into(),
+                        );
+                        return None;
+                    }
+
+                    let response = call_response[0];
+                    if response != Felt::ONE && response != Felt::ZERO {
+                        #[cfg(target_arch = "wasm32")]
+                        web_sys::console::error_1(
+                            &format!("Expected boolean, got {:?}", response).into(),
+                        );
+                        return None;
+                    }
+
+                    if response.is_zero() {
                         Some(session.clone())
                     } else {
                         None
