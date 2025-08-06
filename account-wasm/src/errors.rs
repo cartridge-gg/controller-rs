@@ -97,6 +97,8 @@ pub enum ErrorCode {
     PolicyChainIdMismatch = 136,
     InvalidOwner = 137,
     GasPriceTooHigh = 138,
+    TransactionTimeout = 139,
+    ConversionError = 140,
 }
 
 impl From<ControllerError> for JsControllerError {
@@ -199,8 +201,13 @@ impl From<ControllerError> for JsControllerError {
                 data: None,
             },
             ControllerError::TransactionTimeout => JsControllerError {
-                code: ErrorCode::StarknetUnexpectedError,
+                code: ErrorCode::TransactionTimeout,
                 message: "Transaction timeout".to_string(),
+                data: None,
+            },
+            ControllerError::ConversionError(e) => JsControllerError {
+                code: ErrorCode::ConversionError,
+                message: e.to_string(),
                 data: None,
             },
         }
