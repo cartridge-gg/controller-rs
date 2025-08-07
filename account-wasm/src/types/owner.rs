@@ -15,6 +15,24 @@ pub struct Owner {
     pub account: Option<JsFelt>,
 }
 
+impl Owner {
+    pub fn is_empty(&self) -> bool {
+        self.signer.is_none() && self.account.is_none()
+    }
+
+    pub fn is_signer(&self) -> bool {
+        self.signer.is_some() && self.account.is_none()
+    }
+
+    pub fn is_account(&self) -> bool {
+        self.signer.is_none() && self.account.is_some()
+    }
+
+    pub fn is_signer_and_account(&self) -> bool {
+        self.signer.is_some() && self.account.is_some()
+    }
+}
+
 impl From<Owner> for SdkOwner {
     fn from(owner: Owner) -> Self {
         if let Some(signer) = owner.signer {

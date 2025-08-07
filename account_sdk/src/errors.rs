@@ -73,4 +73,7 @@ pub enum ControllerError {
 
     #[error("Transaction timeout")]
     TransactionTimeout,
+
+    #[error("Conversion error: {0}")]
+    ConversionError(String),
 }
