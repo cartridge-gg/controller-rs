@@ -83,6 +83,28 @@ pub struct AuthorizedSession {
     pub guardian_key_guid: JsFelt,
 }
 
+impl From<account_sdk::account::session::account::SessionAccount> for AuthorizedSession {
+    fn from(value: account_sdk::account::session::account::SessionAccount) -> Self {
+        AuthorizedSession {
+            session: value.session.clone().into(),
+            authorization: Some(
+                value
+                    .session_authorization
+                    .clone()
+                    .into_iter()
+                    .map(Into::into)
+                    .collect(),
+            ),
+            is_registered: false,
+            expires_at: value.session.inner.expires_at,
+            allowed_policies_root: value.session.inner.allowed_policies_root.into(),
+            metadata_hash: value.session.inner.metadata_hash.into(),
+            session_key_guid: value.session.inner.session_key_guid.into(),
+            guardian_key_guid: value.session.inner.guardian_key_guid.into(),
+        }
+    }
+}
+
 impl TryFrom<JsValue> for AuthorizedSession {
     type Error = EncodingError;
 

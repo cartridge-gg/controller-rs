@@ -1,15 +1,21 @@
 use std::str::FromStr;
 
+use account_sdk::abigen::controller::SignerSignature;
+use account_sdk::errors::ControllerError;
 use account_sdk::signers::webauthn::CredentialID;
 use base64::engine::general_purpose;
 use base64::Engine;
+use cainome::cairo_serde::CairoSerde;
 use coset::CborSerializable;
 use coset::CoseKey;
 use serde::{Deserialize, Serialize};
 use starknet::core::types::EthAddress;
 use starknet::signers::SigningKey;
+use starknet_crypto::Felt;
 use tsify_next::Tsify;
 use wasm_bindgen::prelude::*;
+
+use crate::errors::JsControllerError;
 
 use super::EncodingError;
 use super::JsFelt;
@@ -53,6 +59,43 @@ pub struct Signer {
     pub starknet: Option<StarknetSigner>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub eip191: Option<Eip191Signer>,
+}
+
+impl Signer {
+    pub fn is_empty(&self) -> bool {
+        self.webauthns.is_none()
+            && self.webauthn.is_none()
+            && self.starknet.is_none()
+            && self.eip191.is_none()
+    }
+
+    pub fn is_webauthn(&self) -> bool {
+        self.webauthns.is_none()
+            && self.webauthn.is_some()
+            && self.starknet.is_none()
+            && self.eip191.is_none()
+    }
+
+    pub fn is_starknet(&self) -> bool {
+        self.webauthns.is_none()
+            && self.webauthn.is_none()
+            && self.starknet.is_some()
+            && self.eip191.is_none()
+    }
+
+    pub fn is_eip191(&self) -> bool {
+        self.webauthns.is_none()
+            && self.webauthn.is_none()
+            && self.starknet.is_none()
+            && self.eip191.is_some()
+    }
+
+    pub fn is_webauthns(&self) -> bool {
+        self.webauthns.is_some()
+            && self.webauthn.is_none()
+            && self.starknet.is_none()
+            && self.eip191.is_none()
+    }
 }
 
 impl TryFrom<WebauthnSigner> for account_sdk::signers::webauthn::WebauthnSigner {
@@ -112,6 +155,13 @@ impl TryFrom<Signer> for account_sdk::signers::Signer {
             Ok(Self::Starknet(starknet.try_into()?))
         } else if let Some(eip191) = signer.eip191 {
             Ok(Self::Eip191(eip191.try_into()?))
+        } else if let Some(webauthns) = signer.webauthns {
+            Ok(Self::Webauthns(
+                webauthns
+                    .into_iter()
+                    .map(TryInto::try_into)
+                    .collect::<Result<Vec<_>, _>>()?,
+            ))
         } else {
             Err(EncodingError::Serialization(
                 serde_wasm_bindgen::Error::new("Missing signer data"),
@@ -179,6 +229,43 @@ impl From<account_sdk::signers::eip191::Eip191Signer> for Eip191Signer {
         Self {
             address: format!("0x{}", hex::encode(signer.address().as_bytes())),
         }
+    }
+}
+
+pub fn try_find_webauthn_signer_in_signer_signature(
+    webauthn_signers: Vec<WebauthnSigner>,
+    signer_signature: Vec<Felt>,
+) -> Result<WebauthnSigner, JsControllerError> {
+    let session_signer =
+        Vec::<SignerSignature>::cairo_deserialize(&signer_signature, 0).map_err(|e| {
+            JsControllerError::from(ControllerError::InvalidResponseData(e.to_string()))
+        })?;
+    if session_signer.is_empty() {
+        return Err(JsControllerError::from(
+            ControllerError::InvalidResponseData("No session signer found".to_string()),
+        ));
+    }
+
+    let session_signer = session_signer[0].clone();
+    if let SignerSignature::Webauthn((signer, _)) = session_signer {
+        let used_signer_guid: Felt = signer.into();
+        let webauthns = webauthn_signers;
+        let used_signer = webauthns
+            .iter()
+            .find(|s| {
+                let sdk_signer: account_sdk::signers::webauthn::WebauthnSigner =
+                    (*s).clone().try_into().unwrap();
+                let abigen_signer: account_sdk::abigen::controller::WebauthnSigner =
+                    sdk_signer.into();
+                let s_guid: Felt = abigen_signer.into();
+                s_guid == used_signer_guid
+            })
+            .unwrap();
+        Ok(used_signer.clone())
+    } else {
+        Err(JsControllerError::from(
+            ControllerError::InvalidResponseData("Shouldn't require an owner change".to_string()),
+        ))
     }
 }
 
