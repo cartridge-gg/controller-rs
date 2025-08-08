@@ -5,7 +5,10 @@ use crate::constants::STRK_CONTRACT_ADDRESS;
 use crate::errors::ControllerError;
 use crate::execute_from_outside::FeeSource;
 use crate::factory::ControllerFactory;
+use crate::graphql::registration::register::register::{SessionInput, SignerInput};
+use crate::graphql::registration::register::RegisterInput;
 use crate::provider::CartridgeJsonRpcProvider;
+use crate::signers::types::SignerType;
 use crate::signers::Owner;
 use crate::storage::{ControllerMetadata, Storage, StorageBackend, StorageError};
 use crate::typed_data::hash_components;
@@ -16,6 +19,7 @@ use crate::{
 use crate::{find_error_message_in_execution_error, impl_account};
 use async_trait::async_trait;
 use cainome::cairo_serde::{CairoSerde, U256};
+use chrono::Utc;
 use starknet::accounts::{AccountDeploymentV3, AccountError, AccountFactory, ExecutionV3};
 use starknet::core::types::{
     BlockTag, Call, FeeEstimate, FunctionCall, InvokeTransactionResult, StarknetError, TypedData,
@@ -36,6 +40,8 @@ use url::Url;
 mod controller_test;
 
 const SESSION_TYPED_DATA_MAGIC: Felt = short_string!("session-typed-data");
+
+const DEFAULT_SESSION_EXPIRATION: u64 = 7 * 24 * 60 * 60;
 
 #[derive(Clone)]
 pub struct Controller {
@@ -112,6 +118,105 @@ impl Controller {
         controller.clear_invalid_session();
 
         controller
+    }
+
+    pub fn new_headless(
+        app_id: String,
+        username: String,
+        class_hash: Felt,
+        rpc_url: Url,
+        owner: Owner,
+        chain_id: Felt,
+    ) -> Self {
+        let provider = CartridgeJsonRpcProvider::new(rpc_url.clone());
+
+        let factory = ControllerFactory::new(class_hash, chain_id, owner.clone(), provider.clone());
+
+        // Compute the controller address based on the generated signer and username
+        let salt = starknet::core::utils::cairo_short_string_to_felt(&username).unwrap();
+        let address = crate::factory::compute_account_address(class_hash, owner.clone(), salt);
+
+        let mut controller = Self {
+            app_id: app_id.clone(),
+            address,
+            chain_id,
+            class_hash,
+            rpc_url,
+            username,
+            salt,
+            provider,
+            owner,
+            contract: None,
+            factory,
+            storage: Storage::default(),
+            nonce: Felt::ZERO,
+            execute_from_outside_nonce: (
+                starknet::signers::SigningKey::from_random().secret_scalar(),
+                0,
+            ),
+        };
+
+        let contract = Box::new(abigen::controller::Controller::new(
+            address,
+            controller.clone(),
+        ));
+        controller.contract = Some(contract);
+
+        controller
+            .storage
+            .set_controller(
+                app_id.as_str(),
+                &chain_id,
+                address,
+                ControllerMetadata::from(&controller),
+            )
+            .expect("Should store controller");
+
+        // Clears the stored session if it's been revoked in a fire-and-forget style when the controller is created (with fromStorage for example).
+        // Avoids needing to change the constructor to an async function
+        // If we do it when we use the session, we need to change a lot of functions to take a mutable reference to the controller and to be async
+        controller.clear_invalid_session();
+
+        controller
+    }
+
+    pub async fn signup(
+        &mut self,
+        signer_type: SignerType,
+        session_expiration: Option<u64>,
+        cartridge_api_url: Option<String>,
+    ) -> Result<crate::graphql::registration::register::register::ResponseData, ControllerError>
+    {
+        let session_expiration = session_expiration
+            .unwrap_or(Utc::now().timestamp() as u64 + DEFAULT_SESSION_EXPIRATION);
+
+        let session = self.create_wildcard_session(session_expiration).await?;
+
+        let register_input = RegisterInput {
+            username: self.username.clone(),
+            chain_id: self.chain_id.to_string(),
+            owner: SignerInput {
+                type_: signer_type.into(),
+                credential: self.owner.clone().try_into()?,
+            },
+            session: SessionInput {
+                expires_at: session_expiration,
+                allowed_policies_root: session.session.inner.allowed_policies_root,
+                session_key_guid: session.session.inner.session_key_guid,
+                guardian_key_guid: session.session.inner.guardian_key_guid,
+                metadata_hash: session.session.inner.metadata_hash,
+                authorization: session.session_authorization,
+                app_id: Some(self.app_id.clone()),
+            },
+        };
+
+        let register_result = crate::graphql::registration::register::register(
+            register_input,
+            cartridge_api_url.unwrap_or("https://x.cartridge.gg".to_string()),
+        )
+        .await?;
+
+        Ok(register_result)
     }
 
     pub fn from_storage(app_id: String) -> Result<Option<Self>, ControllerError> {
