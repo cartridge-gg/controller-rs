@@ -31,7 +31,7 @@ async fn test_controller_upgrade() {
 
     let hash = controller
         .provider()
-        .get_class_hash_at(BlockId::Tag(BlockTag::Pending), controller.address())
+        .get_class_hash_at(BlockId::Tag(BlockTag::PreConfirmed), controller.address())
         .await
         .unwrap();
 
@@ -49,7 +49,7 @@ async fn test_controller_upgrade() {
 
     let hash = controller
         .provider()
-        .get_class_hash_at(BlockId::Tag(BlockTag::Pending), controller.address())
+        .get_class_hash_at(BlockId::Tag(BlockTag::PreConfirmed), controller.address())
         .await
         .unwrap();
 

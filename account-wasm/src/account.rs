@@ -638,7 +638,7 @@ impl CartridgeAccount {
         let mut controller = self.controller.lock().await;
 
         let provider = controller.provider();
-        let block_id = BlockId::Tag(BlockTag::Pending);
+        let block_id = BlockId::Tag(BlockTag::PreConfirmed);
 
         let mut to_revoke = vec![];
         for session in sessions.clone() {

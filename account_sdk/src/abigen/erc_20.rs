@@ -17,7 +17,7 @@ impl<A: starknet::accounts::ConnectedAccount + Sync> Erc20<A> {
             address,
             account,
             block_id: starknet::core::types::BlockId::Tag(
-                starknet::core::types::BlockTag::Pending,
+                starknet::core::types::BlockTag::PreConfirmed,
             ),
         }
     }
@@ -46,7 +46,7 @@ impl<P: starknet::providers::Provider + Sync> Erc20Reader<P> {
             address,
             provider,
             block_id: starknet::core::types::BlockId::Tag(
-                starknet::core::types::BlockTag::Pending,
+                starknet::core::types::BlockTag::PreConfirmed,
             ),
         }
     }
