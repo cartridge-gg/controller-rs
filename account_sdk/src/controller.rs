@@ -120,6 +120,66 @@ impl Controller {
         controller
     }
 
+    pub fn new_headless(
+        app_id: String,
+        username: String,
+        class_hash: Felt,
+        rpc_url: Url,
+        owner: Owner,
+        chain_id: Felt,
+    ) -> Self {
+        let provider = CartridgeJsonRpcProvider::new(rpc_url.clone());
+
+        let factory = ControllerFactory::new(class_hash, chain_id, owner.clone(), provider.clone());
+
+        // Compute the controller address based on the generated signer and username
+        let salt = starknet::core::utils::cairo_short_string_to_felt(&username).unwrap();
+        let address = crate::factory::compute_account_address(class_hash, owner.clone(), salt);
+
+        let mut controller = Self {
+            app_id: app_id.clone(),
+            address,
+            chain_id,
+            class_hash,
+            rpc_url,
+            username,
+            salt,
+            provider,
+            owner,
+            contract: None,
+            factory,
+            storage: Storage::default(),
+            nonce: Felt::ZERO,
+            execute_from_outside_nonce: (
+                starknet::signers::SigningKey::from_random().secret_scalar(),
+                0,
+            ),
+        };
+
+        let contract = Box::new(abigen::controller::Controller::new(
+            address,
+            controller.clone(),
+        ));
+        controller.contract = Some(contract);
+
+        controller
+            .storage
+            .set_controller(
+                app_id.as_str(),
+                &chain_id,
+                address,
+                ControllerMetadata::from(&controller),
+            )
+            .expect("Should store controller");
+
+        // Clears the stored session if it's been revoked in a fire-and-forget style when the controller is created (with fromStorage for example).
+        // Avoids needing to change the constructor to an async function
+        // If we do it when we use the session, we need to change a lot of functions to take a mutable reference to the controller and to be async
+        controller.clear_invalid_session();
+
+        controller
+    }
+
     pub async fn signup(
         &mut self,
         signer_type: SignerType,
