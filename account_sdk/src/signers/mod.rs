@@ -7,6 +7,8 @@ pub mod webauthn;
 #[cfg(target_arch = "wasm32")]
 pub mod external;
 
+pub mod types;
+
 use ::starknet::{
     core::{
         crypto::EcdsaSignError,
@@ -23,7 +25,7 @@ use starknet_crypto::PoseidonHasher;
 #[cfg(feature = "webauthn")]
 use webauthn::WebauthnSigner;
 
-use crate::abigen::controller::SignerSignature;
+use crate::{abigen::controller::SignerSignature, errors::ControllerError};
 
 #[cfg(feature = "webauthn")]
 use crate::signers::webauthn::WebauthnSigners;
@@ -144,6 +146,24 @@ impl From<crate::abigen::controller::Signer> for Felt {
 impl From<Signer> for Felt {
     fn from(signer: Signer) -> Self {
         crate::abigen::controller::Signer::from(signer).into()
+    }
+}
+
+impl TryFrom<Owner> for serde_json::Value {
+    type Error = ControllerError;
+
+    fn try_from(owner: Owner) -> Result<Self, Self::Error> {
+        match owner {
+            Owner::Account(_) => panic!("not implemented"),
+            Owner::Signer(signer) => match signer {
+                Signer::Starknet(s) => Ok(serde_json::to_value(
+                    serde_json::json!({ "public_key": s.verifying_key().scalar().to_hex_string() })
+                        .to_string(),
+                )
+                .map_err(|e| ControllerError::InvalidOwner(e.to_string()))?),
+                _ => panic!("not implemented"),
+            },
+        }
     }
 }
 

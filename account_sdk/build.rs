@@ -1,17 +1,111 @@
 use cainome::rs::{Abigen, ExecutionVersion};
+use sha2::{Digest, Sha256};
 use starknet::core::types::Felt;
-use std::{collections::HashMap, fs, path::PathBuf, process::Command};
+use std::io::Read;
+use std::{collections::HashMap, fs, path::PathBuf, process::Command, time::Instant};
 
 fn main() {
-    println!("cargo:rerun-if-changed=./artifacts/classes");
+    // Track individual files instead of directories
+    for entry in fs::read_dir("./artifacts/classes").unwrap() {
+        let entry = entry.unwrap();
+        let path = entry.path();
+        if path.is_file() && path.extension().unwrap_or_default() == "json" {
+            println!("cargo:rerun-if-changed={}", path.display());
+        }
+    }
     println!("cargo:rerun-if-changed=./artifacts/metadata.json");
-    generate_controller_bindings();
-    generate_erc20_bindings();
-    generate_artifacts();
-    Command::new("cargo")
-        .args(["fmt", "--all"])
-        .status()
-        .expect("Failed to format the code");
+
+    let controller_path = PathBuf::from("src/abigen/controller.rs");
+    let erc20_path = PathBuf::from("src/abigen/erc_20.rs");
+    let artifacts_path = PathBuf::from("src/artifacts.rs");
+
+    let artifacts_hash = {
+        let mut hasher = Sha256::new();
+        let mut paths: Vec<_> = fs::read_dir("./artifacts/classes")
+            .unwrap()
+            .filter_map(|entry| entry.ok())
+            .map(|entry| entry.path())
+            .filter(|path| path.is_file() && path.extension().unwrap_or_default() == "json")
+            .collect();
+        paths.sort(); // Ensure deterministic order
+
+        for path in paths {
+            if let Ok(mut file) = fs::File::open(&path) {
+                let mut buffer = Vec::new();
+                if file.read_to_end(&mut buffer).is_ok() {
+                    hasher.update(&buffer);
+                }
+            }
+        }
+
+        if let Ok(mut file) = fs::File::open("./artifacts/metadata.json") {
+            let mut buffer = Vec::new();
+            if file.read_to_end(&mut buffer).is_ok() {
+                hasher.update(&buffer);
+            }
+        }
+
+        format!("{:x}", hasher.finalize())
+    };
+
+    let hash_file = PathBuf::from("./target/.artifacts_hash");
+    let stored_hash = fs::read_to_string(&hash_file).ok();
+
+    let artifacts_changed = match stored_hash.clone() {
+        Some(hash) => artifacts_hash != hash,
+        None => {
+            println!("No cached hash found, will generate all files");
+            true
+        }
+    };
+
+    let need_controller = !controller_path.exists() || artifacts_changed;
+    let need_erc20 = !erc20_path.exists() || artifacts_changed;
+    let need_artifacts = !artifacts_path.exists() || artifacts_changed;
+
+    if artifacts_changed && stored_hash.is_some() {
+        println!("Artifacts have changed, regenerating files");
+    }
+
+    if need_controller {
+        let now = Instant::now();
+        generate_controller_bindings();
+        println!("Controller bindings generated in {:?}", now.elapsed());
+    }
+
+    if need_erc20 {
+        let now = Instant::now();
+        generate_erc20_bindings();
+        println!("ERC20 bindings generated in {:?}", now.elapsed());
+    }
+
+    if need_artifacts {
+        let now = Instant::now();
+        generate_artifacts();
+        println!("Artifacts generated in {:?}", now.elapsed());
+    }
+
+    // Only format if we generated something
+    if need_controller || need_erc20 || need_artifacts {
+        println!("Formatting generated files...");
+        Command::new("cargo")
+            .args([
+                "fmt",
+                "--",
+                "src/abigen/controller.rs",
+                "src/abigen/erc_20.rs",
+                "src/artifacts.rs",
+            ])
+            .status()
+            .expect("Failed to format the code");
+
+        // Save the artifacts hash for next time
+        fs::create_dir_all("./target").ok();
+        fs::write(&hash_file, &artifacts_hash).unwrap();
+        println!("Saved artifacts hash: {}", &artifacts_hash[..8]); // Show first 8 chars
+    } else {
+        println!("All files up to date, skipping generation and formatting");
+    }
 }
 
 fn generate_artifacts() {
