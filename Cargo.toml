@@ -62,9 +62,9 @@ webauthn-authenticator-rs = { git = "https://github.com/cartridge-gg/webauthn-rs
 cainome = { git = "https://github.com/cartridge-gg/cainome", rev = "7d60de1", features = [ "abigen-rs" ] }
 cainome-cairo-serde = { git = "https://github.com/cartridge-gg/cainome", rev = "7d60de1" }
 
-starknet = "0.17.0-rc.2"
-starknet-crypto = { version = "0.7.4", features = ["pedersen_no_lookup"] }
-starknet-types-core = { version = "0.1", features = ["curve", "hash"] }
+starknet = "0.17.0-rc.4"
+starknet-crypto = { version = "0.8.0", features = ["pedersen_no_lookup"] }
+starknet-types-core = { version = "0.2.0", features = ["curve", "hash"] }
 
 chrono = { version = "0.4", features = ["wasmbind", "serde"] }
 
@@ -84,3 +84,7 @@ panic = 'abort'
 strip = true
 debug = false
 incremental = false
+
+
+[patch.crates-io]
+starknet-core = { git = "https://github.com/edisontim/starknet-rs", branch = "fix/is_multiple_of" }
