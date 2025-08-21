@@ -1,6 +1,6 @@
 use cainome::cairo_serde::{ContractAddress, U256};
 use starknet::accounts::{AccountFactory, ExecutionEncoding, SingleOwnerAccount};
-use starknet::contract::ContractFactory;
+use starknet::contract::{ContractFactory, UdcSelector};
 use starknet::core::types::{BlockId, BlockTag};
 use starknet::core::utils::cairo_short_string_to_felt;
 use starknet::providers::jsonrpc::HttpTransport;
@@ -20,7 +20,7 @@ use crate::controller::Controller;
 use crate::factory::ControllerFactory;
 use crate::provider::CartridgeJsonRpcProvider;
 use crate::signers::Owner;
-use crate::tests::account::{AccountDeclaration, FEE_TOKEN_ADDRESS, UDC_ADDRESS};
+use crate::tests::account::{AccountDeclaration, FEE_TOKEN_ADDRESS};
 use crate::transaction_waiter::TransactionWaiter;
 
 use super::cartridge::CartridgeProxy;
@@ -164,7 +164,11 @@ impl KatanaRunner {
 
         let salt = cairo_short_string_to_felt(&username).unwrap();
 
-        let contract_factory = ContractFactory::new_with_udc(class_hash, prefunded, *UDC_ADDRESS);
+        let contract_factory = ContractFactory::new_with_udc(
+            class_hash,
+            prefunded,
+            UdcSelector::Legacy,
+        );
         let factory = ControllerFactory::new(
             class_hash,
             self.chain_id,

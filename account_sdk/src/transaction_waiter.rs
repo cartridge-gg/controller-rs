@@ -2,8 +2,7 @@ use std::time::Duration;
 
 use futures::{select, FutureExt};
 use starknet::core::types::{
-    ExecutionResult, Felt, ReceiptBlock, StarknetError, TransactionFinalityStatus,
-    TransactionReceipt, TransactionReceiptWithBlockInfo,
+    ExecutionResult, Felt, ReceiptBlock, StarknetError, TransactionFinalityStatus, TransactionReceipt, TransactionReceiptWithBlockInfo
 };
 use starknet::providers::{Provider, ProviderError};
 
@@ -173,7 +172,7 @@ where
             let transaction = self.provider.get_transaction_receipt(self.tx_hash).await;
             match transaction {
                 Ok(receipt) => match &receipt.block {
-                    ReceiptBlock::PreConfirmed => {
+                    ReceiptBlock::PreConfirmed { .. } => {
                         if self.finality_status.is_none() {
                             if self.must_succeed {
                                 return match execution_status_from_receipt(&receipt.receipt) {
