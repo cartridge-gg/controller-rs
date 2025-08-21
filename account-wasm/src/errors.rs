@@ -205,6 +205,11 @@ impl From<ControllerError> for JsControllerError {
                 message: "Transaction timeout".to_string(),
                 data: None,
             },
+            ControllerError::ParseCairoShortString(e) => JsControllerError {
+                code: ErrorCode::StarknetUnexpectedError,
+                message: format!("Failed to parse cairo short string: {}", e),
+                data: None,
+            },
         }
     }
 }

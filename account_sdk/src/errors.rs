@@ -73,4 +73,7 @@ pub enum ControllerError {
 
     #[error("Transaction timeout")]
     TransactionTimeout,
+
+    #[error("Failed to parse cairo short string: {0}")]
+    ParseCairoShortString(#[from] starknet::core::utils::ParseCairoShortStringError),
 }
