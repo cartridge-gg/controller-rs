@@ -661,35 +661,42 @@ impl CartridgeAccount {
         let unrevoked_sessions = results
             .iter()
             .zip(sessions.iter())
-            .filter_map(|(result, session)| {
+            .map(|(result, session)| {
                 if let ProviderResponseData::Call(call_response) = result {
                     if call_response.len() != 1 {
-                        #[cfg(target_arch = "wasm32")]
-                        web_sys::console::error_1(
-                            &format!("Expected 1 response, got {:?}", call_response).into(),
-                        );
-                        return None;
+                        return Err(JsControllerError::from(
+                            ControllerError::InvalidResponseData(
+                                "Expected 1 response, got {:?}".to_string(),
+                            ),
+                        ));
                     }
 
                     let response = call_response[0];
                     if response != Felt::ONE && response != Felt::ZERO {
-                        #[cfg(target_arch = "wasm32")]
-                        web_sys::console::error_1(
-                            &format!("Expected boolean, got {:?}", response).into(),
-                        );
-                        return None;
+                        return Err(JsControllerError::from(
+                            ControllerError::InvalidResponseData(
+                                "Expected boolean, got {:?}".to_string(),
+                            ),
+                        ));
                     }
 
                     if response.is_zero() {
-                        Some(session.clone())
+                        Ok(Some(session.clone()))
                     } else {
-                        None
+                        Ok(None)
                     }
                 } else {
-                    None
+                    Err(JsControllerError::from(
+                        ControllerError::InvalidResponseData(
+                            "Expected call response, got {:?}".to_string(),
+                        ),
+                    ))
                 }
             })
-            .collect::<Vec<_>>();
+            .collect::<std::result::Result<Vec<_>, _>>()?
+            .into_iter()
+            .flatten()
+            .collect();
 
         let tx = controller.revoke_sessions(unrevoked_sessions).await?;
 
