@@ -24,7 +24,7 @@ use starknet::accounts::{AccountDeploymentV3, AccountError, AccountFactory, Exec
 use starknet::core::types::{
     BlockTag, Call, FeeEstimate, FunctionCall, InvokeTransactionResult, StarknetError, TypedData,
 };
-use starknet::core::utils::cairo_short_string_to_felt;
+use starknet::core::utils::{cairo_short_string_to_felt, parse_cairo_short_string};
 use starknet::macros::{selector, short_string};
 use starknet::providers::{Provider, ProviderError};
 use starknet::signers::SignerInteractivityContext;
@@ -194,7 +194,7 @@ impl Controller {
 
         let register_input = RegisterInput {
             username: self.username.clone(),
-            chain_id: self.chain_id.to_string(),
+            chain_id: parse_cairo_short_string(&self.chain_id)?,
             owner: SignerInput {
                 type_: signer_type.into(),
                 credential: self.owner.clone().try_into()?,
