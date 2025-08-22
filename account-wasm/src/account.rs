@@ -7,7 +7,7 @@ use account_sdk::storage::selectors::Selectors;
 use account_sdk::storage::StorageBackend;
 
 use account_sdk::transaction_waiter::TransactionWaiter;
-use cainome::cairo_serde::{CairoSerde, Zeroable};
+use cainome::cairo_serde::Zeroable;
 use serde_wasm_bindgen::to_value;
 use starknet::accounts::ConnectedAccount;
 use starknet::core::types::{BlockId, BlockTag, Call, FeeEstimate, FunctionCall, TypedData};
