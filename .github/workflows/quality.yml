@@ -23,6 +23,8 @@ jobs:
       - run: |
           cd account_sdk
           cargo build -r --target wasm32-unknown-unknown -p account_sdk
+          cd ../account-wasm
+          ./build.sh
 
   ensure-windows:
     runs-on: windows-latest
