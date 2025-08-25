@@ -44,7 +44,14 @@ impl Client {
         if let Some(errors) = res.errors {
             Err(ControllerError::Api(GraphQLErrors(errors)))
         } else {
-            Ok(res.data.unwrap())
+            res.data.ok_or_else(|| {
+                ControllerError::Api(GraphQLErrors(vec![graphql_client::Error {
+                    message: "No data in response".to_string(),
+                    locations: None,
+                    path: None,
+                    extensions: None,
+                }]))
+            })
         }
     }
 
