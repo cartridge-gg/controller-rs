@@ -24,6 +24,7 @@ jobs:
           cd account_sdk
           cargo build -r --target wasm32-unknown-unknown -p account_sdk
           cd ../account-wasm
+          cargo install --locked wasm-pack
           ./build.sh
 
   ensure-windows:
