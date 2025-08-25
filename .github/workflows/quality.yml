@@ -20,12 +20,11 @@ jobs:
         with:
           toolchain: ${{ env.RUST_VERSION }}
           target: wasm32-unknown-unknown
-      - run: |
-          cd account_sdk
-          cargo build -r --target wasm32-unknown-unknown -p account_sdk
-          cd ../account-wasm
-          cargo install --locked wasm-pack
-          ./build.sh
+      - name: Install wasm-pack
+        run: cargo install --locked wasm-pack
+      - name: Build account-wasm
+        working-directory: account-wasm
+        run: ./build.sh
 
   ensure-windows:
     runs-on: windows-latest
