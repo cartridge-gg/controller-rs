@@ -2,7 +2,8 @@ use std::time::Duration;
 
 use futures::{select, FutureExt};
 use starknet::core::types::{
-    ExecutionResult, Felt, ReceiptBlock, StarknetError, TransactionFinalityStatus, TransactionReceipt, TransactionReceiptWithBlockInfo
+    ExecutionResult, Felt, ReceiptBlock, StarknetError, TransactionFinalityStatus,
+    TransactionReceipt, TransactionReceiptWithBlockInfo,
 };
 use starknet::providers::{Provider, ProviderError};
 

@@ -12,8 +12,8 @@ use crate::account::session::policy::Policy;
 use crate::controller::Controller;
 use crate::errors::ControllerError;
 use crate::execute_from_outside::FeeSource;
-use crate::graphql::session;
 use crate::graphql::session::revoke_sessions::RevokeSessionInput;
+use crate::graphql::session::{self, run_query, subscribe_create_session, SubscribeCreateSession};
 use crate::hash::MessageHashRev1;
 use crate::signers::{HashSigner, Signer};
 use crate::storage::{
@@ -363,6 +363,23 @@ impl Controller {
         }
 
         Ok(())
+    }
+
+    pub async fn subscribe_create_session(
+        &self,
+        controller_id: String,
+        session_key_guid: Felt,
+        cartridge_api_url: String,
+    ) -> Result<subscribe_create_session::ResponseData, ControllerError> {
+        run_query::<SubscribeCreateSession>(
+            subscribe_create_session::Variables {
+                app_id: self.app_id.clone(),
+                controller_id,
+                session_key_guid,
+            },
+            cartridge_api_url,
+        )
+        .await
     }
 }
 

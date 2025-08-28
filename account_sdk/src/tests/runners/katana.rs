@@ -164,11 +164,8 @@ impl KatanaRunner {
 
         let salt = cairo_short_string_to_felt(&username).unwrap();
 
-        let contract_factory = ContractFactory::new_with_udc(
-            class_hash,
-            prefunded,
-            UdcSelector::Legacy,
-        );
+        let contract_factory =
+            ContractFactory::new_with_udc(class_hash, prefunded, UdcSelector::Legacy);
         let factory = ControllerFactory::new(
             class_hash,
             self.chain_id,

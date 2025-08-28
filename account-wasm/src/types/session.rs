@@ -1,3 +1,4 @@
+use account_sdk::graphql::session::subscribe_create_session;
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
 use tsify_next::Tsify;
@@ -118,3 +119,9 @@ impl From<JsRevokableSession> for account_sdk::session::RevokableSession {
         value.0
     }
 }
+
+#[allow(non_snake_case)]
+#[derive(Tsify, Serialize, Deserialize, Debug, Clone)]
+#[tsify(into_wasm_abi, from_wasm_abi)]
+#[serde(rename_all = "camelCase")]
+pub struct JsSubscribeSessionResult(pub subscribe_create_session::ResponseData);
