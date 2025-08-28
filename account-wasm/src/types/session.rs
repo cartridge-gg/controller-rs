@@ -120,7 +120,6 @@ impl From<JsRevokableSession> for account_sdk::session::RevokableSession {
     }
 }
 
-
 #[allow(non_snake_case)]
 #[derive(Tsify, Serialize, Deserialize, Debug, Clone)]
 #[tsify(into_wasm_abi, from_wasm_abi)]
