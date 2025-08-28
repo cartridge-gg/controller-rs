@@ -835,7 +835,7 @@ impl CartridgeAccount {
                 self.cartridge_api_url.clone(),
             )
             .await
-            .map(|x| JsSubscribeSessionResult(x))
+            .map(JsSubscribeSessionResult)
             .map_err(From::from)
     }
 }
