@@ -26,7 +26,7 @@ use crate::types::estimate::JsFeeEstimate;
 use crate::types::owner::Owner;
 use crate::types::policy::{CallPolicy, Policy, TypedDataPolicy};
 use crate::types::register::{JsRegister, JsRegisterResponse};
-use crate::types::session::{AuthorizedSession, JsRevokableSession};
+use crate::types::session::{AuthorizedSession, JsRevokableSession, JsSubscribeSessionResult};
 use crate::types::signer::{JsAddSignerInput, JsRemoveSignerInput, Signer};
 use crate::types::{Felts, JsFeeSource, JsFelt};
 use crate::utils::set_panic_hook;
@@ -819,6 +819,24 @@ impl CartridgeAccount {
 
         let controller_guard = self.controller.lock().await;
         Ok(controller_guard.authorized_session().is_some())
+    }
+
+    #[wasm_bindgen(js_name = subscribeCreateSession)]
+    pub async fn subscribe_create_session(
+        &self,
+        controller_id: String,
+        session_key_guid: JsFelt,
+    ) -> Result<JsSubscribeSessionResult> {
+        let controller = self.controller.lock().await;
+        controller
+            .subscribe_create_session(
+                controller_id,
+                *session_key_guid.as_felt(),
+                self.cartridge_api_url.clone(),
+            )
+            .await
+            .map(|x| JsSubscribeSessionResult(x))
+            .map_err(From::from)
     }
 }
 

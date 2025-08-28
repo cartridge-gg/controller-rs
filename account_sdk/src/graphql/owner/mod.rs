@@ -162,6 +162,7 @@ impl TryFrom<remove_owner::SignerInput> for Signer {
                     Ok(Self::Webauthn(webauthn_signer))
                 }
             }
+            remove_owner::SignerType::password => todo!(),
             remove_owner::SignerType::starknet => todo!(),
             remove_owner::SignerType::siws => todo!(),
             remove_owner::SignerType::starknet_account => todo!(),

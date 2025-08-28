@@ -1,0 +1,23 @@
+query SubscribeCreateSession(
+  $appId: String!
+  $controllerId: ID!
+  $sessionKeyGuid: Felt!
+) {
+  subscribeCreateSession(
+    appId: $appId
+    controllerId: $controllerId
+    sessionKeyGuid: $sessionKeyGuid
+  ) {
+    id
+    appID
+    chainID
+    isRevoked
+    expiresAt
+    createdAt
+    updatedAt
+    metadata {
+      os
+      browser
+    }
+  }
+}
