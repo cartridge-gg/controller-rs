@@ -76,4 +76,7 @@ pub enum ControllerError {
 
     #[error("Failed to parse cairo short string: {0}")]
     ParseCairoShortString(#[from] starknet::core::utils::ParseCairoShortStringError),
+
+    #[error("Conversion error: {0}")]
+    ConversionError(String),
 }

@@ -31,7 +31,7 @@ use crate::types::signer::{JsAddSignerInput, JsRemoveSignerInput, Signer};
 use crate::types::{Felts, JsFeeSource, JsFelt};
 use crate::utils::set_panic_hook;
 
-type Result<T> = std::result::Result<T, JsError>;
+pub type Result<T> = std::result::Result<T, JsError>;
 
 #[wasm_bindgen]
 pub struct CartridgeAccount {
@@ -217,76 +217,6 @@ impl CartridgeAccount {
             entrypoint: "upgrade".to_string(),
             calldata: call.calldata.into_iter().map(Into::into).collect(),
         })
-    }
-
-    #[wasm_bindgen(js_name = login)]
-    pub async fn login(
-        &self,
-        expires_at: u64,
-        is_controller_registered: Option<bool>,
-        signers: Option<Signer>,
-    ) -> std::result::Result<AuthorizedSession, JsControllerError> {
-        set_panic_hook();
-
-        let mut controller = self.controller.lock().await;
-        if let Some(signers) = signers {
-            if let Some(webauthns) = signers.webauthns {
-                let converted_webauthns: Vec<account_sdk::signers::webauthn::WebauthnSigner> =
-                    webauthns
-                        .into_iter()
-                        .map(TryInto::try_into)
-                        .collect::<std::result::Result<Vec<_>, _>>()?;
-
-                controller.owner = account_sdk::signers::Owner::Signer(
-                    account_sdk::signers::Signer::Webauthns(converted_webauthns),
-                );
-            }
-        }
-
-        let account = controller.create_wildcard_session(expires_at).await?;
-
-        if is_controller_registered.unwrap_or(false) {
-            let controller_response = controller
-                .register_session_with_cartridge(
-                    &account.session,
-                    &account.session_authorization,
-                    self.cartridge_api_url.clone(),
-                )
-                .await;
-
-            if let Err(e) = controller_response {
-                let address = controller.address;
-                let app_id = controller.app_id.clone();
-                let chain_id = controller.chain_id;
-
-                controller
-                    .storage
-                    .remove(&Selectors::session(&address, &app_id, &chain_id))
-                    .map_err(|e| JsControllerError::from(ControllerError::StorageError(e)))?;
-
-                return Err(JsControllerError::from(e));
-            }
-        }
-
-        let session_metadata = AuthorizedSession {
-            session: account.session.clone().into(),
-            authorization: Some(
-                account
-                    .session_authorization
-                    .clone()
-                    .into_iter()
-                    .map(Into::into)
-                    .collect(),
-            ),
-            is_registered: false,
-            expires_at: account.session.inner.expires_at,
-            allowed_policies_root: account.session.inner.allowed_policies_root.into(),
-            metadata_hash: account.session.inner.metadata_hash.into(),
-            session_key_guid: account.session.inner.session_key_guid.into(),
-            guardian_key_guid: account.session.inner.guardian_key_guid.into(),
-        };
-
-        Ok(session_metadata)
     }
 
     #[wasm_bindgen(js_name = register)]
@@ -860,8 +790,8 @@ pub struct CartridgeAccountMeta {
     class_hash: String,
     rpc_url: String,
     chain_id: String,
-    owner_guid: JsFelt,
     owner: Owner,
+    owner_guid: Felt,
 }
 
 impl CartridgeAccountMeta {
@@ -873,8 +803,8 @@ impl CartridgeAccountMeta {
             class_hash: controller.class_hash.to_hex_string(),
             rpc_url: controller.rpc_url.to_string(),
             chain_id: controller.chain_id.to_hex_string(),
-            owner_guid: controller.owner_guid().into(),
             owner: controller.owner.clone().into(),
+            owner_guid: controller.owner.clone().into(),
         }
     }
 }
@@ -911,14 +841,14 @@ impl CartridgeAccountMeta {
         self.chain_id.clone()
     }
 
-    #[wasm_bindgen(js_name = ownerGuid)]
-    pub fn owner_guid(&self) -> JsFelt {
-        self.owner_guid.clone()
-    }
-
     #[wasm_bindgen(js_name = owner)]
     pub fn owner(&self) -> Owner {
         self.owner.clone()
+    }
+
+    #[wasm_bindgen(js_name = ownerGuid)]
+    pub fn owner_guid(&self) -> JsFelt {
+        self.owner_guid.into()
     }
 }
 
@@ -941,7 +871,7 @@ pub struct CartridgeAccountWithMeta {
 }
 
 impl CartridgeAccountWithMeta {
-    fn new(controller: Controller, cartridge_api_url: String) -> Self {
+    pub fn new(controller: Controller, cartridge_api_url: String) -> Self {
         let meta = CartridgeAccountMeta::new(&controller);
         let policy_storage = PolicyStorage::new(
             &controller.address,
