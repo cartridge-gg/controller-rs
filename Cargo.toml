@@ -62,7 +62,7 @@ webauthn-authenticator-rs = { git = "https://github.com/cartridge-gg/webauthn-rs
 cainome = { git = "https://github.com/cartridge-gg/cainome", rev = "7d60de1", features = [ "abigen-rs" ] }
 cainome-cairo-serde = { git = "https://github.com/cartridge-gg/cainome", rev = "7d60de1" }
 
-starknet = "0.17.0-rc.4"
+starknet = "0.17.0"
 starknet-crypto = { version = "0.8.0", features = ["pedersen_no_lookup"] }
 starknet-types-core = { version = "0.2.0", features = ["curve", "hash"] }
 
