@@ -102,6 +102,33 @@ impl Controller {
         ));
         controller.contract = Some(contract);
 
+        // Clears the stored session if it's been revoked in a fire-and-forget style when the controller is created (with fromStorage for example).
+        // Avoids needing to change the constructor to an async function
+        // If we do it when we use the session, we need to change a lot of functions to take a mutable reference to the controller and to be async
+        controller.clear_invalid_session();
+
+        controller
+    }
+
+    pub fn new_with_storage(
+        app_id: String,
+        username: String,
+        class_hash: Felt,
+        rpc_url: Url,
+        owner: Owner,
+        address: Felt,
+        chain_id: Felt,
+    ) -> Self {
+        let mut controller = Controller::new(
+            app_id.clone(),
+            username,
+            class_hash,
+            rpc_url,
+            owner,
+            address,
+            chain_id,
+        );
+
         controller
             .storage
             .set_controller(
@@ -111,11 +138,6 @@ impl Controller {
                 ControllerMetadata::from(&controller),
             )
             .expect("Should store controller");
-
-        // Clears the stored session if it's been revoked in a fire-and-forget style when the controller is created (with fromStorage for example).
-        // Avoids needing to change the constructor to an async function
-        // If we do it when we use the session, we need to change a lot of functions to take a mutable reference to the controller and to be async
-        controller.clear_invalid_session();
 
         controller
     }

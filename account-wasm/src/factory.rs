@@ -15,10 +15,10 @@ use crate::types::signer::try_find_webauthn_signer_in_signer_signature;
 use crate::types::JsFelt;
 
 #[wasm_bindgen]
-pub struct ControllerBuilderFactory;
+pub struct ControllerFactory;
 
 #[wasm_bindgen]
-impl ControllerBuilderFactory {
+impl ControllerFactory {
     pub fn from_storage(
         app_id: String,
         cartridge_api_url: String,
@@ -65,16 +65,6 @@ impl ControllerBuilderFactory {
             controller.owner = account_sdk::signers::Owner::Signer(
                 account_sdk::signers::Signer::Webauthn(webauthn_signer.clone().try_into()?),
             );
-            // As we've changed the owner, we need to update the controller in the storage.
-            controller
-                .storage
-                .set_controller(
-                    app_id.as_str(),
-                    &chain_id_felt,
-                    address_felt,
-                    ControllerMetadata::from(&controller),
-                )
-                .expect("Should store controller");
         }
 
         if is_controller_registered.unwrap_or(false) {
@@ -99,6 +89,16 @@ impl ControllerBuilderFactory {
                 return Err(JsControllerError::from(e).into());
             }
         }
+
+        controller
+            .storage
+            .set_controller(
+                app_id.as_str(),
+                &chain_id_felt,
+                address_felt,
+                ControllerMetadata::from(&controller),
+            )
+            .expect("Should store controller");
 
         let account_with_meta = CartridgeAccountWithMeta::new(controller, cartridge_api_url);
         let authorized_session: AuthorizedSession = session_account.into();

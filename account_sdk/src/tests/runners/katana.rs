@@ -187,7 +187,7 @@ impl KatanaRunner {
             .await
             .unwrap();
 
-        Controller::new(
+        Controller::new_with_storage(
             "app_id".to_string(),
             username,
             CONTROLLERS[&version].hash,
