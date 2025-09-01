@@ -110,6 +110,38 @@ impl Controller {
         controller
     }
 
+    pub fn new_with_storage(
+        app_id: String,
+        username: String,
+        class_hash: Felt,
+        rpc_url: Url,
+        owner: Owner,
+        address: Felt,
+        chain_id: Felt,
+    ) -> Self {
+        let mut controller = Controller::new(
+            app_id.clone(),
+            username,
+            class_hash,
+            rpc_url,
+            owner,
+            address,
+            chain_id,
+        );
+
+        controller
+            .storage
+            .set_controller(
+                app_id.as_str(),
+                &chain_id,
+                address,
+                ControllerMetadata::from(&controller),
+            )
+            .expect("Should store controller");
+
+        controller
+    }
+
     pub fn new_headless(
         app_id: String,
         username: String,

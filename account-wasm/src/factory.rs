@@ -15,10 +15,10 @@ use crate::types::signer::try_find_webauthn_signer_in_signer_signature;
 use crate::types::JsFelt;
 
 #[wasm_bindgen]
-pub struct ControllerBuilderFactory;
+pub struct ControllerFactory;
 
 #[wasm_bindgen]
-impl ControllerBuilderFactory {
+impl ControllerFactory {
     pub fn from_storage(
         app_id: String,
         cartridge_api_url: String,

@@ -97,7 +97,6 @@ pub async fn test_verify_session_off_chain_sig_invalid_policy() {
         .unwrap();
 
     let mut signature = session_account.sign_typed_data(&typed_data).await.unwrap();
-    dbg!(&signature);
     signature.proofs[0][0] += Felt::ONE;
     let contract_reader = ControllerReader::new(controller.address, runner.client());
     if let Err(cainome::cairo_serde::Error::Provider(ProviderError::StarknetError(

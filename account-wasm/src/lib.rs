@@ -4,7 +4,7 @@ mod alloc;
 pub mod account;
 
 #[cfg(feature = "controller_account")]
-mod account_factory;
+mod factory;
 
 #[cfg(feature = "controller_account")]
 mod owner;
