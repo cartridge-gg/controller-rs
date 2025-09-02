@@ -325,24 +325,7 @@ pub trait WebauthnOperations: std::fmt::Debug {
 impl HashSigner for WebauthnSigner {
     // According to https://www.w3.org/TR/webauthn/#clientdatajson-verification
     async fn sign(&self, tx_hash: &Felt) -> Result<SignerSignature, SignError> {
-        let challenge = tx_hash.to_bytes_be().to_vec();
-
-        let options = PublicKeyCredentialRequestOptions {
-            challenge: Base64UrlSafeData::from(challenge),
-            timeout: None,
-            rp_id: self.rp_id.clone(),
-            allow_credentials: vec![AllowCredentials {
-                type_: "public-key".to_string(),
-                id: Base64UrlSafeData::from(self.credential_id.clone()),
-                transports: None,
-            }],
-            user_verification: UserVerificationPolicy::Required,
-            hints: None,
-            extensions: None,
-        };
-
-        let cred = OPERATIONS
-            .get_assertion(options)
+        let cred = sign_raw(&vec![self.clone()], tx_hash.to_bytes_be().to_vec())
             .await
             .map_err(SignError::Device)?;
 
@@ -410,35 +393,9 @@ pub type WebauthnSigners = Vec<WebauthnSigner>;
 impl HashSigner for WebauthnSigners {
     // According to https://www.w3.org/TR/webauthn/#clientdatajson-verification
     async fn sign(&self, tx_hash: &Felt) -> Result<SignerSignature, SignError> {
-        let challenge = tx_hash.to_bytes_be().to_vec();
-
-        let rp_id = self[0].rp_id.clone();
-        let options = PublicKeyCredentialRequestOptions {
-            challenge: Base64UrlSafeData::from(challenge),
-            timeout: None,
-            rp_id,
-            allow_credentials: self
-                .iter()
-                .map(|s| AllowCredentials {
-                    type_: "public-key".to_string(),
-                    id: Base64UrlSafeData::from(s.credential_id.clone()),
-                    transports: None,
-                })
-                .collect(),
-            user_verification: UserVerificationPolicy::Required,
-            hints: Some(vec![
-                PublicKeyCredentialHints::ClientDevice,
-                PublicKeyCredentialHints::SecurityKey,
-                PublicKeyCredentialHints::Hybrid,
-            ]),
-            extensions: None,
-        };
-
-        let cred = OPERATIONS
-            .get_assertion(options)
+        let cred = sign_raw(self, tx_hash.to_bytes_be().to_vec())
             .await
             .map_err(SignError::Device)?;
-
         let signer_used = self.iter().find(|s| s.credential_id == cred.raw_id);
         if signer_used.is_none() {
             return Err(SignError::Device(DeviceError::CreateCredential(
@@ -686,6 +643,37 @@ fn extract_pub_key(cose_key: &CoseKey) -> Result<[u8; 64], DeviceError> {
     pub_key[32..].copy_from_slice(&y);
 
     Ok(pub_key)
+}
+
+pub async fn sign_raw(
+    signers: &WebauthnSigners,
+    challenge: Vec<u8>,
+) -> Result<PublicKeyCredential, DeviceError> {
+    let rp_id = signers[0].rp_id.clone();
+    let options = PublicKeyCredentialRequestOptions {
+        challenge: Base64UrlSafeData::from(challenge),
+        timeout: None,
+        rp_id,
+        allow_credentials: signers
+            .iter()
+            .map(|s| AllowCredentials {
+                type_: "public-key".to_string(),
+                id: Base64UrlSafeData::from(s.credential_id.clone()),
+                transports: None,
+            })
+            .collect(),
+        user_verification: UserVerificationPolicy::Required,
+        hints: Some(vec![
+            PublicKeyCredentialHints::ClientDevice,
+            PublicKeyCredentialHints::SecurityKey,
+            PublicKeyCredentialHints::Hybrid,
+        ]),
+        extensions: None,
+    };
+
+    let cred = OPERATIONS.get_assertion(options).await?;
+
+    Ok(cred)
 }
 
 #[cfg(test)]

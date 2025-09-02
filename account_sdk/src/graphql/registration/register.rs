@@ -1,12 +1,8 @@
+use crate::graphql::{Long, JSON};
 use crate::{api::Client, errors::ControllerError};
 use graphql_client::GraphQLQuery;
 use serde::{Deserialize, Serialize};
-use serde_json;
 use starknet_crypto::Felt;
-
-type Long = u64;
-#[allow(clippy::upper_case_acronyms)]
-type JSON = serde_json::Value;
 
 #[derive(GraphQLQuery)]
 #[graphql(
