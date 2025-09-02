@@ -120,7 +120,7 @@ impl ControllerFactory {
 
     /// This should only be used with webauthn signers
     #[allow(clippy::new_ret_no_self, clippy::too_many_arguments)]
-    #[wasm_bindgen(js_name = cartridgeLogin)]
+    #[wasm_bindgen(js_name = apiLogin)]
     pub async fn api_login(
         app_id: String,
         username: String,
