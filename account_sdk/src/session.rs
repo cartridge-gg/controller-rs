@@ -12,8 +12,9 @@ use crate::account::session::policy::Policy;
 use crate::controller::Controller;
 use crate::errors::ControllerError;
 use crate::execute_from_outside::FeeSource;
+use crate::graphql::run_query;
 use crate::graphql::session::revoke_sessions::RevokeSessionInput;
-use crate::graphql::session::{self, run_query, subscribe_create_session, SubscribeCreateSession};
+use crate::graphql::session::{self, subscribe_create_session, SubscribeCreateSession};
 use crate::hash::MessageHashRev1;
 use crate::signers::{HashSigner, Signer};
 use crate::storage::{

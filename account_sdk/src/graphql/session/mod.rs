@@ -73,12 +73,3 @@ pub async fn revoke_sessions(
 
     client.query(&request_body).await
 }
-
-pub async fn run_query<T: GraphQLQuery>(
-    input: T::Variables,
-    cartridge_api_url: String,
-) -> Result<T::ResponseData, ControllerError> {
-    let client = Client::new(cartridge_api_url);
-    let request_body = T::build_query(input);
-    client.query(&request_body).await
-}
