@@ -59,8 +59,8 @@ webauthn-authenticator-rs = { git = "https://github.com/cartridge-gg/webauthn-rs
 	"softpasskey",
 ] }
 
-cainome = { git = "https://github.com/cartridge-gg/cainome", rev = "7d60de1", features = [ "abigen-rs" ] }
-cainome-cairo-serde = { git = "https://github.com/cartridge-gg/cainome", rev = "7d60de1" }
+cainome = { git = "https://github.com/cartridge-gg/cainome", rev = "9a59e7bca4c052ec9f763dfa1720f21425f930c2", features = [ "abigen-rs" ] }
+cainome-cairo-serde = { git = "https://github.com/cartridge-gg/cainome", rev = "9a59e7bca4c052ec9f763dfa1720f21425f930c2" }
 
 starknet = "0.17.0-rc.2"
 starknet-crypto = { version = "0.7.4", features = ["pedersen_no_lookup"] }
@@ -84,3 +84,6 @@ panic = 'abort'
 strip = true
 debug = false
 incremental = false
+
+[patch.crates-io]
+starknet = { git = "https://github.com/kariy/starknet-rs", rev = "3ae5a88" }

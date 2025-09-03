@@ -173,7 +173,7 @@ where
             let transaction = self.provider.get_transaction_receipt(self.tx_hash).await;
             match transaction {
                 Ok(receipt) => match &receipt.block {
-                    ReceiptBlock::PreConfirmed => {
+                    ReceiptBlock::PreConfirmed { block_number: _ } => {
                         if self.finality_status.is_none() {
                             if self.must_succeed {
                                 return match execution_status_from_receipt(&receipt.receipt) {
