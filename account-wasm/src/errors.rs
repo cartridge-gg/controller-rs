@@ -101,6 +101,7 @@ pub enum ErrorCode {
     GasPriceTooHigh = 138,
     TransactionTimeout = 139,
     ConversionError = 140,
+    InvalidChainId = 141,
 }
 
 impl From<ControllerError> for JsControllerError {
@@ -215,6 +216,11 @@ impl From<ControllerError> for JsControllerError {
             ControllerError::ConversionError(e) => JsControllerError {
                 code: ErrorCode::ConversionError,
                 message: e.to_string(),
+                data: None,
+            },
+            ControllerError::InvalidChainID(expected, got) => JsControllerError {
+                code: ErrorCode::InvalidChainId,
+                message: format!("Expected {expected}, got {got}"),
                 data: None,
             },
         }

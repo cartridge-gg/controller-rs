@@ -79,4 +79,7 @@ pub enum ControllerError {
 
     #[error("Conversion error: {0}")]
     ConversionError(String),
+
+    #[error("Expected: {0}, Got {1}")]
+    InvalidChainID(String, String),
 }

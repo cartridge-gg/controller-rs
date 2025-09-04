@@ -12,7 +12,8 @@ use serde_wasm_bindgen::to_value;
 use starknet::accounts::ConnectedAccount;
 use starknet::core::types::{BlockId, BlockTag, Call, FeeEstimate, FunctionCall, TypedData};
 
-use starknet::macros::selector;
+use starknet::core::utils::parse_cairo_short_string;
+use starknet::macros::{selector, short_string};
 use starknet::providers::{Provider, ProviderRequestData, ProviderResponseData};
 use starknet_types_core::felt::Felt;
 use url::Url;
@@ -343,6 +344,16 @@ impl CartridgeAccount {
     ) -> std::result::Result<(), JsControllerError> {
         set_panic_hook();
 
+        let mut controller = self.controller.lock().await;
+
+        if controller.chain_id != short_string!("SN_MAIN") {
+            return Err(ControllerError::InvalidChainID(
+                "SN_MAIN".to_string(),
+                parse_cairo_short_string(&controller.chain_id).expect("Expected valid shortstring"),
+            )
+            .into());
+        }
+
         let (signer, signer_input) = if let Some(rp_id) = rp_id {
             self.handle_passkey_creation(rp_id).await?
         } else {
@@ -359,7 +370,6 @@ impl CartridgeAccount {
             )
         };
 
-        let mut controller = self.controller.lock().await;
         let tx_result = controller.add_owner(signer.clone()).await?;
 
         TransactionWaiter::new(tx_result.transaction_hash, controller.provider())
@@ -383,10 +393,19 @@ impl CartridgeAccount {
     ) -> std::result::Result<(), JsControllerError> {
         set_panic_hook();
 
+        let mut controller = self.controller.lock().await;
+
+        if controller.chain_id != short_string!("SN_MAIN") {
+            return Err(ControllerError::InvalidChainID(
+                "SN_MAIN".to_string(),
+                parse_cairo_short_string(&controller.chain_id).expect("Expected valid shortstring"),
+            )
+            .into());
+        }
+
         let mut remove_owner_input: account_sdk::graphql::owner::remove_owner::SignerInput =
             signer.into();
         let signer: account_sdk::signers::Signer = remove_owner_input.clone().try_into()?;
-        let mut controller = self.controller.lock().await;
         let tx_result = controller.remove_owner(signer.clone()).await?;
 
         TransactionWaiter::new(tx_result.transaction_hash, controller.provider())
