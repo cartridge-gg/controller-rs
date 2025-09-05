@@ -1,5 +1,9 @@
 use std::borrow::BorrowMut;
 
+use account_sdk::abigen::controller::OutsideExecutionV3;
+use account_sdk::account::outside_execution::{
+    OutsideExecution, OutsideExecutionAccount, OutsideExecutionCaller,
+};
 use account_sdk::controller::Controller;
 use account_sdk::errors::ControllerError;
 use account_sdk::session::RevokableSession;
@@ -8,9 +12,11 @@ use account_sdk::storage::StorageBackend;
 
 use account_sdk::transaction_waiter::TransactionWaiter;
 use cainome::cairo_serde::Zeroable;
+use chrono::Utc;
 use serde_wasm_bindgen::to_value;
 use starknet::accounts::ConnectedAccount;
 use starknet::core::types::{BlockId, BlockTag, Call, FeeEstimate, FunctionCall, TypedData};
+use starknet::signers::SigningKey;
 
 use starknet::core::utils::parse_cairo_short_string;
 use starknet::macros::{selector, short_string};
@@ -24,6 +30,7 @@ use crate::storage::PolicyStorage;
 use crate::sync::WasmMutex;
 use crate::types::call::JsCall;
 use crate::types::estimate::JsFeeEstimate;
+use crate::types::outside_execution::JsSignedOutsideExecution;
 use crate::types::owner::Owner;
 use crate::types::policy::{CallPolicy, Policy, TypedDataPolicy};
 use crate::types::register::{JsRegister, JsRegisterResponse};
@@ -786,6 +793,47 @@ impl CartridgeAccount {
             .await
             .map(JsSubscribeSessionResult)
             .map_err(From::from)
+    }
+
+    /// Signs an OutsideExecution V3 transaction and returns both the OutsideExecution object and its signature.
+    ///
+    /// # Parameters
+    /// - `calls`: Array of calls to execute from outside
+    ///
+    /// # Returns
+    /// A `JsSignedOutsideExecution` containing the OutsideExecution V3 object and its signature
+    #[wasm_bindgen(js_name = signExecuteFromOutside)]
+    pub async fn sign_execute_from_outside(
+        &self,
+        calls: Vec<JsCall>,
+    ) -> std::result::Result<JsSignedOutsideExecution, JsControllerError> {
+        set_panic_hook();
+
+        let calls = calls
+            .into_iter()
+            .map(TryInto::try_into)
+            .collect::<std::result::Result<Vec<_>, _>>()?;
+
+        let controller = self.controller.lock().await;
+        let now = Utc::now().timestamp() as u64;
+
+        let outside_execution = OutsideExecutionV3 {
+            caller: OutsideExecutionCaller::Any.into(),
+            execute_after: 0,
+            execute_before: now + 600,
+            calls: calls.into_iter().map(|call: Call| call.into()).collect(),
+            nonce: (SigningKey::from_random().secret_scalar(), 1),
+        };
+
+        let signed = controller
+            .sign_outside_execution(OutsideExecution::V3(outside_execution.clone()))
+            .await
+            .map_err(JsControllerError::from)?;
+
+        Ok(JsSignedOutsideExecution {
+            outside_execution: outside_execution.into(),
+            signature: signed.signature.into_iter().map(Into::into).collect(),
+        })
     }
 }
 
