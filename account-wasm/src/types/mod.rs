@@ -9,6 +9,7 @@ use wasm_bindgen::prelude::*;
 
 pub(crate) mod call;
 pub(crate) mod estimate;
+pub(crate) mod outside_execution;
 pub(crate) mod owner;
 pub(crate) mod policy;
 pub(crate) mod register;
