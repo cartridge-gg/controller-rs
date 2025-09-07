@@ -34,7 +34,7 @@ use crate::types::outside_execution::JsSignedOutsideExecution;
 use crate::types::owner::Owner;
 use crate::types::policy::{CallPolicy, Policy, TypedDataPolicy};
 use crate::types::register::{JsRegister, JsRegisterResponse};
-use crate::types::session::{AuthorizedSession, JsRevokableSession, JsSubscribeSessionResult};
+use crate::types::session::{AuthorizedSession, JsRevokableSession};
 use crate::types::signer::{JsAddSignerInput, JsRemoveSignerInput, Signer};
 use crate::types::{Felts, JsFeeSource, JsFelt};
 use crate::utils::set_panic_hook;
@@ -777,24 +777,6 @@ impl CartridgeAccount {
         Ok(controller_guard.authorized_session().is_some())
     }
 
-    #[wasm_bindgen(js_name = subscribeCreateSession)]
-    pub async fn subscribe_create_session(
-        &self,
-        controller_id: String,
-        session_key_guid: JsFelt,
-    ) -> Result<JsSubscribeSessionResult> {
-        let controller = self.controller.lock().await;
-        controller
-            .subscribe_create_session(
-                controller_id,
-                *session_key_guid.as_felt(),
-                self.cartridge_api_url.clone(),
-            )
-            .await
-            .map(JsSubscribeSessionResult)
-            .map_err(From::from)
-    }
-
     /// Signs an OutsideExecution V3 transaction and returns both the OutsideExecution object and its signature.
     ///
     /// # Parameters
@@ -921,8 +903,11 @@ impl CartridgeAccountMeta {
 
 #[wasm_bindgen(js_name = signerToGuid)]
 pub fn signer_to_guid(signer: Signer) -> JsFelt {
+    web_sys::console::log_1(&format!("Hello WORLD!").into());
     let signer: account_sdk::signers::Signer = signer.try_into().unwrap();
+    web_sys::console::log_1(&format!("!!!!!!!").into());
     let felt: Felt = signer.into();
+    web_sys::console::log_1(&format!("1203102390192321").into());
     felt.into()
 }
 

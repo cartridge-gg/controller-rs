@@ -368,14 +368,12 @@ impl Controller {
 
     pub async fn subscribe_create_session(
         &self,
-        controller_id: String,
         session_key_guid: Felt,
         cartridge_api_url: String,
     ) -> Result<subscribe_create_session::ResponseData, ControllerError> {
         run_query::<SubscribeCreateSession>(
             subscribe_create_session::Variables {
                 app_id: self.app_id.clone(),
-                controller_id,
                 session_key_guid,
             },
             cartridge_api_url,

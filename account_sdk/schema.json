@@ -26,7 +26,10 @@
             }
           ],
           "description": "The @defer directive may be specified on a fragment spread to imply de-prioritization, that causes the fragment to be omitted in the initial response, and delivered as a subsequent response afterward. A query with @defer directive will cause the request to potentially return multiple responses, where non-deferred data is delivered in the initial response and data deferred delivered in a subsequent response. @include and @skip take precedence over @defer.",
-          "locations": ["FRAGMENT_SPREAD", "INLINE_FRAGMENT"],
+          "locations": [
+            "FRAGMENT_SPREAD",
+            "INLINE_FRAGMENT"
+          ],
           "name": "defer"
         },
         {
@@ -85,7 +88,10 @@
             }
           ],
           "description": null,
-          "locations": ["FIELD_DEFINITION", "INPUT_FIELD_DEFINITION"],
+          "locations": [
+            "FIELD_DEFINITION",
+            "INPUT_FIELD_DEFINITION"
+          ],
           "name": "goField"
         },
         {
@@ -158,7 +164,9 @@
             }
           ],
           "description": null,
-          "locations": ["FIELD_DEFINITION"],
+          "locations": [
+            "FIELD_DEFINITION"
+          ],
           "name": "hasRole"
         },
         {
@@ -179,13 +187,19 @@
             }
           ],
           "description": "The @include directive may be provided for fields, fragment spreads, and inline fragments, and allows for conditional inclusion during execution as described by the if argument.",
-          "locations": ["FIELD", "FRAGMENT_SPREAD", "INLINE_FRAGMENT"],
+          "locations": [
+            "FIELD",
+            "FRAGMENT_SPREAD",
+            "INLINE_FRAGMENT"
+          ],
           "name": "include"
         },
         {
           "args": [],
           "description": "The `@oneOf` _built-in directive_ is used within the type system definition language to indicate an Input Object is a OneOf Input Object.",
-          "locations": ["INPUT_OBJECT"],
+          "locations": [
+            "INPUT_OBJECT"
+          ],
           "name": "oneOf"
         },
         {
@@ -206,7 +220,11 @@
             }
           ],
           "description": "The @skip directive may be provided for fields, fragment spreads, and inline fragments, and allows for conditional exclusion during execution as described by the if argument.",
-          "locations": ["FIELD", "FRAGMENT_SPREAD", "INLINE_FRAGMENT"],
+          "locations": [
+            "FIELD",
+            "FRAGMENT_SPREAD",
+            "INLINE_FRAGMENT"
+          ],
           "name": "skip"
         },
         {
@@ -227,7 +245,9 @@
             }
           ],
           "description": "The @specifiedBy built-in directive is used within the type system definition language to provide a scalar specification URL for specifying the behavior of custom scalar types.",
-          "locations": ["SCALAR"],
+          "locations": [
+            "SCALAR"
+          ],
           "name": "specifiedBy"
         }
       ],
@@ -7818,7 +7838,7 @@
                 "name": null,
                 "ofType": {
                   "kind": "ENUM",
-                  "name": "LayerswapNetwork",
+                  "name": "LayerswapSourceNetwork",
                   "ofType": null
                 }
               }
@@ -7880,10 +7900,24 @@
             {
               "defaultValue": null,
               "description": null,
-              "name": "isMainnet",
+              "name": "destinationNetwork",
               "type": {
-                "kind": "SCALAR",
-                "name": "Boolean",
+                "kind": "NON_NULL",
+                "name": null,
+                "ofType": {
+                  "kind": "ENUM",
+                  "name": "LayerswapDestinationNetwork",
+                  "ofType": null
+                }
+              }
+            },
+            {
+              "defaultValue": null,
+              "description": null,
+              "name": "outsideExecution",
+              "type": {
+                "kind": "INPUT_OBJECT",
+                "name": "OutsideExecution",
                 "ofType": null
               }
             }
@@ -15493,38 +15527,20 @@
               "deprecationReason": null,
               "description": null,
               "isDeprecated": false,
-              "name": "BASE"
+              "name": "STARKNET_MAINNET"
             },
             {
               "deprecationReason": null,
               "description": null,
               "isDeprecated": false,
-              "name": "ETHEREUM"
-            },
-            {
-              "deprecationReason": null,
-              "description": null,
-              "isDeprecated": false,
-              "name": "ARBITRUM"
-            },
-            {
-              "deprecationReason": null,
-              "description": null,
-              "isDeprecated": false,
-              "name": "OPTIMISM"
-            },
-            {
-              "deprecationReason": null,
-              "description": null,
-              "isDeprecated": false,
-              "name": "SOLANA"
+              "name": "STARKNET_SEPOLIA"
             }
           ],
           "fields": [],
           "inputFields": [],
           "interfaces": [],
           "kind": "ENUM",
-          "name": "LayerswapNetwork",
+          "name": "LayerswapDestinationNetwork",
           "possibleTypes": []
         },
         {
@@ -15574,7 +15590,7 @@
                 "name": null,
                 "ofType": {
                   "kind": "ENUM",
-                  "name": "LayerswapNetwork",
+                  "name": "LayerswapSourceNetwork",
                   "ofType": null
                 }
               }
@@ -15993,6 +16009,77 @@
           "interfaces": [],
           "kind": "OBJECT",
           "name": "LayerswapSource",
+          "possibleTypes": []
+        },
+        {
+          "description": null,
+          "enumValues": [
+            {
+              "deprecationReason": null,
+              "description": null,
+              "isDeprecated": false,
+              "name": "BASE_MAINNET"
+            },
+            {
+              "deprecationReason": null,
+              "description": null,
+              "isDeprecated": false,
+              "name": "BASE_SEPOLIA"
+            },
+            {
+              "deprecationReason": null,
+              "description": null,
+              "isDeprecated": false,
+              "name": "ETHEREUM_MAINNET"
+            },
+            {
+              "deprecationReason": null,
+              "description": null,
+              "isDeprecated": false,
+              "name": "ETHEREUM_SEPOLIA"
+            },
+            {
+              "deprecationReason": null,
+              "description": null,
+              "isDeprecated": false,
+              "name": "ARBITRUM_MAINNET"
+            },
+            {
+              "deprecationReason": null,
+              "description": null,
+              "isDeprecated": false,
+              "name": "ARBITRUM_SEPOLIA"
+            },
+            {
+              "deprecationReason": null,
+              "description": null,
+              "isDeprecated": false,
+              "name": "OPTIMISM_MAINNET"
+            },
+            {
+              "deprecationReason": null,
+              "description": null,
+              "isDeprecated": false,
+              "name": "OPTIMISM_SEPOLIA"
+            },
+            {
+              "deprecationReason": null,
+              "description": null,
+              "isDeprecated": false,
+              "name": "SOLANA_MAINNET"
+            },
+            {
+              "deprecationReason": null,
+              "description": null,
+              "isDeprecated": false,
+              "name": "SOLANA_DEVNET"
+            }
+          ],
+          "fields": [],
+          "inputFields": [],
+          "interfaces": [],
+          "kind": "ENUM",
+          "name": "LayerswapSourceNetwork",
           "possibleTypes": []
         },
         {
@@ -21691,6 +21778,67 @@
           "interfaces": [],
           "kind": "ENUM",
           "name": "OrderDirection",
+          "possibleTypes": []
+        },
+        {
+          "description": null,
+          "enumValues": [],
+          "fields": [],
+          "inputFields": [
+            {
+              "defaultValue": null,
+              "description": null,
+              "name": "outsideExecution",
+              "type": {
+                "kind": "NON_NULL",
+                "name": null,
+                "ofType": {
+                  "kind": "SCALAR",
+                  "name": "JSON",
+                  "ofType": null
+                }
+              }
+            },
+            {
+              "defaultValue": null,
+              "description": null,
+              "name": "address",
+              "type": {
+                "kind": "NON_NULL",
+                "name": null,
+                "ofType": {
+                  "kind": "SCALAR",
+                  "name": "String",
+                  "ofType": null
+                }
+              }
+            },
+            {
+              "defaultValue": null,
+              "description": null,
+              "name": "signature",
+              "type": {
+                "kind": "NON_NULL",
+                "name": null,
+                "ofType": {
+                  "kind": "LIST",
+                  "name": null,
+                  "ofType": {
+                    "kind": "NON_NULL",
+                    "name": null,
+                    "ofType": {
+                      "kind": "SCALAR",
+                      "name": "String",
+                      "ofType": null
+                    }
+                  }
+                }
+              }
+            }
+          ],
+          "interfaces": [],
+          "kind": "INPUT_OBJECT",
+          "name": "OutsideExecution",
           "possibleTypes": []
         },
         {
@@ -28581,6 +28729,12 @@
               "description": null,
               "isDeprecated": false,
               "name": "STARTERPACK"
+            },
+            {
+              "deprecationReason": null,
+              "description": null,
+              "isDeprecated": false,
+              "name": "OUTSIDE_EXECUTION"
             }
           ],
           "fields": [],
@@ -30743,20 +30897,6 @@
                     "ofType": {
                       "kind": "SCALAR",
                       "name": "String",
-                      "ofType": null
-                    }
-                  }
-                },
-                {
-                  "defaultValue": null,
-                  "description": null,
-                  "name": "controllerId",
-                  "type": {
-                    "kind": "NON_NULL",
-                    "name": null,
-                    "ofType": {
-                      "kind": "SCALAR",
-                      "name": "ID",
                       "ofType": null
                     }
                   }
@@ -33221,6 +33361,22 @@
               "deprecationReason": null,
               "description": null,
               "isDeprecated": false,
+              "name": "isOriginal",
+              "type": {
+                "kind": "NON_NULL",
+                "name": null,
+                "ofType": {
+                  "kind": "SCALAR",
+                  "name": "Boolean",
+                  "ofType": null
+                }
+              }
+            },
+            {
+              "args": [],
+              "deprecationReason": null,
+              "description": null,
+              "isDeprecated": false,
               "name": "isRevoked",
               "type": {
                 "kind": "NON_NULL",
@@ -33842,6 +33998,26 @@
                     "ofType": null
                   }
                 }
+              }
+            },
+            {
+              "defaultValue": null,
+              "description": "is_original field predicates",
+              "name": "isOriginal",
+              "type": {
+                "kind": "SCALAR",
+                "name": "Boolean",
+                "ofType": null
+              }
+            },
+            {
+              "defaultValue": null,
+              "description": null,
+              "name": "isOriginalNEQ",
+              "type": {
+                "kind": "SCALAR",
+                "name": "Boolean",
+                "ofType": null
               }
             },
             {
@@ -44412,6 +44588,22 @@
               "description": null,
               "isDeprecated": false,
               "name": "publicKey",
+              "type": {
+                "kind": "NON_NULL",
+                "name": null,
+                "ofType": {
+                  "kind": "SCALAR",
+                  "name": "String",
+                  "ofType": null
+                }
+              }
+            },
+            {
+              "args": [],
+              "deprecationReason": null,
+              "description": null,
+              "isDeprecated": false,
+              "name": "AAGUID",
               "type": {
                 "kind": "NON_NULL",
                 "name": null,
