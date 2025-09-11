@@ -1,4 +1,4 @@
-use account_sdk::{ errors::ControllerError};
+use account_sdk::errors::ControllerError;
 use starknet_crypto::Felt;
 use wasm_bindgen::{prelude::wasm_bindgen, JsError};
 

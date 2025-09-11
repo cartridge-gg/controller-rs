@@ -189,6 +189,14 @@ impl CartridgeAccount {
             .await
             .map_err(JsControllerError::from)?;
 
+        let controller = self.controller.lock().await;
+
+        TransactionWaiter::new(res.transaction_hash, controller.provider())
+            .with_timeout(std::time::Duration::from_secs(DEFAULT_TIMEOUT))
+            .wait()
+            .await
+            .map_err(Into::<ControllerError>::into)?;
+
         let session = Session::new(
             methods,
             expires_at,
@@ -197,7 +205,6 @@ impl CartridgeAccount {
             }),
             Felt::ZERO,
         )?;
-        let controller = self.controller.lock().await;
         let owner_guid = controller.owner_guid();
         let authorization = vec![short_string!("authorization-by-registered"), owner_guid];
         controller

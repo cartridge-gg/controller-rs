@@ -26,10 +26,7 @@
             }
           ],
           "description": "The @defer directive may be specified on a fragment spread to imply de-prioritization, that causes the fragment to be omitted in the initial response, and delivered as a subsequent response afterward. A query with @defer directive will cause the request to potentially return multiple responses, where non-deferred data is delivered in the initial response and data deferred delivered in a subsequent response. @include and @skip take precedence over @defer.",
-          "locations": [
-            "FRAGMENT_SPREAD",
-            "INLINE_FRAGMENT"
-          ],
+          "locations": ["FRAGMENT_SPREAD", "INLINE_FRAGMENT"],
           "name": "defer"
         },
         {
@@ -88,10 +85,7 @@
             }
           ],
           "description": null,
-          "locations": [
-            "FIELD_DEFINITION",
-            "INPUT_FIELD_DEFINITION"
-          ],
+          "locations": ["FIELD_DEFINITION", "INPUT_FIELD_DEFINITION"],
           "name": "goField"
         },
         {
@@ -164,9 +158,7 @@
             }
           ],
           "description": null,
-          "locations": [
-            "FIELD_DEFINITION"
-          ],
+          "locations": ["FIELD_DEFINITION"],
           "name": "hasRole"
         },
         {
@@ -187,19 +179,13 @@
             }
           ],
           "description": "The @include directive may be provided for fields, fragment spreads, and inline fragments, and allows for conditional inclusion during execution as described by the if argument.",
-          "locations": [
-            "FIELD",
-            "FRAGMENT_SPREAD",
-            "INLINE_FRAGMENT"
-          ],
+          "locations": ["FIELD", "FRAGMENT_SPREAD", "INLINE_FRAGMENT"],
           "name": "include"
         },
         {
           "args": [],
           "description": "The `@oneOf` _built-in directive_ is used within the type system definition language to indicate an Input Object is a OneOf Input Object.",
-          "locations": [
-            "INPUT_OBJECT"
-          ],
+          "locations": ["INPUT_OBJECT"],
           "name": "oneOf"
         },
         {
@@ -220,11 +206,7 @@
             }
           ],
           "description": "The @skip directive may be provided for fields, fragment spreads, and inline fragments, and allows for conditional exclusion during execution as described by the if argument.",
-          "locations": [
-            "FIELD",
-            "FRAGMENT_SPREAD",
-            "INLINE_FRAGMENT"
-          ],
+          "locations": ["FIELD", "FRAGMENT_SPREAD", "INLINE_FRAGMENT"],
           "name": "skip"
         },
         {
@@ -245,9 +227,7 @@
             }
           ],
           "description": "The @specifiedBy built-in directive is used within the type system definition language to provide a scalar specification URL for specifying the behavior of custom scalar types.",
-          "locations": [
-            "SCALAR"
-          ],
+          "locations": ["SCALAR"],
           "name": "specifiedBy"
         }
       ],
