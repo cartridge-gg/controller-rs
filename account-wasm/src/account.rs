@@ -1,9 +1,12 @@
 use std::borrow::BorrowMut;
 
 use account_sdk::abigen::controller::OutsideExecutionV3;
+use account_sdk::abigen::controller::Signer as AbigenSigner;
+use account_sdk::abigen::controller::StarknetSigner;
 use account_sdk::account::outside_execution::{
     OutsideExecution, OutsideExecutionAccount, OutsideExecutionCaller,
 };
+use account_sdk::account::session::hash::Session;
 use account_sdk::controller::Controller;
 use account_sdk::errors::ControllerError;
 use account_sdk::session::RevokableSession;
@@ -11,6 +14,7 @@ use account_sdk::storage::selectors::Selectors;
 use account_sdk::storage::StorageBackend;
 
 use account_sdk::transaction_waiter::TransactionWaiter;
+use cainome::cairo_serde::NonZero;
 use cainome::cairo_serde::Zeroable;
 use chrono::Utc;
 use serde_wasm_bindgen::to_value;
@@ -26,6 +30,7 @@ use url::Url;
 use wasm_bindgen::prelude::*;
 
 use crate::errors::JsControllerError;
+use crate::set_panic_hook;
 use crate::storage::PolicyStorage;
 use crate::sync::WasmMutex;
 use crate::types::call::JsCall;
@@ -37,7 +42,6 @@ use crate::types::register::{JsRegister, JsRegisterResponse};
 use crate::types::session::{AuthorizedSession, JsRevokableSession};
 use crate::types::signer::{JsAddSignerInput, JsRemoveSignerInput, Signer};
 use crate::types::{Felts, JsFeeSource, JsFelt};
-use crate::utils::set_panic_hook;
 
 pub type Result<T> = std::result::Result<T, JsError>;
 
@@ -175,19 +179,34 @@ impl CartridgeAccount {
             .collect::<std::result::Result<Vec<_>, _>>()?;
 
         let max_fee = max_fee.map(Into::into);
+        let pub_key: Felt = *public_key.as_felt();
+
         let res = self
             .controller
             .lock()
             .await
-            .register_session(
-                methods,
-                expires_at,
-                public_key.try_into()?,
-                Felt::ZERO,
-                max_fee,
-            )
+            .register_session(methods.clone(), expires_at, pub_key, Felt::ZERO, max_fee)
             .await
             .map_err(JsControllerError::from)?;
+
+        let session = Session::new(
+            methods,
+            expires_at,
+            &AbigenSigner::Starknet(StarknetSigner {
+                pubkey: NonZero::new(pub_key).unwrap(),
+            }),
+            Felt::ZERO,
+        )?;
+        let controller = self.controller.lock().await;
+        let owner_guid = controller.owner_guid();
+        let authorization = vec![short_string!("authorization-by-registered"), owner_guid];
+        controller
+            .register_session_with_cartridge(
+                &session,
+                &authorization,
+                self.cartridge_api_url.clone(),
+            )
+            .await?;
 
         Ok(to_value(&res)?)
     }
@@ -899,16 +918,6 @@ impl CartridgeAccountMeta {
     pub fn owner_guid(&self) -> JsFelt {
         self.owner_guid.into()
     }
-}
-
-#[wasm_bindgen(js_name = signerToGuid)]
-pub fn signer_to_guid(signer: Signer) -> JsFelt {
-    web_sys::console::log_1(&format!("Hello WORLD!").into());
-    let signer: account_sdk::signers::Signer = signer.try_into().unwrap();
-    web_sys::console::log_1(&format!("!!!!!!!").into());
-    let felt: Felt = signer.into();
-    web_sys::console::log_1(&format!("1203102390192321").into());
-    felt.into()
 }
 
 /// A type used as the return type for constructing `CartridgeAccount` to provide an extra,

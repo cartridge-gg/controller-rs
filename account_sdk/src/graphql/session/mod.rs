@@ -4,9 +4,9 @@ use crate::graphql::session::revoke_sessions::RevokeSessionInput;
 use anyhow::Result;
 use graphql_client::GraphQLQuery;
 use starknet_crypto::Felt;
-use toml::value::Time;
 
 type Long = u64;
+type Time = String;
 
 #[derive(GraphQLQuery)]
 #[graphql(
@@ -31,37 +31,6 @@ pub struct RevokeSessions;
     response_derives = "Debug, Clone, Serialize, PartialEq, Eq, Deserialize"
 )]
 pub struct SubscribeCreateSession;
-
-pub struct CreateSessionInput {
-    pub username: String,
-    pub app_id: String,
-    pub chain_id: String,
-    pub session: create_session::SessionInput,
-}
-
-pub async fn create_session(
-    input: CreateSessionInput,
-    cartridge_api_url: String,
-) -> Result<create_session::ResponseData, ControllerError> {
-    let client = Client::new(cartridge_api_url);
-
-    let request_body = CreateSession::build_query(create_session::Variables {
-        username: input.username,
-        app_id: input.app_id,
-        chain_id: input.chain_id,
-        session: create_session::SessionInput {
-            expires_at: input.session.expires_at,
-            allowed_policies_root: input.session.allowed_policies_root,
-            metadata_hash: input.session.metadata_hash,
-            session_key_guid: input.session.session_key_guid,
-            guardian_key_guid: input.session.guardian_key_guid,
-            authorization: input.session.authorization,
-            app_id: None,
-        },
-    });
-
-    client.query(&request_body).await
-}
 
 pub async fn revoke_sessions(
     sessions: Vec<RevokeSessionInput>,
