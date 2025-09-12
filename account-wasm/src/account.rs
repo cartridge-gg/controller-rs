@@ -351,7 +351,7 @@ impl CartridgeAccount {
     ) -> std::result::Result<(), JsControllerError> {
         set_panic_hook();
 
-        let mut controller = self.controller.lock().await;
+        let controller = self.controller.lock().await;
 
         if controller.chain_id != short_string!("SN_MAIN") {
             return Err(ControllerError::InvalidChainID(
@@ -360,6 +360,8 @@ impl CartridgeAccount {
             )
             .into());
         }
+
+        std::mem::drop(controller);
 
         let (signer, signer_input) = if let Some(rp_id) = rp_id {
             self.handle_passkey_creation(rp_id).await?
@@ -377,6 +379,7 @@ impl CartridgeAccount {
             )
         };
 
+        let mut controller = self.controller.lock().await;
         let tx_result = controller.add_owner(signer.clone()).await?;
 
         TransactionWaiter::new(tx_result.transaction_hash, controller.provider())
