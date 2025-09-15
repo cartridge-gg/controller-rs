@@ -1,13 +1,5 @@
-query SubscribeCreateSession(
-  $appId: String!
-  $controllerId: ID!
-  $sessionKeyGuid: Felt!
-) {
-  subscribeCreateSession(
-    appId: $appId
-    controllerId: $controllerId
-    sessionKeyGuid: $sessionKeyGuid
-  ) {
+query SubscribeCreateSession($sessionKeyGuid: Felt!) {
+  subscribeCreateSession(sessionKeyGuid: $sessionKeyGuid) {
     id
     appID
     chainID
@@ -18,6 +10,11 @@ query SubscribeCreateSession(
     metadata {
       os
       browser
+    }
+    authorization
+    controller {
+      address
+      accountID
     }
   }
 }

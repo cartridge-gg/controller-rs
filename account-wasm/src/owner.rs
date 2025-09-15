@@ -1,6 +1,6 @@
 use account_sdk::{graphql::owner::add_owner::SignerInput, signers::Signer};
 
-use crate::{account::CartridgeAccount, errors::JsControllerError, utils::set_panic_hook};
+use crate::{account::CartridgeAccount, errors::JsControllerError, set_panic_hook};
 
 impl CartridgeAccount {
     pub async fn handle_passkey_creation(
