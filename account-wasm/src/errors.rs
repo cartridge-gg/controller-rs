@@ -129,6 +129,11 @@ impl From<ControllerError> for JsControllerError {
                 data: None,
             },
             ControllerError::PaymasterError(e) => e.into(),
+            ControllerError::PaymasterNotSupported => JsControllerError {
+                code: ErrorCode::PaymasterNotSupported,
+                message: "Paymaster not supported".to_string(),
+                data: None,
+            },
             ControllerError::ProviderError(e) => e.into(),
             ControllerError::CairoSerde(e) => JsControllerError {
                 code: ErrorCode::CairoSerdeError,
