@@ -1,12 +1,11 @@
+#[cfg(feature = "webauthn")]
+use crate::signers::webauthn::WebauthnSigner;
 use crate::{
     abigen::erc_20::Erc20,
     account::session::policy::Policy,
     artifacts::{Version, CONTROLLERS},
     controller::Controller,
-    signers::{
-        webauthn::WebauthnSigner, HashSigner, NewOwnerSigner, Owner, SessionPolicyError, SignError,
-        Signer,
-    },
+    signers::{HashSigner, NewOwnerSigner, Owner, SessionPolicyError, SignError, Signer},
     tests::{ensure_txn, runners::katana::KatanaRunner},
 };
 use cainome::cairo_serde::{ContractAddress, U256};
@@ -346,6 +345,7 @@ async fn test_change_owner_invalidate_old_sessions() {
 }
 
 #[tokio::test]
+#[cfg(feature = "webauthn")]
 async fn test_call_unallowed_methods() {
     let (signer, _) = WebauthnSigner::register(
         "cartridge.gg".to_string(),
