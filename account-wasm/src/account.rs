@@ -1101,3 +1101,48 @@ pub fn compute_account_address(class_hash: JsFelt, owner: Owner, salt: JsFelt) -
 }
 
 const DEFAULT_TIMEOUT: u64 = 30;
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use account_sdk::errors::ControllerError;
+
+    #[test]
+    fn test_is_paymaster_not_supported() {
+        // Test direct PaymasterNotSupported error
+        let err = ControllerError::PaymasterNotSupported;
+        assert!(is_paymaster_not_supported(&err));
+
+        // Test PaymasterError variant
+        let err = ControllerError::PaymasterError(
+            account_sdk::provider::ExecuteFromOutsideError::InvalidCaller,
+        );
+        assert!(is_paymaster_not_supported(&err));
+
+        // Test error message detection
+        let err = ControllerError::InvalidResponseData("paymaster not supported".to_string());
+        assert!(is_paymaster_not_supported(&err));
+
+        let err = ControllerError::InvalidResponseData("paymaster unsupported".to_string());
+        assert!(is_paymaster_not_supported(&err));
+
+        let err = ControllerError::InvalidResponseData("paymaster not available".to_string());
+        assert!(is_paymaster_not_supported(&err));
+
+        // Test non-paymaster errors
+        let err = ControllerError::TransactionTimeout;
+        assert!(!is_paymaster_not_supported(&err));
+
+        let err = ControllerError::InvalidResponseData("some other error".to_string());
+        assert!(!is_paymaster_not_supported(&err));
+    }
+
+    #[test]
+    fn test_paymaster_error_codes() {
+        // Test that PaymasterNotSupported error code is properly handled
+        let controller_err = ControllerError::PaymasterNotSupported;
+        let js_err = JsControllerError::from(controller_err);
+        assert_eq!(js_err.code, ErrorCode::PaymasterNotSupported);
+        assert_eq!(js_err.message, "Paymaster not supported");
+    }
+}

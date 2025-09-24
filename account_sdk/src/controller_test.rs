@@ -336,3 +336,147 @@ async fn test_controller_with_eip191_signer() {
         result.err()
     );
 }
+
+#[tokio::test]
+async fn test_try_session_execute_with_expired_session() {
+    use crate::account::session::policy::Policy;
+    use chrono::Utc;
+    use starknet::macros::selector;
+
+    let runner = KatanaRunner::load();
+    let signer = Signer::new_starknet_random();
+    let mut controller = runner
+        .deploy_controller(
+            "test_expired".to_string(),
+            Owner::Signer(signer.clone()),
+            Version::LATEST,
+        )
+        .await;
+
+    // Create a session that's already expired
+    let expired_at = (Utc::now().timestamp() as u64) - 3600; // 1 hour ago
+    let session_account = controller
+        .create_session(
+            vec![Policy::new_call(*FEE_TOKEN_ADDRESS, selector!("transfer"))],
+            expired_at,
+        )
+        .await
+        .unwrap();
+
+    // Clear the session from storage to simulate an expired session
+    controller.clear_session_if_expired();
+
+    // Now try to execute with an expired session
+    let recipient = ContractAddress(felt!("0x18301129"));
+    let amount = U256 { low: 10, high: 0 };
+    let erc20 = Erc20::new(*FEE_TOKEN_ADDRESS, &controller);
+    let tx = erc20.transfer_getcall(&recipient, &amount);
+
+    // Execute should automatically create a new wildcard session
+    let max_fee = controller
+        .estimate_invoke_fee(vec![tx.clone()])
+        .await
+        .unwrap();
+    let result = Controller::execute(&mut controller, vec![tx], Some(max_fee), None).await;
+
+    assert!(
+        result.is_ok(),
+        "Execute failed with expired session: {:?}",
+        result.err()
+    );
+
+    // Verify a new session was created
+    assert!(
+        controller.authorized_session().is_some(),
+        "No session found after execute with expired session"
+    );
+}
+
+#[tokio::test]
+async fn test_ensure_valid_session() {
+    use chrono::Utc;
+
+    let runner = KatanaRunner::load();
+    let signer = Signer::new_starknet_random();
+    let mut controller = runner
+        .deploy_controller(
+            "test_ensure".to_string(),
+            Owner::Signer(signer.clone()),
+            Version::LATEST,
+        )
+        .await;
+
+    // Initially no session
+    assert!(controller.is_session_expired());
+
+    // Ensure valid session creates one
+    let expires_at = (Utc::now().timestamp() as u64) + (7 * 24 * 60 * 60);
+    controller.ensure_valid_session(expires_at).await.unwrap();
+
+    // Now we should have a valid session
+    assert!(!controller.is_session_expired());
+    assert!(controller.authorized_session().is_some());
+
+    // Check that the session is a wildcard session
+    let session = controller.authorized_session().unwrap();
+    assert!(
+        session.is_wildcard(),
+        "Session should be a wildcard session"
+    );
+}
+
+#[tokio::test]
+async fn test_is_session_expired_states() {
+    use crate::account::session::policy::Policy;
+    use chrono::Utc;
+    use starknet::macros::selector;
+
+    let runner = KatanaRunner::load();
+    let signer = Signer::new_starknet_random();
+    let mut controller = runner
+        .deploy_controller(
+            "test_states".to_string(),
+            Owner::Signer(signer.clone()),
+            Version::LATEST,
+        )
+        .await;
+
+    // Test 1: No session should be considered expired
+    assert!(
+        controller.is_session_expired(),
+        "No session should be considered expired"
+    );
+
+    // Test 2: Valid session should not be expired
+    let valid_expires_at = (Utc::now().timestamp() as u64) + 3600; // 1 hour from now
+    controller
+        .create_session(
+            vec![Policy::new_call(*FEE_TOKEN_ADDRESS, selector!("transfer"))],
+            valid_expires_at,
+        )
+        .await
+        .unwrap();
+
+    assert!(
+        !controller.is_session_expired(),
+        "Valid session should not be expired"
+    );
+
+    // Test 3: Create expired session and check
+    controller.clear_session_if_expired();
+    let expired_at = (Utc::now().timestamp() as u64) - 3600; // 1 hour ago
+    controller
+        .create_session(
+            vec![Policy::new_call(*FEE_TOKEN_ADDRESS, selector!("transfer"))],
+            expired_at,
+        )
+        .await
+        .unwrap();
+
+    // The expired session should be cleared automatically
+    controller.clear_session_if_expired();
+    assert!(
+        controller.is_session_expired(),
+        "Expired session should be detected as expired"
+    );
+}
