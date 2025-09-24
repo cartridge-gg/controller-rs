@@ -7,7 +7,7 @@ use account_sdk::account::outside_execution::{
     OutsideExecution, OutsideExecutionAccount, OutsideExecutionCaller,
 };
 use account_sdk::account::session::hash::Session;
-use account_sdk::controller::Controller;
+use account_sdk::controller::{Controller, DEFAULT_SESSION_EXPIRATION};
 use account_sdk::errors::ControllerError;
 use account_sdk::session::RevokableSession;
 use account_sdk::storage::selectors::Selectors;
@@ -617,8 +617,8 @@ impl CartridgeAccount {
                 .map(|s| s.session.is_expired())
                 .unwrap_or(false)
         {
-            // Create wildcard session with 7-day expiry (same as DEFAULT_SESSION_EXPIRATION)
-            let expires_at = (Utc::now().timestamp() as u64) + (7 * 24 * 60 * 60);
+            // Create wildcard session with default expiry
+            let expires_at = (Utc::now().timestamp() as u64) + DEFAULT_SESSION_EXPIRATION;
             let session_account = controller.create_wildcard_session(expires_at).await?;
 
             // Register with backend

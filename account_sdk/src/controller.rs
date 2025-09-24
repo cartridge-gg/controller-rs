@@ -41,7 +41,7 @@ mod controller_test;
 
 const SESSION_TYPED_DATA_MAGIC: Felt = short_string!("session-typed-data");
 
-const DEFAULT_SESSION_EXPIRATION: u64 = 7 * 24 * 60 * 60;
+pub const DEFAULT_SESSION_EXPIRATION: u64 = 7 * 24 * 60 * 60;
 
 #[derive(Clone)]
 pub struct Controller {

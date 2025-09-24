@@ -3,7 +3,7 @@ use std::time::Duration;
 use crate::{
     abigen::erc_20::Erc20,
     artifacts::{Version, CONTROLLERS},
-    controller::Controller,
+    controller::{Controller, DEFAULT_SESSION_EXPIRATION},
     errors::ControllerError,
     factory::ControllerFactory,
     signers::{Owner, Signer},
@@ -410,7 +410,7 @@ async fn test_ensure_valid_session() {
     assert!(controller.is_session_expired());
 
     // Ensure valid session creates one
-    let expires_at = (Utc::now().timestamp() as u64) + (7 * 24 * 60 * 60);
+    let expires_at = (Utc::now().timestamp() as u64) + DEFAULT_SESSION_EXPIRATION;
     controller.ensure_valid_session(expires_at).await.unwrap();
 
     // Now we should have a valid session
