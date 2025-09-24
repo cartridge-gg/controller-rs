@@ -7,6 +7,7 @@ use account_sdk::account::outside_execution::{
     OutsideExecution, OutsideExecutionAccount, OutsideExecutionCaller,
 };
 use account_sdk::account::session::hash::Session;
+use account_sdk::account::session::policy::Policy;
 use account_sdk::controller::{Controller, DEFAULT_SESSION_EXPIRATION};
 use account_sdk::errors::ControllerError;
 use account_sdk::session::RevokableSession;
@@ -604,44 +605,42 @@ impl CartridgeAccount {
             .map(TryInto::try_into)
             .collect::<std::result::Result<Vec<_>, _>>()?;
 
+        // Extract policies from calls
+        let policies = Policy::from_calls(&calls);
+
         // Lock controller
         let mut controller = self.controller.lock().await;
 
         // Check session status
         let session_metadata = controller.authorized_session();
 
-        // If no session or session is expired, create wildcard session
-        if session_metadata.is_none()
-            || session_metadata
-                .as_ref()
-                .map(|s| s.session.is_expired())
-                .unwrap_or(false)
-        {
-            // Create wildcard session with default expiry
-            let expires_at = (Utc::now().timestamp() as u64) + DEFAULT_SESSION_EXPIRATION;
-            let session_account = controller.create_wildcard_session(expires_at).await?;
-
-            // Register with backend
-            let register_result = controller
-                .register_session_with_cartridge(
-                    &session_account.session,
-                    &session_account.session_authorization,
-                    self.cartridge_api_url.clone(),
-                )
-                .await;
-
-            // Handle registration failure
-            if let Err(e) = register_result {
-                let address = controller.address;
-                let app_id = controller.app_id.clone();
-                let chain_id = controller.chain_id;
-
-                controller
-                    .storage
-                    .remove(&Selectors::session(&address, &app_id, &chain_id))
-                    .map_err(|e| JsControllerError::from(ControllerError::StorageError(e)))?;
-
-                return Err(JsControllerError::from(e));
+        // Check if session is expired or missing
+        match session_metadata {
+            Some(metadata) if metadata.session.is_expired() => {
+                // Session exists but is expired - check if it would authorize the calls
+                if controller
+                    .authorized_session_for_policies(&policies, None)
+                    .is_some()
+                {
+                    // The expired session has policies that would authorize these calls
+                    return Err(JsControllerError::from(
+                        ControllerError::SessionRefreshRequired,
+                    ));
+                } else {
+                    // The expired session doesn't authorize these calls
+                    return Err(JsControllerError::from(
+                        ControllerError::ManualExecutionRequired,
+                    ));
+                }
+            }
+            None => {
+                // No session exists
+                return Err(JsControllerError::from(
+                    ControllerError::ManualExecutionRequired,
+                ));
+            }
+            Some(_) => {
+                // Session exists and is valid, continue with execution
             }
         }
 

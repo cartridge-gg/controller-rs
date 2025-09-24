@@ -33,6 +33,12 @@ pub enum ControllerError {
     #[error("Paymaster not supported")]
     PaymasterNotSupported,
 
+    #[error("Session refresh required")]
+    SessionRefreshRequired,
+
+    #[error("Manual execution required")]
+    ManualExecutionRequired,
+
     #[error(transparent)]
     CairoSerde(#[from] cairo_serde::Error),
 
