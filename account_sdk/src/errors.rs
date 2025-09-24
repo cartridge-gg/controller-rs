@@ -30,6 +30,9 @@ pub enum ControllerError {
     #[error(transparent)]
     PaymasterError(#[from] ExecuteFromOutsideError),
 
+    #[error("Paymaster not supported")]
+    PaymasterNotSupported,
+
     #[error(transparent)]
     CairoSerde(#[from] cairo_serde::Error),
 

@@ -7,6 +7,7 @@ use account_sdk::account::outside_execution::{
     OutsideExecution, OutsideExecutionAccount, OutsideExecutionCaller,
 };
 use account_sdk::account::session::hash::Session;
+use account_sdk::account::session::policy::Policy as SdkPolicy;
 use account_sdk::controller::Controller;
 use account_sdk::errors::ControllerError;
 use account_sdk::session::RevokableSession;
@@ -44,6 +45,21 @@ use crate::types::signer::{JsAddSignerInput, JsRemoveSignerInput, Signer};
 use crate::types::{Felts, JsFeeSource, JsFelt};
 
 pub type Result<T> = std::result::Result<T, JsError>;
+
+// Helper function to check if an error indicates paymaster is not supported
+fn is_paymaster_not_supported(err: &ControllerError) -> bool {
+    match err {
+        ControllerError::PaymasterNotSupported => true,
+        ControllerError::PaymasterError(_) => true,
+        _ => {
+            let error_str = err.to_string().to_lowercase();
+            error_str.contains("paymaster") && 
+            (error_str.contains("not supported") || 
+             error_str.contains("unsupported") ||
+             error_str.contains("not available"))
+        }
+    }
+}
 
 #[wasm_bindgen]
 pub struct CartridgeAccount {
@@ -573,6 +589,81 @@ impl CartridgeAccount {
             .execute_from_outside_v3(calls, fee_source.map(|fs| fs.try_into()).transpose()?)
             .await?;
         Ok(to_value(&response)?)
+    }
+
+    #[wasm_bindgen(js_name = trySessionExecute)]
+    pub async fn try_session_execute(
+        &self,
+        calls: Vec<JsCall>,
+        fee_source: Option<JsFeeSource>,
+    ) -> std::result::Result<JsValue, JsControllerError> {
+        set_panic_hook();
+
+        // Convert calls to internal format
+        let calls = calls
+            .into_iter()
+            .map(TryInto::try_into)
+            .collect::<std::result::Result<Vec<_>, _>>()?;
+
+        // Extract policies from calls
+        let policies: Vec<_> = calls.iter().map(SdkPolicy::from_call).collect();
+        
+        // Lock controller
+        let mut controller = self.controller.lock().await;
+        
+        // Check session status
+        let session_metadata = controller.authorized_session();
+        
+        // If no session or session is expired, create wildcard session
+        if session_metadata.is_none() || 
+           session_metadata.as_ref().map(|s| s.session.is_expired()).unwrap_or(false) {
+            
+            // Create wildcard session with 7-day expiry (same as DEFAULT_SESSION_EXPIRATION)
+            let expires_at = (Utc::now().timestamp() as u64) + (7 * 24 * 60 * 60);
+            let session_account = controller.create_wildcard_session(expires_at).await?;
+            
+            // Register with backend
+            let register_result = controller.register_session_with_cartridge(
+                &session_account.session,
+                &session_account.session_authorization,
+                self.cartridge_api_url.clone(),
+            ).await;
+            
+            // Handle registration failure
+            if let Err(e) = register_result {
+                let address = controller.address;
+                let app_id = controller.app_id.clone();
+                let chain_id = controller.chain_id;
+                
+                controller
+                    .storage
+                    .remove(&Selectors::session(&address, &app_id, &chain_id))
+                    .map_err(|e| JsControllerError::from(ControllerError::StorageError(e)))?;
+                
+                return Err(JsControllerError::from(e));
+            }
+        }
+        
+        // Now execute with valid session
+        // Try paymaster first (execute_from_outside_v3)
+        match controller.execute_from_outside_v3(calls.clone(), fee_source.as_ref().map(|fs| fs.clone().try_into()).transpose()?).await {
+            Ok(result) => Ok(to_value(&result)?),
+            Err(e) => {
+                // Check if it's a paymaster not supported error
+                if is_paymaster_not_supported(&e) {
+                    // Fallback to user pays flow
+                    let estimate = controller.estimate_invoke_fee(calls.clone()).await?;
+                    let result = controller.execute(
+                        calls,
+                        Some(estimate),
+                        fee_source.map(|fs| fs.try_into()).transpose()?
+                    ).await?;
+                    Ok(to_value(&result)?)
+                } else {
+                    Err(JsControllerError::from(e))
+                }
+            }
+        }
     }
 
     #[wasm_bindgen(js_name = isRegisteredSessionAuthorized)]

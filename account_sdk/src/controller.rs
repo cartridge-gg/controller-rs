@@ -506,6 +506,19 @@ impl Controller {
             .map(|v| v.low)
     }
 
+    pub fn is_session_expired(&self) -> bool {
+        self.authorized_session()
+            .map(|s| s.session.is_expired())
+            .unwrap_or(true)
+    }
+
+    pub async fn ensure_valid_session(&mut self, expires_at: u64) -> Result<(), ControllerError> {
+        if self.is_session_expired() {
+            self.create_wildcard_session(expires_at).await?;
+        }
+        Ok(())
+    }
+
     pub async fn sign_message(&self, data: &TypedData) -> Result<Vec<Felt>, SignError> {
         let hash_parts = hash_components(data)?;
         let scope_hash = poseidon_hash(hash_parts.domain_separator_hash, hash_parts.type_hash);
