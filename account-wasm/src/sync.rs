@@ -9,11 +9,13 @@ use wasm_bindgen_futures::js_sys::Function;
 /// A mutex implementation backed by JavaScript `Promise`s.
 ///
 /// This type wraps a simple JavaScript `Mutex` implementation but exposes an idiomatic Rust API.
+#[allow(dead_code)]
 pub struct WasmMutex<T> {
     js_lock: Mutex,
     rs_lock: StdMutex<T>,
 }
 
+#[allow(dead_code)]
 impl<T> WasmMutex<T> {
     pub fn new(value: T) -> Self {
         Self {

@@ -355,7 +355,7 @@ async fn test_try_session_execute_with_expired_session() {
 
     // Create a session that's already expired
     let expired_at = (Utc::now().timestamp() as u64) - 3600; // 1 hour ago
-    let session_account = controller
+    let _session_account = controller
         .create_session(
             vec![Policy::new_call(*FEE_TOKEN_ADDRESS, selector!("transfer"))],
             expired_at,
@@ -364,7 +364,7 @@ async fn test_try_session_execute_with_expired_session() {
         .unwrap();
 
     // Clear the session from storage to simulate an expired session
-    controller.clear_session_if_expired();
+    controller.clear_session_if_expired().unwrap();
 
     // Now try to execute with an expired session
     let recipient = ContractAddress(felt!("0x18301129"));
@@ -463,7 +463,7 @@ async fn test_is_session_expired_states() {
     );
 
     // Test 3: Create expired session and check
-    controller.clear_session_if_expired();
+    controller.clear_session_if_expired().unwrap();
     let expired_at = (Utc::now().timestamp() as u64) - 3600; // 1 hour ago
     controller
         .create_session(
@@ -474,7 +474,7 @@ async fn test_is_session_expired_states() {
         .unwrap();
 
     // The expired session should be cleared automatically
-    controller.clear_session_if_expired();
+    controller.clear_session_if_expired().unwrap();
     assert!(
         controller.is_session_expired(),
         "Expired session should be detected as expired"

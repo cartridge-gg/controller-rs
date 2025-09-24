@@ -5,6 +5,7 @@ use web_sys::window;
 
 use crate::types::policy::Policy;
 
+#[allow(dead_code)]
 type Result<T> = std::result::Result<T, JsError>;
 
 #[derive(Serialize, Deserialize)]
@@ -12,10 +13,12 @@ pub struct StoredPolicies {
     policies: Vec<Policy>,
 }
 
+#[allow(dead_code)]
 pub struct PolicyStorage {
     storage_key: String,
 }
 
+#[allow(dead_code)]
 impl PolicyStorage {
     pub fn new(address: &Felt, app_id: &str, chain_id: &Felt) -> Self {
         let storage_key = format!(
@@ -67,6 +70,7 @@ impl PolicyStorage {
     }
 }
 
+#[allow(dead_code)]
 fn check_policies<F>(stored_policies: &[Policy], policies: &[Policy], check_fn: F) -> bool
 where
     F: Fn(&Policy, &Policy) -> bool,
@@ -76,12 +80,14 @@ where
         .all(|p| stored_policies.iter().any(|stored_p| check_fn(stored_p, p)))
 }
 
+#[allow(dead_code)]
 fn check_is_requested(stored_policies: &[Policy], policies: &[Policy]) -> bool {
     check_policies(stored_policies, policies, |stored, requested| {
         stored.is_requested(requested)
     })
 }
 
+#[allow(dead_code)]
 fn check_is_authorized(stored_policies: &[Policy], policies: &[Policy]) -> bool {
     check_policies(stored_policies, policies, |stored, requested| {
         match (stored, requested) {

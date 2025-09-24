@@ -324,7 +324,7 @@ impl Controller {
         }
     }
 
-    fn clear_session_if_expired(&mut self) -> Result<(), StorageError> {
+    pub fn clear_session_if_expired(&mut self) -> Result<(), StorageError> {
         let key = self.session_key();
         let session = self.storage.session(&key).ok().flatten();
 

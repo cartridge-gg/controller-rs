@@ -171,7 +171,7 @@ async fn test_paymaster_fallback() {
     // Mock a scenario where paymaster is not supported by checking the error
     // In a real scenario, this would be when the paymaster service returns an error
     let paymaster_result = controller
-        .execute_from_outside_v3(vec![tx.clone()], Some(FeeSource::CartridgePaymaster))
+        .execute_from_outside_v3(vec![tx.clone()], Some(FeeSource::Paymaster))
         .await;
 
     // The actual paymaster might work in test environment,
@@ -222,7 +222,7 @@ async fn test_session_registration_failure_recovery() {
     assert!(session_result.is_ok(), "Session creation should succeed");
 
     // Clear the session to simulate registration failure
-    controller.clear_session_if_expired();
+    controller.clear_session_if_expired().unwrap();
 
     // Now try to execute - it should recreate the session
     let recipient = ContractAddress(felt!("0x18301129"));
