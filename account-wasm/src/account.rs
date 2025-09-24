@@ -7,8 +7,8 @@ use account_sdk::account::outside_execution::{
     OutsideExecution, OutsideExecutionAccount, OutsideExecutionCaller,
 };
 use account_sdk::account::session::hash::Session;
-use account_sdk::account::session::policy::Policy;
-use account_sdk::controller::{Controller, DEFAULT_SESSION_EXPIRATION};
+use account_sdk::account::session::policy::Policy as SdkPolicy;
+use account_sdk::controller::Controller;
 use account_sdk::errors::ControllerError;
 use account_sdk::session::RevokableSession;
 use account_sdk::storage::selectors::Selectors;
@@ -606,7 +606,7 @@ impl CartridgeAccount {
             .collect::<std::result::Result<Vec<_>, _>>()?;
 
         // Extract policies from calls
-        let policies = Policy::from_calls(&calls);
+        let policies = SdkPolicy::from_calls(&calls);
 
         // Lock controller
         let mut controller = self.controller.lock().await;
@@ -1104,6 +1104,7 @@ const DEFAULT_TIMEOUT: u64 = 30;
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::errors::ErrorCode;
     use account_sdk::errors::ControllerError;
 
     #[test]
@@ -1141,7 +1142,7 @@ mod tests {
         // Test that PaymasterNotSupported error code is properly handled
         let controller_err = ControllerError::PaymasterNotSupported;
         let js_err = JsControllerError::from(controller_err);
-        assert_eq!(js_err.code, ErrorCode::PaymasterNotSupported);
+        assert!(matches!(js_err.code, ErrorCode::PaymasterNotSupported));
         assert_eq!(js_err.message, "Paymaster not supported");
     }
 }
