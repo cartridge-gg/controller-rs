@@ -35,6 +35,9 @@ impl Controller {
         calls: Vec<Call>,
         fee_source: Option<FeeSource>,
     ) -> Result<InvokeTransactionResult, ControllerError> {
+        // Ensure we have a valid wildcard session if needed
+        self.ensure_wildcard_session_if_expired().await?;
+
         let now = Utc::now().timestamp() as u64;
 
         let outside_execution = OutsideExecutionV2 {
@@ -70,6 +73,9 @@ impl Controller {
         calls: Vec<Call>,
         fee_source: Option<FeeSource>,
     ) -> Result<InvokeTransactionResult, ControllerError> {
+        // Ensure we have a valid wildcard session if needed
+        self.ensure_wildcard_session_if_expired().await?;
+
         let now = Utc::now().timestamp() as u64;
 
         // Get the current namespace and bitmask
