@@ -12,7 +12,6 @@ use cainome::cairo_serde::{ContractAddress, U256};
 use starknet::{
     accounts::{Account, AccountError},
     macros::{felt, selector},
-    providers::Provider,
 };
 use starknet_crypto::Felt;
 

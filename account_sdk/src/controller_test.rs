@@ -88,8 +88,6 @@ async fn test_controller_not_deployed() {
             Version::LATEST,
         )
         .await;
-    let chain_id = runner.client().chain_id().await.unwrap();
-
     // Create a controller that is not deployed
     let undeployed_controller = Controller::new(
         "app_id".to_string(),
@@ -130,8 +128,6 @@ async fn test_controller_nonce_mismatch_recovery() {
             Version::LATEST,
         )
         .await;
-
-    let chain_id = runner.client().chain_id().await.unwrap();
 
     // Create the second controller with the same credentials and address
     let mut controller2 = Controller::new(
