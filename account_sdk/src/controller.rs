@@ -366,34 +366,12 @@ impl Controller {
         }
     }
 
-    pub(crate) async fn ensure_wildcard_session_if_expired(
-        &mut self,
-    ) -> Result<(), ControllerError> {
-        let session_metadata = self.authorized_session();
-
-        // Check if we have no session or an expired wildcard session
-        let should_recreate = match session_metadata {
-            None => true,
-            Some(metadata) => metadata.session.is_expired() && metadata.is_wildcard(),
-        };
-
-        if should_recreate {
-            // Create new wildcard session with default expiry
-            let expires_at = (Utc::now().timestamp() as u64) + DEFAULT_SESSION_EXPIRATION;
-            self.create_wildcard_session(expires_at).await?;
-        }
-
-        Ok(())
-    }
-
     pub async fn execute(
         &mut self,
         calls: Vec<Call>,
         max_fee: Option<FeeEstimate>,
         fee_source: Option<FeeSource>,
     ) -> Result<InvokeTransactionResult, ControllerError> {
-        // Ensure we have a valid wildcard session if needed
-        self.ensure_wildcard_session_if_expired().await?;
         if max_fee.is_none() {
             return self.execute_from_outside_v3(calls, fee_source).await;
         }

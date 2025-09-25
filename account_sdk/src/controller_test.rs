@@ -387,8 +387,8 @@ async fn test_try_session_execute_with_expired_session() {
 
     // Verify a new session was created
     assert!(
-        controller.authorized_session().is_some(),
-        "No session found after execute with expired session"
+        controller.authorized_session().is_none(),
+        "Controller should not automatically recreate sessions outside of web context"
     );
 }
 

@@ -8,7 +8,7 @@ use account_sdk::account::outside_execution::{
 };
 use account_sdk::account::session::hash::Session;
 use account_sdk::account::session::policy::Policy as SdkPolicy;
-use account_sdk::controller::Controller;
+use account_sdk::controller::{Controller, DEFAULT_SESSION_EXPIRATION};
 use account_sdk::errors::ControllerError;
 use account_sdk::session::RevokableSession;
 use account_sdk::storage::selectors::Selectors;
@@ -59,6 +59,24 @@ fn is_paymaster_not_supported(err: &ControllerError) -> bool {
                     || error_str.contains("not available"))
         }
     }
+}
+
+async fn ensure_wildcard_session_if_expired(
+    controller: &mut Controller,
+) -> Result<(), ControllerError> {
+    let session_metadata = controller.authorized_session();
+
+    let should_recreate = match session_metadata {
+        None => true,
+        Some(metadata) => metadata.session.is_expired() && metadata.is_wildcard(),
+    };
+
+    if should_recreate {
+        let expires_at = (Utc::now().timestamp() as u64) + DEFAULT_SESSION_EXPIRATION;
+        controller.create_wildcard_session(expires_at).await?;
+    }
+
+    Ok(())
 }
 
 #[wasm_bindgen]
@@ -536,13 +554,19 @@ impl CartridgeAccount {
             .map(TryFrom::try_from)
             .collect::<std::result::Result<Vec<_>, _>>()?;
 
-        let result = Controller::execute(
-            self.controller.lock().await.borrow_mut(),
-            calls,
-            max_fee.map(Into::into),
-            fee_source.map(|fs| fs.try_into()).transpose()?,
-        )
-        .await?;
+        let mut controller = self.controller.lock().await;
+        ensure_wildcard_session_if_expired(&mut controller)
+            .await
+            .map_err(JsControllerError::from)?;
+
+        let result = controller
+            .execute(
+                calls,
+                max_fee.map(Into::into),
+                fee_source.map(|fs| fs.try_into()).transpose()?,
+            )
+            .await
+            .map_err(JsControllerError::from)?;
 
         Ok(to_value(&result)?)
     }
@@ -560,12 +584,15 @@ impl CartridgeAccount {
             .map(TryInto::try_into)
             .collect::<std::result::Result<_, _>>()?;
 
-        let response = self
-            .controller
-            .lock()
+        let mut controller = self.controller.lock().await;
+        ensure_wildcard_session_if_expired(&mut controller)
             .await
+            .map_err(JsControllerError::from)?;
+
+        let response = controller
             .execute_from_outside_v2(calls, fee_source.map(|fs| fs.try_into()).transpose()?)
-            .await?;
+            .await
+            .map_err(JsControllerError::from)?;
         Ok(to_value(&response)?)
     }
 
@@ -582,12 +609,15 @@ impl CartridgeAccount {
             .map(TryInto::try_into)
             .collect::<std::result::Result<_, _>>()?;
 
-        let response = self
-            .controller
-            .lock()
+        let mut controller = self.controller.lock().await;
+        ensure_wildcard_session_if_expired(&mut controller)
             .await
+            .map_err(JsControllerError::from)?;
+
+        let response = controller
             .execute_from_outside_v3(calls, fee_source.map(|fs| fs.try_into()).transpose()?)
-            .await?;
+            .await
+            .map_err(JsControllerError::from)?;
         Ok(to_value(&response)?)
     }
 
@@ -639,6 +669,10 @@ impl CartridgeAccount {
                 ));
             }
         }
+
+        ensure_wildcard_session_if_expired(&mut controller)
+            .await
+            .map_err(JsControllerError::from)?;
 
         // Now execute with valid session
         // Try paymaster first (execute_from_outside_v3)
