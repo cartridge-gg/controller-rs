@@ -63,8 +63,9 @@ async fn main() {
         rpc_url,
         owner.clone(),
         address,
-        chain_id,
-    );
+    )
+    .await
+    .expect("controller construction should succeed");
 
     match factory
         .deploy_v3(salt)

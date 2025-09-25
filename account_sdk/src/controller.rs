@@ -62,16 +62,16 @@ pub struct Controller {
 }
 
 impl Controller {
-    pub fn new(
+    pub async fn new(
         app_id: String,
         username: String,
         class_hash: Felt,
         rpc_url: Url,
         owner: Owner,
         address: Felt,
-        chain_id: Felt,
-    ) -> Self {
+    ) -> Result<Self, ControllerError> {
         let provider = CartridgeJsonRpcProvider::new(rpc_url.clone());
+        let chain_id = provider.chain_id().await?;
         let salt = cairo_short_string_to_felt(&username).unwrap();
 
         let factory = ControllerFactory::new(class_hash, chain_id, owner.clone(), provider.clone());
@@ -103,22 +103,20 @@ impl Controller {
         controller.contract = Some(contract);
 
         // Clears the stored session if it's been revoked in a fire-and-forget style when the controller is created (with fromStorage for example).
-        // Avoids needing to change the constructor to an async function
-        // If we do it when we use the session, we need to change a lot of functions to take a mutable reference to the controller and to be async
+        // Doing this eagerly prevents having to thread mutability/async through callers that only need an initialized controller.
         controller.clear_invalid_session();
 
-        controller
+        Ok(controller)
     }
 
-    pub fn new_with_storage(
+    pub async fn new_with_storage(
         app_id: String,
         username: String,
         class_hash: Felt,
         rpc_url: Url,
         owner: Owner,
         address: Felt,
-        chain_id: Felt,
-    ) -> Self {
+    ) -> Result<Self, ControllerError> {
         let mut controller = Controller::new(
             app_id.clone(),
             username,
@@ -126,8 +124,9 @@ impl Controller {
             rpc_url,
             owner,
             address,
-            chain_id,
-        );
+        )
+        .await?;
+        let chain_id = controller.chain_id;
 
         controller
             .storage
@@ -139,18 +138,18 @@ impl Controller {
             )
             .expect("Should store controller");
 
-        controller
+        Ok(controller)
     }
 
-    pub fn new_headless(
+    pub async fn new_headless(
         app_id: String,
         username: String,
         class_hash: Felt,
         rpc_url: Url,
         owner: Owner,
-        chain_id: Felt,
-    ) -> Self {
+    ) -> Result<Self, ControllerError> {
         let provider = CartridgeJsonRpcProvider::new(rpc_url.clone());
+        let chain_id = provider.chain_id().await?;
 
         let factory = ControllerFactory::new(class_hash, chain_id, owner.clone(), provider.clone());
 
@@ -195,11 +194,10 @@ impl Controller {
             .expect("Should store controller");
 
         // Clears the stored session if it's been revoked in a fire-and-forget style when the controller is created (with fromStorage for example).
-        // Avoids needing to change the constructor to an async function
-        // If we do it when we use the session, we need to change a lot of functions to take a mutable reference to the controller and to be async
+        // Doing this eagerly prevents having to thread mutability/async through callers that only need an initialized controller.
         controller.clear_invalid_session();
 
-        controller
+        Ok(controller)
     }
 
     pub async fn signup(
@@ -241,7 +239,7 @@ impl Controller {
         Ok(register_result)
     }
 
-    pub fn from_storage(app_id: String) -> Result<Option<Self>, ControllerError> {
+    pub async fn from_storage(app_id: String) -> Result<Option<Self>, ControllerError> {
         let mut storage = Storage::default();
         let metadata = match storage.controller(&app_id) {
             Ok(metadata) => metadata,
@@ -256,15 +254,17 @@ impl Controller {
 
         if let Some(m) = metadata {
             let rpc_url = Url::parse(&m.rpc_url).map_err(ControllerError::from)?;
-            Ok(Some(Controller::new(
-                app_id,
-                m.username,
-                m.class_hash,
-                rpc_url,
-                m.owner.try_into()?,
-                m.address,
-                m.chain_id,
-            )))
+            Ok(Some(
+                Controller::new(
+                    app_id,
+                    m.username,
+                    m.class_hash,
+                    rpc_url,
+                    m.owner.try_into()?,
+                    m.address,
+                )
+                .await?,
+            ))
         } else {
             Ok(None)
         }

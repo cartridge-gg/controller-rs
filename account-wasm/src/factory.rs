@@ -29,11 +29,11 @@ pub struct ControllerFactory;
 impl ControllerFactory {
     #[allow(clippy::new_ret_no_self, clippy::too_many_arguments)]
     #[wasm_bindgen(js_name = fromStorage)]
-    pub fn from_storage(
+    pub async fn from_storage(
         app_id: String,
         cartridge_api_url: String,
     ) -> crate::account::Result<Option<CartridgeAccountWithMeta>> {
-        CartridgeAccount::from_storage(app_id, cartridge_api_url)
+        CartridgeAccount::from_storage(app_id, cartridge_api_url).await
     }
 
     #[allow(clippy::new_ret_no_self, clippy::too_many_arguments)]
@@ -43,7 +43,6 @@ impl ControllerFactory {
         username: String,
         class_hash: JsFelt,
         rpc_url: String,
-        chain_id: JsFelt,
         address: JsFelt,
         owner: Owner,
         cartridge_api_url: String,
@@ -51,7 +50,6 @@ impl ControllerFactory {
         is_controller_registered: Option<bool>,
     ) -> crate::account::Result<LoginResult> {
         let class_hash_felt: Felt = class_hash.try_into()?;
-        let chain_id_felt: Felt = chain_id.try_into()?;
         let rpc_url: Url = Url::parse(&rpc_url)?;
         let address_felt: Felt = address.try_into()?;
         let mut controller = Controller::new(
@@ -61,8 +59,9 @@ impl ControllerFactory {
             rpc_url,
             owner.clone().into(),
             address_felt,
-            chain_id_felt,
-        );
+        )
+        .await
+        .map_err(|e| JsError::new(&e.to_string()))?;
         let session_account = controller
             .create_wildcard_session(session_expires_at_s)
             .await?;
@@ -104,7 +103,7 @@ impl ControllerFactory {
             .storage
             .set_controller(
                 app_id.as_str(),
-                &chain_id_felt,
+                &controller.chain_id,
                 address_felt,
                 ControllerMetadata::from(&controller),
             )
@@ -126,7 +125,6 @@ impl ControllerFactory {
         username: String,
         class_hash: JsFelt,
         rpc_url: String,
-        chain_id: JsFelt,
         address: JsFelt,
         owner: Owner,
         cartridge_api_url: String,
@@ -149,8 +147,9 @@ impl ControllerFactory {
             Url::parse(&rpc_url)?,
             owner.into(),
             *address.as_felt(),
-            *chain_id.as_felt(),
-        );
+        )
+        .await
+        .map_err(|e| JsError::new(&e.to_string()))?;
 
         let assertion = if let account_sdk::signers::Owner::Signer(Signer::Webauthns(signers)) =
             &controller.owner
@@ -219,7 +218,7 @@ impl ControllerFactory {
             .storage
             .set_controller(
                 app_id.as_str(),
-                chain_id.as_felt(),
+                &controller.chain_id,
                 *address.as_felt(),
                 ControllerMetadata::from(&controller),
             )

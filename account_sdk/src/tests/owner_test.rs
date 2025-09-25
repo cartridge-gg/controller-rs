@@ -12,7 +12,6 @@ use cainome::cairo_serde::{ContractAddress, U256};
 use starknet::{
     accounts::{Account, AccountError},
     macros::{felt, selector},
-    providers::Provider,
 };
 use starknet_crypto::Felt;
 
@@ -320,8 +319,9 @@ async fn test_change_owner_invalidate_old_sessions() {
         runner.rpc_url.clone(),
         Owner::Signer(new_signer.clone()),
         controller.address(),
-        runner.client().chain_id().await.unwrap(),
-    );
+    )
+    .await
+    .unwrap();
 
     let session_account = controller
         .create_session(vec![transfer_method], u64::MAX)

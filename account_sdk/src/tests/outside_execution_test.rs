@@ -2,7 +2,6 @@ use cainome::cairo_serde::{CairoSerde, ContractAddress, U256};
 use starknet::{
     accounts::Account,
     macros::{felt, selector},
-    providers::Provider,
     signers::SigningKey,
 };
 
@@ -167,8 +166,9 @@ async fn test_verify_execute_paymaster_should_fail() {
         runner.rpc_url.clone(),
         Owner::Signer(Signer::new_starknet_random()),
         controller.address(),
-        runner.client().chain_id().await.unwrap(),
-    );
+    )
+    .await
+    .unwrap();
 
     let outside_execution = wrong_account
         .sign_outside_execution(OutsideExecution::V3(outside_execution.clone()))
