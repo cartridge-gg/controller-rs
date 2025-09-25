@@ -194,8 +194,9 @@ impl KatanaRunner {
             self.rpc_url.clone(),
             owner,
             address,
-            self.chain_id,
         )
+        .await
+        .expect("controller creation with storage should succeed")
     }
 }
 

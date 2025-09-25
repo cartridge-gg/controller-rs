@@ -76,17 +76,15 @@ impl CartridgeAccount {
     /// # Parameters
     /// - `app_id`: Application identifier.
     /// - `rpc_url`: The URL of the JSON-RPC endpoint.
-    /// - `chain_id`: Identifier of the blockchain network to interact with.
     /// - `address`: The blockchain address associated with the account.
     /// - `username`: Username associated with the account.
     /// - `owner`: A Owner struct containing the owner signer and associated data.
     ///
     #[allow(clippy::new_ret_no_self, clippy::too_many_arguments)]
-    pub fn new(
+    pub async fn new(
         app_id: String,
         class_hash: JsFelt,
         rpc_url: String,
-        chain_id: JsFelt,
         address: JsFelt,
         username: String,
         owner: Owner,
@@ -104,8 +102,9 @@ impl CartridgeAccount {
             rpc_url,
             owner.into(),
             address.try_into()?,
-            chain_id.try_into()?,
-        );
+        )
+        .await
+        .map_err(|e| JsError::new(&e.to_string()))?;
 
         Ok(CartridgeAccountWithMeta::new(controller, cartridge_api_url))
     }
@@ -116,16 +115,14 @@ impl CartridgeAccount {
     /// # Parameters
     /// - `app_id`: Application identifier.
     /// - `rpc_url`: The URL of the JSON-RPC endpoint.
-    /// - `chain_id`: Identifier of the blockchain network to interact with.
     /// - `username`: Username associated with the account.
     ///
     #[allow(clippy::new_ret_no_self)]
     #[wasm_bindgen(js_name = newHeadless)]
-    pub fn new_headless(
+    pub async fn new_headless(
         app_id: String,
         class_hash: JsFelt,
         rpc_url: String,
-        chain_id: JsFelt,
         username: String,
         cartridge_api_url: String,
     ) -> Result<CartridgeAccountWithMeta> {
@@ -134,7 +131,6 @@ impl CartridgeAccount {
         let rpc_url = Url::parse(&rpc_url)?;
         let username = username.to_lowercase();
         let class_hash_felt: Felt = class_hash.try_into()?;
-        let chain_id_felt: Felt = chain_id.try_into()?;
 
         // Create a random Starknet signer
         let signing_key = starknet::signers::SigningKey::from_random();
@@ -154,21 +150,23 @@ impl CartridgeAccount {
             rpc_url,
             owner,
             address,
-            chain_id_felt,
-        );
+        )
+        .await
+        .map_err(|e| JsError::new(&e.to_string()))?;
 
         Ok(CartridgeAccountWithMeta::new(controller, cartridge_api_url))
     }
 
     #[wasm_bindgen(js_name = fromStorage)]
-    pub fn from_storage(
+    pub async fn from_storage(
         app_id: String,
         cartridge_api_url: String,
     ) -> Result<Option<CartridgeAccountWithMeta>> {
         set_panic_hook();
 
-        let controller =
-            Controller::from_storage(app_id).map_err(|e| JsError::new(&e.to_string()))?;
+        let controller = Controller::from_storage(app_id)
+            .await
+            .map_err(|e| JsError::new(&e.to_string()))?;
 
         Ok(controller.map(|c| CartridgeAccountWithMeta::new(c, cartridge_api_url)))
     }

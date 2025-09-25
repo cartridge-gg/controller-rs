@@ -9,8 +9,8 @@ mod tests {
     use starknet_crypto::Felt;
     use url::Url;
 
-    #[test]
-    fn test_storage_serialization_error() {
+    #[tokio::test]
+    async fn test_storage_serialization_error() {
         let app_id = "app_id".to_string();
         let mut controller = Controller::new(
             app_id.clone(),
@@ -19,8 +19,9 @@ mod tests {
             Url::parse("https://rpc.katana.cartridge.gg").unwrap(),
             Owner::Signer(Signer::new_starknet_random()),
             Felt::ONE,
-            Felt::ZERO,
-        );
+        )
+        .await
+        .unwrap();
 
         // Create invalid JSON
         let corrupted_data = json!({

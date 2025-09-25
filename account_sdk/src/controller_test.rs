@@ -48,8 +48,9 @@ async fn test_deploy_controller() {
         runner.rpc_url.clone(),
         owner.clone(),
         address,
-        chain_id,
-    );
+    )
+    .await
+    .unwrap();
 
     runner.fund(&address).await;
 
@@ -97,8 +98,9 @@ async fn test_controller_not_deployed() {
         runner.rpc_url.clone(),
         Owner::Signer(signer.clone()),
         felt!("0xdeadbeef"),
-        chain_id,
-    );
+    )
+    .await
+    .unwrap();
 
     let recipient = ContractAddress(felt!("0x18301129"));
     let amount = U256 { low: 0, high: 0 };
@@ -139,8 +141,9 @@ async fn test_controller_nonce_mismatch_recovery() {
         runner.rpc_url.clone(),
         Owner::Signer(signer.clone()),
         controller1.address,
-        chain_id,
-    );
+    )
+    .await
+    .unwrap();
 
     // Send a transaction using controller1
     let recipient = ContractAddress(felt!("0x18301129"));
@@ -240,7 +243,7 @@ async fn test_controller_storage() {
     assert!(storage_file.exists(), "Storage file was not created");
 
     // Initialize a new controller from storage
-    let loaded_controller = Controller::from_storage(app_id).unwrap().unwrap();
+    let loaded_controller = Controller::from_storage(app_id).await.unwrap().unwrap();
 
     // Verify that the loaded controller matches the original
     assert_eq!(loaded_controller.username, controller.username);
