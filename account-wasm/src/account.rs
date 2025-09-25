@@ -1,5 +1,3 @@
-use std::borrow::BorrowMut;
-
 use account_sdk::abigen::controller::OutsideExecutionV3;
 use account_sdk::abigen::controller::Signer as AbigenSigner;
 use account_sdk::abigen::controller::StarknetSigner;
@@ -63,7 +61,7 @@ fn is_paymaster_not_supported(err: &ControllerError) -> bool {
 
 async fn ensure_wildcard_session_if_expired(
     controller: &mut Controller,
-) -> Result<(), ControllerError> {
+) -> std::result::Result<(), ControllerError> {
     let session_metadata = controller.authorized_session();
 
     let should_recreate = match session_metadata {

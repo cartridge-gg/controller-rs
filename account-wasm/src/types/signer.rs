@@ -232,7 +232,6 @@ impl From<account_sdk::signers::eip191::Eip191Signer> for Eip191Signer {
     }
 }
 
-#[allow(dead_code)]
 pub fn try_find_webauthn_signer_in_signer_signature(
     webauthn_signers: Vec<WebauthnSigner>,
     signer_signature: Vec<Felt>,

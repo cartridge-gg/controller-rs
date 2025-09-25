@@ -5,15 +5,30 @@ set -e
 
 echo "Setting up pre-commit hooks..."
 
-# Check if we're in a git repository
-if [ ! -d ".git" ]; then
-    echo "Error: This script must be run from the root of a git repository."
+# Ensure we are inside the repo and running from its root
+if ! git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+    echo "Error: This script must be run from within a git repository."
+    exit 1
+fi
+
+repo_root=$(git rev-parse --show-toplevel)
+current_dir=$(pwd)
+
+if [ "$repo_root" != "$current_dir" ]; then
+    echo "Error: Please run this script from the repository root at $repo_root."
     exit 1
 fi
 
 # Configure git to use the custom hooks directory
 echo "Configuring git to use custom hooks directory..."
-git config core.hooksPath .githooks
+if git config --worktree core.hooksPath .githooks >/dev/null 2>&1; then
+    echo "✓ Git hooks path configured for this worktree"
+elif git config core.hooksPath .githooks >/dev/null 2>&1; then
+    echo "✓ Git hooks path configured"
+else
+    echo "⚠ Unable to update git config automatically."
+    echo "  Run this manually if needed: git config --worktree core.hooksPath .githooks"
+fi
 
 # Make sure the hooks are executable
 echo "Making hooks executable..."
