@@ -44,21 +44,6 @@ use crate::types::{Felts, JsFeeSource, JsFelt};
 
 pub type Result<T> = std::result::Result<T, JsError>;
 
-// Helper function to check if an error indicates paymaster is not supported
-fn is_paymaster_not_supported(err: &ControllerError) -> bool {
-    match err {
-        ControllerError::PaymasterNotSupported => true,
-        ControllerError::PaymasterError(_) => true,
-        _ => {
-            let error_str = err.to_string().to_lowercase();
-            error_str.contains("paymaster")
-                && (error_str.contains("not supported")
-                    || error_str.contains("unsupported")
-                    || error_str.contains("not available"))
-        }
-    }
-}
-
 async fn ensure_wildcard_session_if_expired(
     controller: &mut Controller,
 ) -> std::result::Result<(), ControllerError> {
@@ -668,10 +653,6 @@ impl CartridgeAccount {
             }
         }
 
-        ensure_wildcard_session_if_expired(&mut controller)
-            .await
-            .map_err(JsControllerError::from)?;
-
         // Now execute with valid session
         // Try paymaster first (execute_from_outside_v3)
         match controller
@@ -685,10 +666,9 @@ impl CartridgeAccount {
             .await
         {
             Ok(result) => Ok(to_value(&result)?),
-            Err(e) => {
-                // Check if it's a paymaster not supported error
-                if is_paymaster_not_supported(&e) {
-                    // Fallback to user pays flow
+            Err(e) => match e {
+                ControllerError::PaymasterNotSupported => {
+                    // Fallback to user pays flow when the paymaster path is unavailable
                     let estimate = controller.estimate_invoke_fee(calls.clone()).await?;
                     let result = controller
                         .execute(
@@ -698,10 +678,9 @@ impl CartridgeAccount {
                         )
                         .await?;
                     Ok(to_value(&result)?)
-                } else {
-                    Err(JsControllerError::from(e))
                 }
-            }
+                other => Err(JsControllerError::from(other)),
+            },
         }
     }
 
@@ -1145,41 +1124,33 @@ mod tests {
     use account_sdk::errors::ControllerError;
 
     #[test]
-    fn test_is_paymaster_not_supported() {
-        // Test direct PaymasterNotSupported error
-        let err = ControllerError::PaymasterNotSupported;
-        assert!(is_paymaster_not_supported(&err));
-
-        // Test PaymasterError variant
-        let err = ControllerError::PaymasterError(
-            account_sdk::provider::ExecuteFromOutsideError::InvalidCaller,
-        );
-        assert!(is_paymaster_not_supported(&err));
-
-        // Test error message detection
-        let err = ControllerError::InvalidResponseData("paymaster not supported".to_string());
-        assert!(is_paymaster_not_supported(&err));
-
-        let err = ControllerError::InvalidResponseData("paymaster unsupported".to_string());
-        assert!(is_paymaster_not_supported(&err));
-
-        let err = ControllerError::InvalidResponseData("paymaster not available".to_string());
-        assert!(is_paymaster_not_supported(&err));
-
-        // Test non-paymaster errors
-        let err = ControllerError::TransactionTimeout;
-        assert!(!is_paymaster_not_supported(&err));
-
-        let err = ControllerError::InvalidResponseData("some other error".to_string());
-        assert!(!is_paymaster_not_supported(&err));
-    }
-
-    #[test]
     fn test_paymaster_error_codes() {
         // Test that PaymasterNotSupported error code is properly handled
         let controller_err = ControllerError::PaymasterNotSupported;
         let js_err = JsControllerError::from(controller_err);
         assert!(matches!(js_err.code, ErrorCode::PaymasterNotSupported));
         assert_eq!(js_err.message, "Paymaster not supported");
+    }
+
+    #[test]
+    fn test_paymaster_not_supported_detection_is_explicit() {
+        assert!(matches!(
+            ControllerError::PaymasterNotSupported,
+            ControllerError::PaymasterNotSupported
+        ));
+
+        let generic_err = ControllerError::InvalidResponseData("paymaster not supported".into());
+        assert!(!matches!(
+            generic_err,
+            ControllerError::PaymasterNotSupported
+        ));
+
+        let nested_err = ControllerError::PaymasterError(
+            account_sdk::provider::ExecuteFromOutsideError::InvalidCaller,
+        );
+        assert!(!matches!(
+            nested_err,
+            ControllerError::PaymasterNotSupported
+        ));
     }
 }
