@@ -393,6 +393,44 @@ async fn test_try_session_execute_with_expired_session() {
 }
 
 #[tokio::test]
+async fn test_expired_session_metadata_is_accessible() {
+    use crate::account::session::policy::Policy;
+    use chrono::Utc;
+    use starknet::macros::selector;
+
+    let runner = KatanaRunner::load();
+    let signer = Signer::new_starknet_random();
+    let mut controller = runner
+        .deploy_controller(
+            "test_expired_metadata".to_string(),
+            Owner::Signer(signer.clone()),
+            Version::LATEST,
+        )
+        .await;
+
+    let policies = vec![Policy::new_call(*FEE_TOKEN_ADDRESS, selector!("transfer"))];
+    let expired_at = (Utc::now().timestamp() as u64) - 60;
+
+    controller
+        .create_session(policies.clone(), expired_at)
+        .await
+        .unwrap();
+
+    let metadata = controller
+        .authorized_session()
+        .expect("expired session metadata should remain accessible");
+
+    assert!(metadata.session.is_expired());
+    assert!(metadata.would_authorize(&policies, None));
+    assert!(
+        controller
+            .authorized_session_for_policies(&policies, None)
+            .is_none(),
+        "expired session should not fulfill authorized_session_for_policies"
+    );
+}
+
+#[tokio::test]
 async fn test_ensure_valid_session() {
     use chrono::Utc;
 

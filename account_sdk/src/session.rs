@@ -233,15 +233,7 @@ impl Controller {
 
     pub fn authorized_session(&self) -> Option<SessionMetadata> {
         let key = self.session_key();
-        let session = self.storage.session(&key).ok().flatten()?;
-
-        // Check if the session is expired
-        if session.session.is_expired() {
-            // Session is expired, return None
-            return None;
-        }
-
-        Some(session)
+        self.storage.session(&key).ok().flatten()
     }
 
     pub fn authorized_session_for_policies(

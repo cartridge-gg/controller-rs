@@ -299,7 +299,7 @@ impl CartridgeAccount {
 
         let wildcard_exists = controller
             .authorized_session()
-            .filter(|session| session.is_wildcard())
+            .filter(|session| !session.session.is_expired() && session.is_wildcard())
             .is_some();
 
         let session = if !wildcard_exists {
@@ -616,21 +616,20 @@ impl CartridgeAccount {
 
         // Check if session is expired or missing
         match session_metadata {
-            Some(metadata) if metadata.session.is_expired() => {
-                // Session exists but is expired - check if it would authorize the calls
-                if controller
-                    .authorized_session_for_policies(&policies, None)
-                    .is_some()
-                {
-                    // The expired session has policies that would authorize these calls
-                    return Err(JsControllerError::from(
-                        ControllerError::SessionRefreshRequired,
-                    ));
-                } else {
-                    // The expired session doesn't authorize these calls
-                    return Err(JsControllerError::from(
-                        ControllerError::ManualExecutionRequired,
-                    ));
+            Some(metadata) => {
+                if metadata.session.is_expired() {
+                    // Session exists but is expired - check if it would authorize the calls
+                    if metadata.would_authorize(&policies, None) {
+                        // The expired session has policies that would authorize these calls
+                        return Err(JsControllerError::from(
+                            ControllerError::SessionRefreshRequired,
+                        ));
+                    } else {
+                        // The expired session doesn't authorize these calls
+                        return Err(JsControllerError::from(
+                            ControllerError::ManualExecutionRequired,
+                        ));
+                    }
                 }
             }
             None => {
@@ -638,9 +637,6 @@ impl CartridgeAccount {
                 return Err(JsControllerError::from(
                     ControllerError::ManualExecutionRequired,
                 ));
-            }
-            Some(_) => {
-                // Session exists and is valid, continue with execution
             }
         }
 
@@ -710,7 +706,10 @@ impl CartridgeAccount {
         }
 
         let controller_guard = self.controller.lock().await;
-        Ok(controller_guard.authorized_session().is_some())
+        Ok(controller_guard
+            .authorized_session()
+            .map(|metadata| !metadata.session.is_expired())
+            .unwrap_or(false))
     }
 
     #[wasm_bindgen(js_name = revokeSession)]
@@ -891,7 +890,10 @@ impl CartridgeAccount {
         }
 
         let controller_guard = self.controller.lock().await;
-        Ok(controller_guard.authorized_session().is_some())
+        Ok(controller_guard
+            .authorized_session()
+            .map(|metadata| !metadata.session.is_expired())
+            .unwrap_or(false))
     }
 
     #[wasm_bindgen(js_name = hasAuthorizedPoliciesForMessage)]
@@ -905,7 +907,10 @@ impl CartridgeAccount {
         }
 
         let controller_guard = self.controller.lock().await;
-        Ok(controller_guard.authorized_session().is_some())
+        Ok(controller_guard
+            .authorized_session()
+            .map(|metadata| !metadata.session.is_expired())
+            .unwrap_or(false))
     }
 
     /// Signs an OutsideExecution V3 transaction and returns both the OutsideExecution object and its signature.
