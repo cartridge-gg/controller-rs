@@ -102,6 +102,8 @@ pub enum ErrorCode {
     TransactionTimeout = 139,
     ConversionError = 140,
     InvalidChainId = 141,
+    SessionRefreshRequired = 142,
+    ManualExecutionRequired = 143,
 }
 
 impl From<ControllerError> for JsControllerError {
@@ -129,6 +131,21 @@ impl From<ControllerError> for JsControllerError {
                 data: None,
             },
             ControllerError::PaymasterError(e) => e.into(),
+            ControllerError::PaymasterNotSupported => JsControllerError {
+                code: ErrorCode::PaymasterNotSupported,
+                message: "Paymaster not supported".to_string(),
+                data: None,
+            },
+            ControllerError::SessionRefreshRequired => JsControllerError {
+                code: ErrorCode::SessionRefreshRequired,
+                message: "Session refresh required".to_string(),
+                data: None,
+            },
+            ControllerError::ManualExecutionRequired => JsControllerError {
+                code: ErrorCode::ManualExecutionRequired,
+                message: "Manual execution required".to_string(),
+                data: None,
+            },
             ControllerError::ProviderError(e) => e.into(),
             ControllerError::CairoSerde(e) => JsControllerError {
                 code: ErrorCode::CairoSerdeError,

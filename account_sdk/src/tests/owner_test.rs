@@ -1,12 +1,11 @@
+#[cfg(feature = "webauthn")]
+use crate::signers::webauthn::WebauthnSigner;
 use crate::{
     abigen::erc_20::Erc20,
     account::session::policy::Policy,
     artifacts::{Version, CONTROLLERS},
     controller::Controller,
-    signers::{
-        webauthn::WebauthnSigner, HashSigner, NewOwnerSigner, Owner, SessionPolicyError, SignError,
-        Signer,
-    },
+    signers::{HashSigner, NewOwnerSigner, Owner, SessionPolicyError, SignError, Signer},
     tests::{ensure_txn, runners::katana::KatanaRunner},
 };
 use cainome::cairo_serde::{ContractAddress, U256};

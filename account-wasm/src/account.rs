@@ -1,5 +1,3 @@
-use std::borrow::BorrowMut;
-
 use account_sdk::abigen::controller::OutsideExecutionV3;
 use account_sdk::abigen::controller::Signer as AbigenSigner;
 use account_sdk::abigen::controller::StarknetSigner;
@@ -7,7 +5,8 @@ use account_sdk::account::outside_execution::{
     OutsideExecution, OutsideExecutionAccount, OutsideExecutionCaller,
 };
 use account_sdk::account::session::hash::Session;
-use account_sdk::controller::Controller;
+use account_sdk::account::session::policy::Policy as SdkPolicy;
+use account_sdk::controller::{Controller, DEFAULT_SESSION_EXPIRATION};
 use account_sdk::errors::ControllerError;
 use account_sdk::session::RevokableSession;
 use account_sdk::storage::selectors::Selectors;
@@ -44,6 +43,39 @@ use crate::types::signer::{JsAddSignerInput, JsRemoveSignerInput, Signer};
 use crate::types::{Felts, JsFeeSource, JsFelt};
 
 pub type Result<T> = std::result::Result<T, JsError>;
+
+// Helper function to check if an error indicates paymaster is not supported
+fn is_paymaster_not_supported(err: &ControllerError) -> bool {
+    match err {
+        ControllerError::PaymasterNotSupported => true,
+        ControllerError::PaymasterError(_) => true,
+        _ => {
+            let error_str = err.to_string().to_lowercase();
+            error_str.contains("paymaster")
+                && (error_str.contains("not supported")
+                    || error_str.contains("unsupported")
+                    || error_str.contains("not available"))
+        }
+    }
+}
+
+async fn ensure_wildcard_session_if_expired(
+    controller: &mut Controller,
+) -> std::result::Result<(), ControllerError> {
+    let session_metadata = controller.authorized_session();
+
+    let should_recreate = match session_metadata {
+        None => true,
+        Some(metadata) => metadata.session.is_expired() && metadata.is_wildcard(),
+    };
+
+    if should_recreate {
+        let expires_at = (Utc::now().timestamp() as u64) + DEFAULT_SESSION_EXPIRATION;
+        controller.create_wildcard_session(expires_at).await?;
+    }
+
+    Ok(())
+}
 
 #[wasm_bindgen]
 pub struct CartridgeAccount {
@@ -283,7 +315,7 @@ impl CartridgeAccount {
 
         let wildcard_exists = controller
             .authorized_session()
-            .filter(|session| session.is_wildcard())
+            .filter(|session| !session.session.is_expired() && session.is_wildcard())
             .is_some();
 
         let session = if !wildcard_exists {
@@ -520,13 +552,19 @@ impl CartridgeAccount {
             .map(TryFrom::try_from)
             .collect::<std::result::Result<Vec<_>, _>>()?;
 
-        let result = Controller::execute(
-            self.controller.lock().await.borrow_mut(),
-            calls,
-            max_fee.map(Into::into),
-            fee_source.map(|fs| fs.try_into()).transpose()?,
-        )
-        .await?;
+        let mut controller = self.controller.lock().await;
+        ensure_wildcard_session_if_expired(&mut controller)
+            .await
+            .map_err(JsControllerError::from)?;
+
+        let result = controller
+            .execute(
+                calls,
+                max_fee.map(Into::into),
+                fee_source.map(|fs| fs.try_into()).transpose()?,
+            )
+            .await
+            .map_err(JsControllerError::from)?;
 
         Ok(to_value(&result)?)
     }
@@ -544,12 +582,15 @@ impl CartridgeAccount {
             .map(TryInto::try_into)
             .collect::<std::result::Result<_, _>>()?;
 
-        let response = self
-            .controller
-            .lock()
+        let mut controller = self.controller.lock().await;
+        ensure_wildcard_session_if_expired(&mut controller)
             .await
+            .map_err(JsControllerError::from)?;
+
+        let response = controller
             .execute_from_outside_v2(calls, fee_source.map(|fs| fs.try_into()).transpose()?)
-            .await?;
+            .await
+            .map_err(JsControllerError::from)?;
         Ok(to_value(&response)?)
     }
 
@@ -566,13 +607,102 @@ impl CartridgeAccount {
             .map(TryInto::try_into)
             .collect::<std::result::Result<_, _>>()?;
 
-        let response = self
-            .controller
-            .lock()
+        let mut controller = self.controller.lock().await;
+        ensure_wildcard_session_if_expired(&mut controller)
             .await
+            .map_err(JsControllerError::from)?;
+
+        let response = controller
             .execute_from_outside_v3(calls, fee_source.map(|fs| fs.try_into()).transpose()?)
-            .await?;
+            .await
+            .map_err(JsControllerError::from)?;
         Ok(to_value(&response)?)
+    }
+
+    #[wasm_bindgen(js_name = trySessionExecute)]
+    pub async fn try_session_execute(
+        &self,
+        calls: Vec<JsCall>,
+        fee_source: Option<JsFeeSource>,
+    ) -> std::result::Result<JsValue, JsControllerError> {
+        set_panic_hook();
+
+        // Convert calls to internal format
+        let calls = calls
+            .into_iter()
+            .map(TryInto::try_into)
+            .collect::<std::result::Result<Vec<_>, _>>()?;
+
+        // Extract policies from calls
+        let policies = SdkPolicy::from_calls(&calls);
+
+        // Lock controller
+        let mut controller = self.controller.lock().await;
+
+        // Check session status
+        let session_metadata = controller.authorized_session();
+
+        // Check if session is expired or missing
+        match session_metadata {
+            Some(metadata) => {
+                if metadata.session.is_expired() {
+                    // Session exists but is expired - check if it would authorize the calls
+                    if metadata.would_authorize(&policies, None) {
+                        // The expired session has policies that would authorize these calls
+                        return Err(JsControllerError::from(
+                            ControllerError::SessionRefreshRequired,
+                        ));
+                    } else {
+                        // The expired session doesn't authorize these calls
+                        return Err(JsControllerError::from(
+                            ControllerError::ManualExecutionRequired,
+                        ));
+                    }
+                }
+            }
+            None => {
+                // No session exists
+                return Err(JsControllerError::from(
+                    ControllerError::ManualExecutionRequired,
+                ));
+            }
+        }
+
+        ensure_wildcard_session_if_expired(&mut controller)
+            .await
+            .map_err(JsControllerError::from)?;
+
+        // Now execute with valid session
+        // Try paymaster first (execute_from_outside_v3)
+        match controller
+            .execute_from_outside_v3(
+                calls.clone(),
+                fee_source
+                    .as_ref()
+                    .map(|fs| fs.clone().try_into())
+                    .transpose()?,
+            )
+            .await
+        {
+            Ok(result) => Ok(to_value(&result)?),
+            Err(e) => {
+                // Check if it's a paymaster not supported error
+                if is_paymaster_not_supported(&e) {
+                    // Fallback to user pays flow
+                    let estimate = controller.estimate_invoke_fee(calls.clone()).await?;
+                    let result = controller
+                        .execute(
+                            calls,
+                            Some(estimate),
+                            fee_source.map(|fs| fs.try_into()).transpose()?,
+                        )
+                        .await?;
+                    Ok(to_value(&result)?)
+                } else {
+                    Err(JsControllerError::from(e))
+                }
+            }
+        }
     }
 
     #[wasm_bindgen(js_name = isRegisteredSessionAuthorized)]
@@ -608,7 +738,10 @@ impl CartridgeAccount {
         }
 
         let controller_guard = self.controller.lock().await;
-        Ok(controller_guard.authorized_session().is_some())
+        Ok(controller_guard
+            .authorized_session()
+            .map(|metadata| !metadata.session.is_expired())
+            .unwrap_or(false))
     }
 
     #[wasm_bindgen(js_name = revokeSession)]
@@ -789,7 +922,10 @@ impl CartridgeAccount {
         }
 
         let controller_guard = self.controller.lock().await;
-        Ok(controller_guard.authorized_session().is_some())
+        Ok(controller_guard
+            .authorized_session()
+            .map(|metadata| !metadata.session.is_expired())
+            .unwrap_or(false))
     }
 
     #[wasm_bindgen(js_name = hasAuthorizedPoliciesForMessage)]
@@ -803,7 +939,10 @@ impl CartridgeAccount {
         }
 
         let controller_guard = self.controller.lock().await;
-        Ok(controller_guard.authorized_session().is_some())
+        Ok(controller_guard
+            .authorized_session()
+            .map(|metadata| !metadata.session.is_expired())
+            .unwrap_or(false))
     }
 
     /// Signs an OutsideExecution V3 transaction and returns both the OutsideExecution object and its signature.
@@ -998,3 +1137,49 @@ pub fn compute_account_address(class_hash: JsFelt, owner: Owner, salt: JsFelt) -
 }
 
 const DEFAULT_TIMEOUT: u64 = 30;
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::errors::ErrorCode;
+    use account_sdk::errors::ControllerError;
+
+    #[test]
+    fn test_is_paymaster_not_supported() {
+        // Test direct PaymasterNotSupported error
+        let err = ControllerError::PaymasterNotSupported;
+        assert!(is_paymaster_not_supported(&err));
+
+        // Test PaymasterError variant
+        let err = ControllerError::PaymasterError(
+            account_sdk::provider::ExecuteFromOutsideError::InvalidCaller,
+        );
+        assert!(is_paymaster_not_supported(&err));
+
+        // Test error message detection
+        let err = ControllerError::InvalidResponseData("paymaster not supported".to_string());
+        assert!(is_paymaster_not_supported(&err));
+
+        let err = ControllerError::InvalidResponseData("paymaster unsupported".to_string());
+        assert!(is_paymaster_not_supported(&err));
+
+        let err = ControllerError::InvalidResponseData("paymaster not available".to_string());
+        assert!(is_paymaster_not_supported(&err));
+
+        // Test non-paymaster errors
+        let err = ControllerError::TransactionTimeout;
+        assert!(!is_paymaster_not_supported(&err));
+
+        let err = ControllerError::InvalidResponseData("some other error".to_string());
+        assert!(!is_paymaster_not_supported(&err));
+    }
+
+    #[test]
+    fn test_paymaster_error_codes() {
+        // Test that PaymasterNotSupported error code is properly handled
+        let controller_err = ControllerError::PaymasterNotSupported;
+        let js_err = JsControllerError::from(controller_err);
+        assert!(matches!(js_err.code, ErrorCode::PaymasterNotSupported));
+        assert_eq!(js_err.message, "Paymaster not supported");
+    }
+}

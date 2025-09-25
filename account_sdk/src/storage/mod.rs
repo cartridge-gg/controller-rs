@@ -224,33 +224,37 @@ pub struct SessionMetadata {
 }
 
 impl SessionMetadata {
-    pub fn is_authorized(&self, policies: &[Policy], public_key: Option<Felt>) -> bool {
-        let public_key = if let Some(public_key) = public_key {
-            let pubkey = VerifyingKey::from_scalar(public_key);
-            pubkey.scalar()
+    fn resolve_session_public_key(&self, public_key: Option<Felt>) -> Option<Felt> {
+        if let Some(public_key) = public_key {
+            Some(VerifyingKey::from_scalar(public_key).scalar())
         } else if let Some(credentials) = &self.credentials {
             let signer = SigningKey::from_secret_scalar(credentials.private_key);
-            signer.verifying_key().scalar()
+            Some(signer.verifying_key().scalar())
         } else {
-            return false;
+            None
+        }
+    }
+
+    pub fn would_authorize(&self, policies: &[Policy], public_key: Option<Felt>) -> bool {
+        let public_key = match self.resolve_session_public_key(public_key) {
+            Some(public_key) => public_key,
+            None => return false,
         };
 
-        !self.session.is_expired()
-            && self.session.is_session_key(public_key)
+        self.session.is_session_key(public_key)
             && policies
                 .iter()
                 .all(|policy| self.session.is_authorized(policy))
     }
 
+    pub fn is_authorized(&self, policies: &[Policy], public_key: Option<Felt>) -> bool {
+        !self.session.is_expired() && self.would_authorize(policies, public_key)
+    }
+
     pub fn is_requested(&self, policies: &[Policy], public_key: Option<Felt>) -> bool {
-        let public_key = if let Some(public_key) = public_key {
-            let pubkey = VerifyingKey::from_scalar(public_key);
-            pubkey.scalar()
-        } else if let Some(credentials) = &self.credentials {
-            let signer = SigningKey::from_secret_scalar(credentials.private_key);
-            signer.verifying_key().scalar()
-        } else {
-            return false;
+        let public_key = match self.resolve_session_public_key(public_key) {
+            Some(public_key) => public_key,
+            None => return false,
         };
 
         !self.session.is_expired()

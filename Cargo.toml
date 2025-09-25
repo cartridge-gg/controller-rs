@@ -63,9 +63,8 @@ cainome = { version = "0.10.0", features = [ "abigen-rs" ] }
 cainome-cairo-serde = "0.4.0"
 
 starknet = "0.17.0"
-starknet-crypto = { version = "0.8.0", features = ["pedersen_no_lookup"] }
-starknet-types-core = { version = "0.2.0", features = ["curve", "hash"] }
-
+starknet-crypto = { version = "0.8.1", features = ["pedersen_no_lookup"] }
+starknet-types-core = { version = "=0.2.0", features = ["curve", "hash"] }
 chrono = { version = "0.4", features = ["wasmbind", "serde"] }
 
 alloy-signer = "0.12.5"

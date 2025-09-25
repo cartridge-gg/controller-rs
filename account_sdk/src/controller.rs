@@ -41,7 +41,7 @@ mod controller_test;
 
 const SESSION_TYPED_DATA_MAGIC: Felt = short_string!("session-typed-data");
 
-const DEFAULT_SESSION_EXPIRATION: u64 = 7 * 24 * 60 * 60;
+pub const DEFAULT_SESSION_EXPIRATION: u64 = 7 * 24 * 60 * 60;
 
 #[derive(Clone)]
 pub struct Controller {
@@ -504,6 +504,19 @@ impl Controller {
         U256::cairo_deserialize(&result, 0)
             .map_err(ControllerError::CairoSerde)
             .map(|v| v.low)
+    }
+
+    pub fn is_session_expired(&self) -> bool {
+        self.authorized_session()
+            .map(|s| s.session.is_expired())
+            .unwrap_or(true)
+    }
+
+    pub async fn ensure_valid_session(&mut self, expires_at: u64) -> Result<(), ControllerError> {
+        if self.is_session_expired() {
+            self.create_wildcard_session(expires_at).await?;
+        }
+        Ok(())
     }
 
     pub async fn sign_message(&self, data: &TypedData) -> Result<Vec<Felt>, SignError> {
