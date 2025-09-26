@@ -150,9 +150,7 @@ async fn test_execute_from_outside_with_session() {
 
 #[tokio::test]
 async fn test_paymaster_fallback() {
-    use crate::errors::ControllerError;
     use crate::execute_from_outside::FeeSource;
-    use crate::provider::ExecuteFromOutsideError;
     use crate::tests::runners::cartridge::CartridgeProxy;
 
     struct ResetPaymasterFailures;
@@ -173,6 +171,14 @@ async fn test_paymaster_fallback() {
         )
         .await;
 
+    controller
+        .create_session(
+            vec![Policy::new_call(*FEE_TOKEN_ADDRESS, selector!("transfer"))],
+            u64::MAX,
+        )
+        .await
+        .unwrap();
+
     let recipient = ContractAddress(felt!("0x18301129"));
     let amount = U256 { low: 10, high: 0 };
     let tx = {
@@ -183,30 +189,12 @@ async fn test_paymaster_fallback() {
     let _reset_paymaster_failures = ResetPaymasterFailures;
     CartridgeProxy::force_paymaster_failures(1);
 
-    let paymaster_error = controller
-        .execute_from_outside_v3(vec![tx.clone()], Some(FeeSource::Paymaster))
-        .await
-        .expect_err("expected paymaster execution to fail");
-
-    match paymaster_error {
-        ControllerError::PaymasterError(
-            ExecuteFromOutsideError::ExecuteFromOutsideNotSupported(message),
-        ) => {
-            assert_eq!(message, "Paymaster not supported");
-        }
-        other => panic!("unexpected error variant {other:?}"),
-    }
-
-    let estimate = controller
-        .estimate_invoke_fee(vec![tx.clone()])
-        .await
-        .unwrap();
-    let fallback_tx = controller
-        .execute(vec![tx], Some(estimate), None)
+    let result = controller
+        .try_session_execute(vec![tx.clone()], Some(FeeSource::Paymaster))
         .await
         .expect("fallback execution should succeed");
 
-    TransactionWaiter::new(fallback_tx.transaction_hash, runner.client())
+    TransactionWaiter::new(result.transaction_hash, runner.client())
         .wait()
         .await
         .unwrap();
