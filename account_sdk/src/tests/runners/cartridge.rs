@@ -13,6 +13,7 @@ use starknet::providers::jsonrpc::HttpTransport;
 use starknet::providers::JsonRpcClient;
 use starknet_crypto::Felt;
 use std::net::SocketAddr;
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 use tokio::sync::Mutex;
 use url::Url;
@@ -27,6 +28,8 @@ use crate::provider::OutsideExecutionParams;
 use crate::signers::HashSigner;
 
 use super::katana::{single_owner_account_with_encoding, PREFUNDED};
+
+static FORCED_PAYMASTER_FAILURES: AtomicUsize = AtomicUsize::new(0);
 
 pub struct CartridgeProxy {
     chain_id: Felt,
@@ -47,6 +50,10 @@ impl CartridgeProxy {
             proxy_url,
             client: Client::new(),
         }
+    }
+
+    pub fn force_paymaster_failures(failures: usize) {
+        FORCED_PAYMASTER_FAILURES.store(failures, Ordering::SeqCst);
     }
 
     pub async fn run(self) {
@@ -205,7 +212,23 @@ impl CartridgeProxy {
     ) -> Result<Response<Body>, hyper::Error> {
         let params = &body["params"];
         let result = match parse_execute_outside_transaction_params(params) {
-            Ok((address, outside_execution, signature, _)) => {
+            Ok((address, outside_execution, signature, fee_source)) => {
+                if self.should_fail_paymaster(fee_source) {
+                    let error_response = json!({
+                        "jsonrpc": "2.0",
+                        "id": body.get("id").cloned().unwrap_or_else(|| json!(1_u64)),
+                        "error": {
+                            "code": -32003,
+                            "message": "Paymaster not supported"
+                        }
+                    });
+
+                    return Ok(Response::builder()
+                        .status(StatusCode::OK)
+                        .header("Content-Type", "application/json")
+                        .body(Body::from(error_response.to_string()))
+                        .unwrap());
+                }
                 match self
                     .execute_from_outside(outside_execution, signature, address)
                     .await
@@ -258,6 +281,17 @@ impl CartridgeProxy {
             }
         };
         Ok(result)
+    }
+
+    fn should_fail_paymaster(&self, fee_source: Option<FeeSource>) -> bool {
+        if matches!(fee_source, Some(FeeSource::Paymaster)) {
+            let remaining = FORCED_PAYMASTER_FAILURES.load(Ordering::SeqCst);
+            if remaining > 0 {
+                FORCED_PAYMASTER_FAILURES.fetch_sub(1, Ordering::SeqCst);
+                return true;
+            }
+        }
+        false
     }
 
     async fn execute_from_outside(

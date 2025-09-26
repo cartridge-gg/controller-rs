@@ -150,8 +150,16 @@ async fn test_execute_from_outside_with_session() {
 
 #[tokio::test]
 async fn test_paymaster_fallback() {
-    use crate::errors::ControllerError;
     use crate::execute_from_outside::FeeSource;
+    use crate::tests::runners::cartridge::CartridgeProxy;
+
+    struct ResetPaymasterFailures;
+
+    impl Drop for ResetPaymasterFailures {
+        fn drop(&mut self) {
+            CartridgeProxy::force_paymaster_failures(0);
+        }
+    }
 
     let signer = Signer::new_starknet_random();
     let runner = KatanaRunner::load();
@@ -163,38 +171,37 @@ async fn test_paymaster_fallback() {
         )
         .await;
 
+    controller
+        .create_session(
+            vec![Policy::new_call(*FEE_TOKEN_ADDRESS, selector!("transfer"))],
+            u64::MAX,
+        )
+        .await
+        .unwrap();
+
     let recipient = ContractAddress(felt!("0x18301129"));
     let amount = U256 { low: 10, high: 0 };
+    let tx = {
+        let erc20 = Erc20::new(*FEE_TOKEN_ADDRESS, &controller);
+        erc20.transfer_getcall(&recipient, &amount)
+    };
+
+    let _reset_paymaster_failures = ResetPaymasterFailures;
+    CartridgeProxy::force_paymaster_failures(1);
+
+    let result = controller
+        .try_session_execute(vec![tx.clone()], Some(FeeSource::Paymaster))
+        .await
+        .expect("fallback execution should succeed");
+
+    TransactionWaiter::new(result.transaction_hash, runner.client())
+        .wait()
+        .await
+        .unwrap();
+
     let erc20 = Erc20::new(*FEE_TOKEN_ADDRESS, &controller);
-    let tx = erc20.transfer_getcall(&recipient, &amount);
-
-    // Mock a scenario where paymaster is not supported by checking the error
-    // In a real scenario, this would be when the paymaster service returns an error
-    let paymaster_result = controller
-        .execute_from_outside_v3(vec![tx.clone()], Some(FeeSource::Paymaster))
-        .await;
-
-    // The actual paymaster might work in test environment,
-    // but the code is designed to handle failures gracefully
-    match paymaster_result {
-        Ok(_) => {
-            // Paymaster worked in test environment
-        }
-        Err(ControllerError::PaymasterError(_)) | Err(ControllerError::PaymasterNotSupported) => {
-            // This is the expected path when paymaster is not supported
-            // The code should fall back to user-pays flow
-            let estimate = controller
-                .estimate_invoke_fee(vec![tx.clone()])
-                .await
-                .unwrap();
-            let result = controller.execute(vec![tx], Some(estimate), None).await;
-            assert!(result.is_ok(), "Fallback to user-pays should work");
-        }
-        Err(e) => {
-            // Other errors should not occur
-            panic!("Unexpected error: {:?}", e);
-        }
-    }
+    let fallback_balance = erc20.balanceOf(&recipient).call().await.unwrap();
+    assert_eq!(fallback_balance, amount);
 }
 
 #[tokio::test]

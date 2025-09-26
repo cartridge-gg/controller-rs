@@ -18,6 +18,7 @@ use crate::graphql::session::{
     self, create_session, subscribe_create_session, CreateSession, SubscribeCreateSession,
 };
 use crate::hash::MessageHashRev1;
+use crate::provider::ExecuteFromOutsideError;
 use crate::signers::{HashSigner, Signer};
 use crate::storage::{
     selectors::Selectors, Credentials, SessionMetadata, StorageBackend, StorageError,
@@ -289,6 +290,39 @@ impl Controller {
         Some(session_account)
     }
 
+    pub async fn try_session_execute(
+        &mut self,
+        calls: Vec<Call>,
+        fee_source: Option<FeeSource>,
+    ) -> Result<InvokeTransactionResult, ControllerError> {
+        let policies = Policy::from_calls(&calls);
+
+        match self.authorized_session() {
+            Some(metadata) => {
+                if metadata.session.is_expired() {
+                    if metadata.would_authorize(&policies, None) {
+                        return Err(ControllerError::SessionRefreshRequired);
+                    } else {
+                        return Err(ControllerError::ManualExecutionRequired);
+                    }
+                }
+            }
+            None => return Err(ControllerError::ManualExecutionRequired),
+        }
+
+        match self
+            .execute_from_outside_v3(calls.clone(), fee_source)
+            .await
+        {
+            Ok(result) => Ok(result),
+            Err(err) if is_paymaster_not_supported(&err) => {
+                let estimate = self.estimate_invoke_fee(calls.clone()).await?;
+                self.execute(calls, Some(estimate), fee_source).await
+            }
+            Err(err) => Err(err),
+        }
+    }
+
     pub fn clear_invalid_session(&mut self) {
         let mut controller_clone = self.clone();
 
@@ -372,6 +406,16 @@ pub async fn subscribe_create_session(
         cartridge_api_url,
     )
     .await
+}
+
+fn is_paymaster_not_supported(err: &ControllerError) -> bool {
+    matches!(err, ControllerError::PaymasterNotSupported)
+        || matches!(
+            err,
+            ControllerError::PaymasterError(
+                ExecuteFromOutsideError::ExecuteFromOutsideNotSupported(_)
+            )
+        )
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
