@@ -28,7 +28,7 @@ pub enum ControllerError {
     AccountFactoryError(#[from] AccountFactoryError<SignError>),
 
     #[error(transparent)]
-    PaymasterError(#[from] ExecuteFromOutsideError),
+    PaymasterError(ExecuteFromOutsideError),
 
     #[error("Paymaster not supported")]
     PaymasterNotSupported,
@@ -91,4 +91,45 @@ pub enum ControllerError {
 
     #[error("Expected: {0}, Got {1}")]
     InvalidChainID(String, String),
+}
+
+impl From<ExecuteFromOutsideError> for ControllerError {
+    fn from(error: ExecuteFromOutsideError) -> Self {
+        match error {
+            ExecuteFromOutsideError::ExecuteFromOutsideNotSupported(_) => {
+                ControllerError::PaymasterNotSupported
+            }
+            other => ControllerError::PaymasterError(other),
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::provider::ExecuteFromOutsideError;
+
+    #[test]
+    fn test_execute_from_outside_not_supported_maps_to_paymaster_not_supported() {
+        let error = ExecuteFromOutsideError::ExecuteFromOutsideNotSupported(
+            "insufficient credits and no applicable paymaster found".to_string(),
+        );
+        let controller_error: ControllerError = error.into();
+
+        assert!(matches!(
+            controller_error,
+            ControllerError::PaymasterNotSupported
+        ));
+    }
+
+    #[test]
+    fn test_other_execute_from_outside_errors_map_to_paymaster_error() {
+        let error = ExecuteFromOutsideError::RateLimitExceeded;
+        let controller_error: ControllerError = error.into();
+
+        assert!(matches!(
+            controller_error,
+            ControllerError::PaymasterError(_)
+        ));
+    }
 }

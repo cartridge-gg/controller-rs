@@ -57,8 +57,7 @@ impl Controller {
                 signed.signature,
                 fee_source,
             )
-            .await
-            .map_err(ControllerError::PaymasterError)?;
+            .await?;
 
         Ok(InvokeTransactionResult {
             transaction_hash: res.transaction_hash,
@@ -113,8 +112,7 @@ impl Controller {
                 signed.signature,
                 fee_source,
             )
-            .await
-            .map_err(ControllerError::PaymasterError)?;
+            .await?;
 
         // Update is_registered to true after successful execution with a session
         if let Some(metadata) =
@@ -131,5 +129,61 @@ impl Controller {
         Ok(InvokeTransactionResult {
             transaction_hash: res.transaction_hash,
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::provider::ExecuteFromOutsideError;
+    use starknet::providers::jsonrpc::JsonRpcError;
+
+    #[test]
+    fn test_error_mapping_paymaster_not_supported() {
+        // Test that ExecuteFromOutsideNotSupported automatically converts to PaymasterNotSupported
+        let rpc_error = JsonRpcError {
+            code: -32003,
+            message: "insufficient credits and no applicable paymaster found".to_string(),
+            data: None,
+        };
+
+        let execute_error = ExecuteFromOutsideError::from(rpc_error);
+        assert!(matches!(
+            execute_error,
+            ExecuteFromOutsideError::ExecuteFromOutsideNotSupported(_)
+        ));
+
+        // Test the From<ExecuteFromOutsideError> for ControllerError implementation
+        let controller_error: ControllerError = execute_error.into();
+
+        assert!(matches!(
+            controller_error,
+            ControllerError::PaymasterNotSupported
+        ));
+    }
+
+    #[test]
+    fn test_error_mapping_other_paymaster_errors() {
+        // Test that other errors still map to PaymasterError
+        let rpc_error = JsonRpcError {
+            code: -32005,
+            message: "rate limit exceeded".to_string(),
+            data: None,
+        };
+
+        let execute_error = ExecuteFromOutsideError::from(rpc_error);
+        assert!(matches!(
+            execute_error,
+            ExecuteFromOutsideError::RateLimitExceeded
+        ));
+
+        // Test the From<ExecuteFromOutsideError> for ControllerError implementation
+        let controller_error: ControllerError = execute_error.into();
+
+        // Should map to PaymasterError, not PaymasterNotSupported
+        assert!(matches!(
+            controller_error,
+            ControllerError::PaymasterError(_)
+        ));
     }
 }
