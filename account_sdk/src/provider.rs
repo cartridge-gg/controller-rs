@@ -672,4 +672,28 @@ mod tests {
             }
         }
     }
+
+    #[test]
+    fn test_insufficient_credits_error_mapping() {
+        let error = JsonRpcError {
+            code: -32003,
+            message: "insufficient credits and no applicable paymaster found".to_string(),
+            data: None,
+        };
+        let error_from_json = ExecuteFromOutsideError::from(error);
+        match error_from_json {
+            ExecuteFromOutsideError::ExecuteFromOutsideNotSupported(msg) => {
+                assert_eq!(
+                    msg,
+                    "insufficient credits and no applicable paymaster found"
+                );
+            }
+            _ => {
+                panic!(
+                    "Expected ExecuteFromOutsideNotSupported, got: {:?}",
+                    error_from_json
+                );
+            }
+        }
+    }
 }
