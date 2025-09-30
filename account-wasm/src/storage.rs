@@ -82,6 +82,31 @@ fn check_is_requested(stored_policies: &[Policy], policies: &[Policy]) -> bool {
     })
 }
 
+/// Check if stored policies authorize the requested policies.
+/// This is made public for testing purposes.
+#[cfg(test)]
+pub(crate) fn check_is_authorized(stored_policies: &[Policy], policies: &[Policy]) -> bool {
+    check_policies(stored_policies, policies, |stored, requested| {
+        match (stored, requested) {
+            (Policy::Call(stored_call), Policy::Call(requested_call)) => {
+                // Target and method must match
+                stored_call.target == requested_call.target &&
+                stored_call.method == requested_call.method &&
+                // The stored policy must explicitly authorize (Some(true))
+                stored_call.authorized == Some(true)
+                // Ignore the requested policy's authorized field
+            }
+            (Policy::TypedData(stored_td), Policy::TypedData(requested_td)) => {
+                stored_td.scope_hash == requested_td.scope_hash
+                    && stored_td.authorized == Some(true)
+                // Ignore the requested policy's authorized field
+            }
+            _ => false,
+        }
+    })
+}
+
+#[cfg(not(test))]
 fn check_is_authorized(stored_policies: &[Policy], policies: &[Policy]) -> bool {
     check_policies(stored_policies, policies, |stored, requested| {
         match (stored, requested) {
