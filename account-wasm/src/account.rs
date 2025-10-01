@@ -633,7 +633,11 @@ impl CartridgeAccount {
             Some(metadata) => {
                 if metadata.session.is_expired() {
                     // Session exists but is expired - check client-side policies to see if they would authorize the calls
-                    let is_authorized = self.policy_storage.lock().await.is_authorized(&wasm_policies)?;
+                    let is_authorized = self
+                        .policy_storage
+                        .lock()
+                        .await
+                        .is_authorized(&wasm_policies)?;
 
                     if is_authorized {
                         // The expired session has policies that would authorize these calls
@@ -642,6 +646,20 @@ impl CartridgeAccount {
                         ));
                     } else {
                         // The expired session doesn't authorize these calls
+                        return Err(JsControllerError::from(
+                            ControllerError::ManualExecutionRequired,
+                        ));
+                    }
+                } else {
+                    // Session exists and is not expired - check if policies authorize execution
+                    let is_authorized = self
+                        .policy_storage
+                        .lock()
+                        .await
+                        .is_authorized(&wasm_policies)?;
+
+                    if !is_authorized {
+                        // Session is valid but policies don't authorize these calls
                         return Err(JsControllerError::from(
                             ControllerError::ManualExecutionRequired,
                         ));
@@ -1125,9 +1143,7 @@ mod tests {
     use super::*;
     use crate::errors::ErrorCode;
     use crate::types::policy::CallPolicy;
-    use account_sdk::account::session::policy::{
-        CallPolicy as SdkCallPolicy, Policy as SdkPolicy,
-    };
+    use account_sdk::account::session::policy::{CallPolicy as SdkCallPolicy, Policy as SdkPolicy};
     use account_sdk::errors::ControllerError;
     use starknet::core::types::Call;
     use starknet::macros::felt;
@@ -1263,8 +1279,10 @@ mod tests {
             calldata: vec![],
         };
         let different_policies = SdkPolicy::from_calls(&[different_target_call]);
-        let different_wasm_policies: Vec<Policy> =
-            different_policies.iter().map(|p| p.clone().into()).collect();
+        let different_wasm_policies: Vec<Policy> = different_policies
+            .iter()
+            .map(|p| p.clone().into())
+            .collect();
 
         assert!(
             !check_is_authorized(&[stored_policy], &different_wasm_policies),
@@ -1327,8 +1345,10 @@ mod tests {
         ];
 
         let mixed_sdk_policies = SdkPolicy::from_calls(&mixed_calls);
-        let mixed_wasm_policies: Vec<Policy> =
-            mixed_sdk_policies.iter().map(|p| p.clone().into()).collect();
+        let mixed_wasm_policies: Vec<Policy> = mixed_sdk_policies
+            .iter()
+            .map(|p| p.clone().into())
+            .collect();
 
         assert!(
             !check_is_authorized(&stored_policies, &mixed_wasm_policies),
@@ -1383,6 +1403,68 @@ mod tests {
         assert!(
             !crate::storage::check_is_authorized(&[unauthorized_stored], &[wasm_policy]),
             "Client-side check should respect authorization flag"
+        );
+    }
+
+    #[test]
+    fn test_session_policy_authorization_logic() {
+        use crate::storage::check_is_authorized;
+
+        // Scenario 1: Session not expired, policies authorize execution
+        let authorized_stored = vec![Policy::Call(CallPolicy {
+            target: JsFelt(felt!("0x1234")),
+            method: JsFelt(felt!("0x5678")),
+            authorized: Some(true),
+        })];
+
+        let call = Call {
+            to: felt!("0x1234"),
+            selector: felt!("0x5678"),
+            calldata: vec![],
+        };
+
+        let sdk_policies = SdkPolicy::from_calls(&[call.clone()]);
+        let wasm_policies: Vec<Policy> = sdk_policies.iter().map(|p| p.clone().into()).collect();
+
+        // Should be authorized - execution proceeds
+        assert!(
+            check_is_authorized(&authorized_stored, &wasm_policies),
+            "Valid session with authorized policies should allow execution"
+        );
+
+        // Scenario 2: Session not expired, policies do NOT authorize execution
+        let unauthorized_stored = vec![Policy::Call(CallPolicy {
+            target: JsFelt(felt!("0x1234")),
+            method: JsFelt(felt!("0x5678")),
+            authorized: Some(false), // Explicitly not authorized
+        })];
+
+        // Should NOT be authorized - ManualExecutionRequired
+        assert!(
+            !check_is_authorized(&unauthorized_stored, &wasm_policies),
+            "Valid session with unauthorized policies should require manual execution"
+        );
+
+        // Scenario 3: Session not expired, but wrong policy target
+        let different_target_stored = vec![Policy::Call(CallPolicy {
+            target: JsFelt(felt!("0x9999")), // Different target
+            method: JsFelt(felt!("0x5678")),
+            authorized: Some(true),
+        })];
+
+        // Should NOT be authorized - ManualExecutionRequired
+        assert!(
+            !check_is_authorized(&different_target_stored, &wasm_policies),
+            "Valid session with non-matching policies should require manual execution"
+        );
+
+        // Scenario 4: Session not expired, no stored policies at all
+        let empty_stored: Vec<Policy> = vec![];
+
+        // Should NOT be authorized - ManualExecutionRequired
+        assert!(
+            !check_is_authorized(&empty_stored, &wasm_policies),
+            "Valid session with no stored policies should require manual execution"
         );
     }
 }
