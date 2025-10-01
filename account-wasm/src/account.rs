@@ -1209,8 +1209,8 @@ mod tests {
             Policy::Call(call_policy) => {
                 assert_eq!(*call_policy.target.as_felt(), felt!("0x1234"));
                 assert_eq!(*call_policy.method.as_felt(), felt!("0x5678"));
-                // SDK policies from calls don't set authorized flag
-                assert_eq!(call_policy.authorized, None);
+                // SDK policies from calls set authorized to Some(true)
+                assert_eq!(call_policy.authorized, Some(true));
             }
             _ => panic!("Expected Call policy"),
         }
@@ -1343,8 +1343,7 @@ mod tests {
         use account_sdk::account::session::hash::Session;
 
         // Create a wildcard session (simulating what WASM controller uses)
-        let wildcard_session = Session::new(
-            vec![], // No specific policies
+        let wildcard_session = Session::new_wildcard(
             9999999999,
             &account_sdk::abigen::controller::Signer::Starknet(
                 account_sdk::abigen::controller::StarknetSigner {
