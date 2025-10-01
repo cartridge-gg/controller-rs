@@ -82,7 +82,7 @@ fn check_is_requested(stored_policies: &[Policy], policies: &[Policy]) -> bool {
     })
 }
 
-fn check_is_authorized(stored_policies: &[Policy], policies: &[Policy]) -> bool {
+pub(crate) fn check_is_authorized(stored_policies: &[Policy], policies: &[Policy]) -> bool {
     check_policies(stored_policies, policies, |stored, requested| {
         match (stored, requested) {
             (Policy::Call(stored_call), Policy::Call(requested_call)) => {

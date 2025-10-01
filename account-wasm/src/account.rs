@@ -619,6 +619,9 @@ impl CartridgeAccount {
         // Extract policies from calls
         let policies = SdkPolicy::from_calls(&calls);
 
+        // Convert SDK policies to WASM policies for client-side authorization check
+        let wasm_policies: Vec<Policy> = policies.iter().map(|p| p.clone().into()).collect();
+
         // Lock controller
         let mut controller = self.controller.lock().await;
 
@@ -629,8 +632,10 @@ impl CartridgeAccount {
         match session_metadata {
             Some(metadata) => {
                 if metadata.session.is_expired() {
-                    // Session exists but is expired - check if it would authorize the calls
-                    if metadata.would_authorize(&policies, None) {
+                    // Session exists but is expired - check client-side policies to see if they would authorize the calls
+                    let is_authorized = self.policy_storage.lock().await.is_authorized(&wasm_policies)?;
+
+                    if is_authorized {
                         // The expired session has policies that would authorize these calls
                         return Err(JsControllerError::from(
                             ControllerError::SessionRefreshRequired,
@@ -1119,7 +1124,13 @@ const DEFAULT_TIMEOUT: u64 = 30;
 mod tests {
     use super::*;
     use crate::errors::ErrorCode;
+    use crate::types::policy::CallPolicy;
+    use account_sdk::account::session::policy::{
+        CallPolicy as SdkCallPolicy, Policy as SdkPolicy,
+    };
     use account_sdk::errors::ControllerError;
+    use starknet::core::types::Call;
+    use starknet::macros::felt;
 
     #[test]
     fn test_paymaster_error_codes() {
@@ -1150,5 +1161,228 @@ mod tests {
             nested_err,
             ControllerError::PaymasterNotSupported
         ));
+    }
+
+    #[test]
+    fn test_sdk_policy_to_wasm_policy_conversion() {
+        // Test Call policy conversion
+        let sdk_call_policy = SdkPolicy::Call(SdkCallPolicy {
+            contract_address: felt!("0x1234"),
+            selector: felt!("0x5678"),
+            authorized: Some(true),
+        });
+
+        let wasm_policy: Policy = sdk_call_policy.clone().into();
+
+        match &wasm_policy {
+            Policy::Call(call_policy) => {
+                assert_eq!(*call_policy.target.as_felt(), felt!("0x1234"));
+                assert_eq!(*call_policy.method.as_felt(), felt!("0x5678"));
+                assert_eq!(call_policy.authorized, Some(true));
+            }
+            _ => panic!("Expected Call policy"),
+        }
+
+        // Test that conversion round-trips correctly
+        let sdk_policy_back: SdkPolicy = wasm_policy.try_into().unwrap();
+        assert_eq!(sdk_call_policy, sdk_policy_back);
+    }
+
+    #[test]
+    fn test_policy_from_calls_matches_client_side_check() {
+        // Create a test call
+        let call = Call {
+            to: felt!("0x1234"),
+            selector: felt!("0x5678"),
+            calldata: vec![],
+        };
+
+        // Extract SDK policies from calls (this is what try_session_execute does)
+        let sdk_policies = SdkPolicy::from_calls(&[call.clone()]);
+
+        // Convert to WASM policies for client-side check
+        let wasm_policies: Vec<Policy> = sdk_policies.iter().map(|p| p.clone().into()).collect();
+
+        // Verify the conversion produces the expected policy
+        assert_eq!(wasm_policies.len(), 1);
+        match &wasm_policies[0] {
+            Policy::Call(call_policy) => {
+                assert_eq!(*call_policy.target.as_felt(), felt!("0x1234"));
+                assert_eq!(*call_policy.method.as_felt(), felt!("0x5678"));
+                // SDK policies from calls set authorized to Some(true)
+                assert_eq!(call_policy.authorized, Some(true));
+            }
+            _ => panic!("Expected Call policy"),
+        }
+    }
+
+    #[test]
+    fn test_client_side_policy_authorization_check() {
+        use crate::storage::check_is_authorized;
+
+        // Create authorized policies that would be stored client-side
+        let stored_policy = Policy::Call(CallPolicy {
+            target: JsFelt(felt!("0x1234")),
+            method: JsFelt(felt!("0x5678")),
+            authorized: Some(true),
+        });
+
+        // Create a call that matches the stored policy
+        let call = Call {
+            to: felt!("0x1234"),
+            selector: felt!("0x5678"),
+            calldata: vec![],
+        };
+
+        // Extract policies from call (as try_session_execute would)
+        let sdk_policies = SdkPolicy::from_calls(&[call]);
+        let wasm_policies: Vec<Policy> = sdk_policies.iter().map(|p| p.clone().into()).collect();
+
+        // Verify that the stored authorized policy matches the call
+        assert!(
+            check_is_authorized(&[stored_policy.clone()], &wasm_policies),
+            "Stored authorized policy should match the call"
+        );
+
+        // Test with unauthorized policy
+        let unauthorized_policy = Policy::Call(CallPolicy {
+            target: JsFelt(felt!("0x1234")),
+            method: JsFelt(felt!("0x5678")),
+            authorized: Some(false),
+        });
+
+        assert!(
+            !check_is_authorized(&[unauthorized_policy], &wasm_policies),
+            "Stored unauthorized policy should not match the call"
+        );
+
+        // Test with different target
+        let different_target_call = Call {
+            to: felt!("0x9999"),
+            selector: felt!("0x5678"),
+            calldata: vec![],
+        };
+        let different_policies = SdkPolicy::from_calls(&[different_target_call]);
+        let different_wasm_policies: Vec<Policy> =
+            different_policies.iter().map(|p| p.clone().into()).collect();
+
+        assert!(
+            !check_is_authorized(&[stored_policy], &different_wasm_policies),
+            "Stored policy should not match call with different target"
+        );
+    }
+
+    #[test]
+    fn test_multiple_policies_authorization() {
+        use crate::storage::check_is_authorized;
+
+        // Create multiple authorized policies
+        let stored_policies = vec![
+            Policy::Call(CallPolicy {
+                target: JsFelt(felt!("0x1234")),
+                method: JsFelt(felt!("0x5678")),
+                authorized: Some(true),
+            }),
+            Policy::Call(CallPolicy {
+                target: JsFelt(felt!("0xabcd")),
+                method: JsFelt(felt!("0xef01")),
+                authorized: Some(true),
+            }),
+        ];
+
+        // Create calls that match both policies
+        let calls = vec![
+            Call {
+                to: felt!("0x1234"),
+                selector: felt!("0x5678"),
+                calldata: vec![],
+            },
+            Call {
+                to: felt!("0xabcd"),
+                selector: felt!("0xef01"),
+                calldata: vec![],
+            },
+        ];
+
+        let sdk_policies = SdkPolicy::from_calls(&calls);
+        let wasm_policies: Vec<Policy> = sdk_policies.iter().map(|p| p.clone().into()).collect();
+
+        assert!(
+            check_is_authorized(&stored_policies, &wasm_policies),
+            "All calls should be authorized"
+        );
+
+        // Test with one unauthorized call
+        let mixed_calls = vec![
+            Call {
+                to: felt!("0x1234"),
+                selector: felt!("0x5678"),
+                calldata: vec![],
+            },
+            Call {
+                to: felt!("0x9999"), // Not in stored policies
+                selector: felt!("0xef01"),
+                calldata: vec![],
+            },
+        ];
+
+        let mixed_sdk_policies = SdkPolicy::from_calls(&mixed_calls);
+        let mixed_wasm_policies: Vec<Policy> =
+            mixed_sdk_policies.iter().map(|p| p.clone().into()).collect();
+
+        assert!(
+            !check_is_authorized(&stored_policies, &mixed_wasm_policies),
+            "Should fail if any call is not authorized"
+        );
+    }
+
+    #[test]
+    fn test_wildcard_session_not_used_for_client_side_checks() {
+        // This test documents the fix: we should NOT use wildcard session's
+        // would_authorize (which always returns true) for client-side checks
+        use account_sdk::account::session::hash::Session;
+
+        // Create a wildcard session (simulating what WASM controller uses)
+        let wildcard_session = Session::new_wildcard(
+            9999999999,
+            &account_sdk::abigen::controller::Signer::Starknet(
+                account_sdk::abigen::controller::StarknetSigner {
+                    pubkey: cainome::cairo_serde::NonZero::new(felt!("0x123")).unwrap(),
+                },
+            ),
+            starknet_types_core::felt::Felt::ZERO,
+        )
+        .unwrap();
+
+        // Verify it's a wildcard
+        assert!(wildcard_session.is_wildcard());
+
+        // Create any policy
+        let policy = SdkPolicy::Call(SdkCallPolicy {
+            contract_address: felt!("0x1234"),
+            selector: felt!("0x5678"),
+            authorized: None,
+        });
+
+        // Wildcard sessions would authorize anything (this is the problem)
+        assert!(
+            wildcard_session.is_authorized(&policy),
+            "Wildcard session authorizes everything"
+        );
+
+        // The fix: we now check client-side policies instead
+        // which properly enforces authorization
+        let wasm_policy: Policy = policy.into();
+        let unauthorized_stored = Policy::Call(CallPolicy {
+            target: JsFelt(felt!("0x1234")),
+            method: JsFelt(felt!("0x5678")),
+            authorized: Some(false), // Explicitly not authorized
+        });
+
+        // Client-side check should properly reject unauthorized policies
+        assert!(
+            !crate::storage::check_is_authorized(&[unauthorized_stored], &[wasm_policy]),
+            "Client-side check should respect authorization flag"
+        );
     }
 }
