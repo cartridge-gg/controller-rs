@@ -99,16 +99,6 @@ impl MultiChainController {
         })
     }
 
-    /// Creates a new MultiChainController with a single chain configuration
-    /// This is a convenience method for backward compatibility
-    pub async fn new_single(
-        app_id: String,
-        username: String,
-        initial_config: ChainConfig,
-    ) -> Result<Self, ControllerError> {
-        Self::new(app_id, username, vec![initial_config]).await
-    }
-
     /// Creates a new Controller from a ChainConfig
     async fn create_controller(
         app_id: &str,
