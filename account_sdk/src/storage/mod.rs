@@ -286,6 +286,7 @@ pub enum StorageValue {
     Active(ActiveMetadata),
     Controller(ControllerMetadata),
     Session(SessionMetadata),
+    String(String),
 }
 
 #[async_trait]
