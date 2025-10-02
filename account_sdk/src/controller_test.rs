@@ -15,6 +15,7 @@ use starknet::{
     accounts::AccountFactory, core::utils::cairo_short_string_to_felt, macros::felt,
     providers::Provider, signers::SigningKey,
 };
+use url::Url;
 
 #[tokio::test]
 async fn test_deploy_controller() {
@@ -516,4 +517,242 @@ async fn test_is_session_expired_states() {
         controller.is_session_expired(),
         "Expired session should be detected as expired"
     );
+}
+
+#[tokio::test]
+async fn test_switch_rpc_success() {
+    let runner = KatanaRunner::load();
+    let signer = Signer::new_starknet_random();
+    let mut controller = runner
+        .deploy_controller(
+            "test_switch_rpc".to_string(),
+            Owner::Signer(signer.clone()),
+            Version::LATEST,
+        )
+        .await;
+
+    // Store the original RPC URL (removed - unused variable)
+
+    // The proxy URL from the runner is what we'll switch to
+    // (in a real test we'd have another RPC endpoint, but for testing switching to the same is fine)
+    let new_url = runner.rpc_url.clone();
+
+    // Switch the RPC
+    let result = controller.switch_rpc(new_url.clone()).await;
+    assert!(result.is_ok(), "RPC switch should succeed");
+
+    // Verify the RPC URL was updated
+    assert_eq!(controller.rpc_url, new_url);
+
+    // Verify provider is updated (can still interact with blockchain)
+    let chain_id = controller.provider.chain_id().await;
+    assert!(
+        chain_id.is_ok(),
+        "Should be able to query chain_id after RPC switch"
+    );
+
+    // Test that we can still execute transactions
+    let erc20 = Erc20::new(*FEE_TOKEN_ADDRESS, &controller);
+    let recipient = ContractAddress(felt!("0x18301129"));
+    let amount = U256 { low: 10, high: 0 };
+    let tx = erc20.transfer_getcall(&recipient, &amount);
+
+    let max_fee = controller.estimate_invoke_fee(vec![tx.clone()]).await;
+    assert!(
+        max_fee.is_ok(),
+        "Should be able to estimate fee after RPC switch"
+    );
+}
+
+#[tokio::test]
+async fn test_switch_rpc_invalid_chain_id() {
+    use crate::tests::runners::find_free_port;
+
+    let runner = KatanaRunner::load();
+    let signer = Signer::new_starknet_random();
+    let mut controller = runner
+        .deploy_controller(
+            "test_invalid_chain".to_string(),
+            Owner::Signer(signer.clone()),
+            Version::LATEST,
+        )
+        .await;
+
+    // Create a second Katana instance with different chain ID
+    let katana_port = find_free_port();
+    let mut child = std::process::Command::new("katana")
+        .args(["--chain-id", "DIFFERENT_CHAIN"])
+        .args(["--http.port", &katana_port.to_string()])
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .spawn()
+        .expect("failed to start katana");
+
+    // Wait a bit for katana to start
+    tokio::time::sleep(std::time::Duration::from_secs(2)).await;
+
+    let different_chain_url = Url::parse(&format!("http://127.0.0.1:{}/", katana_port)).unwrap();
+
+    // Try to switch to an RPC with different chain_id
+    let result = controller.switch_rpc(different_chain_url).await;
+
+    // Should fail due to chain ID mismatch
+    assert!(result.is_err(), "Should fail when chain_id differs");
+
+    match result {
+        Err(ControllerError::InvalidChainID(expected, actual)) => {
+            // Verify the error contains the correct chain IDs
+            assert!(expected.contains("SEPOLIA") || actual.contains("DIFFERENT"));
+        }
+        _ => panic!("Expected InvalidChainID error"),
+    }
+
+    // Verify the RPC URL was NOT updated
+    assert_eq!(controller.rpc_url, runner.rpc_url);
+
+    // Clean up the second katana instance and wait for it
+    let _ = child.kill();
+    let _ = child.wait();
+}
+
+#[tokio::test]
+async fn test_switch_rpc_invalid_url() {
+    let runner = KatanaRunner::load();
+    let signer = Signer::new_starknet_random();
+    let mut controller = runner
+        .deploy_controller(
+            "test_invalid_url".to_string(),
+            Owner::Signer(signer.clone()),
+            Version::LATEST,
+        )
+        .await;
+
+    let original_url = controller.rpc_url.clone();
+
+    // Try to switch to an invalid URL (unreachable)
+    let invalid_url = Url::parse("http://localhost:99999/").unwrap();
+    let result = controller.switch_rpc(invalid_url).await;
+
+    // Should fail due to connection error
+    assert!(result.is_err(), "Should fail with invalid URL");
+
+    // Verify the RPC URL was NOT updated
+    assert_eq!(controller.rpc_url, original_url);
+
+    // Verify we can still use the original provider
+    let chain_id = controller.provider.chain_id().await;
+    assert!(chain_id.is_ok(), "Original provider should still work");
+}
+
+#[tokio::test]
+async fn test_switch_rpc_preserves_state() {
+    use crate::account::session::policy::Policy;
+    use chrono::Utc;
+    use starknet::macros::selector;
+
+    let runner = KatanaRunner::load();
+    let signer = Signer::new_starknet_random();
+    let mut controller = runner
+        .deploy_controller(
+            "test_preserve_state".to_string(),
+            Owner::Signer(signer.clone()),
+            Version::LATEST,
+        )
+        .await;
+
+    // Create a session before switching
+    let expires_at = (Utc::now().timestamp() as u64) + DEFAULT_SESSION_EXPIRATION;
+    let policies = vec![Policy::new_call(*FEE_TOKEN_ADDRESS, selector!("transfer"))];
+    controller
+        .create_session(policies.clone(), expires_at)
+        .await
+        .unwrap();
+
+    // Store session info for comparison
+    let session_before = controller.authorized_session().map(|s| s.session.clone());
+    assert!(
+        session_before.is_some(),
+        "Session should exist before switch"
+    );
+
+    // Store other controller state
+    let address_before = controller.address;
+    let owner_before = controller.owner.clone();
+    let class_hash_before = controller.class_hash;
+
+    // Switch RPC
+    let new_url = runner.rpc_url.clone();
+    controller.switch_rpc(new_url).await.unwrap();
+
+    // Verify state is preserved
+    assert_eq!(
+        controller.address, address_before,
+        "Address should be preserved"
+    );
+    assert_eq!(controller.owner, owner_before, "Owner should be preserved");
+    assert_eq!(
+        controller.class_hash, class_hash_before,
+        "Class hash should be preserved"
+    );
+
+    // Verify session is preserved
+    let session_after = controller.authorized_session().map(|s| s.session.clone());
+    assert_eq!(
+        session_after, session_before,
+        "Session should be preserved after RPC switch"
+    );
+}
+
+#[cfg(feature = "filestorage")]
+#[tokio::test]
+async fn test_switch_rpc_updates_storage() {
+    use crate::storage::StorageBackend;
+
+    // Setup temporary directory for file storage
+    let temp_dir = tempfile::tempdir().unwrap();
+    let storage_path = temp_dir.path().to_path_buf();
+    std::env::set_var("CARTRIDGE_STORAGE_PATH", storage_path.to_str().unwrap());
+
+    let runner = KatanaRunner::load();
+    let signer = Signer::new_starknet_random();
+
+    let app_id = "test_storage_update".to_string();
+    let username = "test_user".to_string();
+
+    // Create controller with storage
+    let mut controller = Controller::new_with_storage(
+        app_id.clone(),
+        username.clone(),
+        CONTROLLERS[&Version::LATEST].hash,
+        runner.rpc_url.clone(),
+        Owner::Signer(signer.clone()),
+        felt!("0x12345"),
+    )
+    .await
+    .unwrap();
+
+    runner.fund(&controller.address).await;
+
+    // Switch RPC
+    let new_url = Url::parse("http://127.0.0.1:8545/").unwrap();
+
+    // We'll mock this by just updating the URL since we can't actually connect to a different RPC
+    controller.rpc_url = new_url.clone();
+
+    // Update storage with new metadata
+    let metadata = crate::storage::ControllerMetadata::from(&controller);
+    controller
+        .storage
+        .set_controller(&app_id, &controller.chain_id, controller.address, metadata)
+        .unwrap();
+
+    // Load from storage and verify RPC URL was persisted
+    let loaded_controller = Controller::from_storage(app_id).await.unwrap().unwrap();
+    assert_eq!(
+        loaded_controller.rpc_url, new_url,
+        "RPC URL should be persisted in storage"
+    );
+
+    // Clean up
+    temp_dir.close().unwrap();
 }

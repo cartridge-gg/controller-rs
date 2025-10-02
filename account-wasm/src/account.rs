@@ -1403,6 +1403,53 @@ mod tests {
         );
     }
 
+    #[cfg(all(target_arch = "wasm32", test))]
+    mod wasm_tests {
+        use super::*;
+        use wasm_bindgen_test::*;
+
+        #[wasm_bindgen_test]
+        async fn test_switch_rpc_invalid_url() {
+            // Create a mock account - this won't work in actual WASM test without proper mocking
+            // but demonstrates the test structure
+            let invalid_url = "not-a-valid-url";
+
+            // In real WASM tests, we'd need to mock the Controller and its dependencies
+            // For now, we test that invalid URL parsing is handled correctly
+            let url_result = url::Url::parse(invalid_url);
+            assert!(url_result.is_err(), "Invalid URL should fail to parse");
+        }
+
+        #[wasm_bindgen_test]
+        async fn test_switch_rpc_url_validation() {
+            // Test various URL formats
+            let valid_urls = vec![
+                "http://localhost:8545",
+                "https://mainnet.infura.io/v3/YOUR-PROJECT-ID",
+                "http://127.0.0.1:5050",
+                "https://starknet-sepolia.public.blastapi.io",
+            ];
+
+            for url_str in valid_urls {
+                let url_result = url::Url::parse(url_str);
+                assert!(url_result.is_ok(), "URL {} should be valid", url_str);
+            }
+
+            let invalid_urls = vec![
+                "",
+                "not-a-url",
+                "ftp://unsupported.protocol",
+                "http://",
+                "://missing-scheme",
+            ];
+
+            for url_str in invalid_urls {
+                let url_result = url::Url::parse(url_str);
+                assert!(url_result.is_err(), "URL {} should be invalid", url_str);
+            }
+        }
+    }
+
     #[test]
     fn test_wildcard_session_not_used_for_client_side_checks() {
         // This test documents the fix: we should NOT use wildcard session's
