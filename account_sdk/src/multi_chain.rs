@@ -426,58 +426,31 @@ impl MultiChainController {
     }
 }
 
-// TODO: These tests need test infrastructure (KatanaRunner) to work properly
-// They're disabled for now as they require a running RPC endpoint
 #[cfg(test)]
-#[allow(dead_code)]
 mod tests {
     use super::*;
-    use crate::signers::Signer;
-    use starknet::macros::felt;
+    use crate::artifacts::{Version, CONTROLLERS};
+    use crate::signers::{Owner, Signer};
+    use crate::tests::runners::find_free_port;
+    use crate::tests::runners::katana::KatanaRunner;
+    use starknet::macros::short_string;
+    use std::process::{Command, Stdio};
+    use url::Url;
 
-    // #[tokio::test]
-    async fn test_multi_chain_controller_creation_multiple_chains() {
-        let config1 = ChainConfig {
-            class_hash: felt!("0x1234"),
-            rpc_url: Url::parse("http://localhost:5050").unwrap(),
-            owner: Owner::Signer(Signer::new_starknet_random()),
-            address: Some(felt!("0xabcd")),
-        };
+    #[tokio::test]
+    async fn test_multi_chain_controller_creation_single_chain() {
+        // Start a single Katana instance
+        let runner = KatanaRunner::load();
 
-        let config2 = ChainConfig {
-            class_hash: felt!("0x5678"),
-            rpc_url: Url::parse("http://localhost:5051").unwrap(),
-            owner: Owner::Signer(Signer::new_starknet_random()),
-            address: Some(felt!("0xef01")),
-        };
+        // Declare the controller contract
+        runner.declare_controller(Version::LATEST).await;
 
-        let config3 = ChainConfig {
-            class_hash: felt!("0x9abc"),
-            rpc_url: Url::parse("http://localhost:5052").unwrap(),
-            owner: Owner::Signer(Signer::new_starknet_random()),
-            address: Some(felt!("0x1234")),
-        };
-
-        let multi_controller = MultiChainController::new(
-            "test_app".to_string(),
-            "test_user".to_string(),
-            vec![config1, config2, config3],
-        )
-        .await;
-
-        assert!(multi_controller.is_ok());
-        let controller = multi_controller.unwrap();
-        // Would have 3 chains configured
-        assert_eq!(controller.configured_chains().len(), 3);
-    }
-
-    // #[tokio::test]
-    async fn test_multi_chain_controller_creation_single() {
+        let owner = Owner::Signer(Signer::new_starknet_random());
         let config = ChainConfig {
-            class_hash: felt!("0x1234"),
-            rpc_url: Url::parse("http://localhost:5050").unwrap(),
-            owner: Owner::Signer(Signer::new_starknet_random()),
-            address: Some(felt!("0xabcd")),
+            class_hash: CONTROLLERS[&Version::LATEST].hash,
+            rpc_url: runner.rpc_url.clone(),
+            owner: owner.clone(),
+            address: None, // Let it compute the address
         };
 
         let multi_controller = MultiChainController::new(
@@ -487,20 +460,33 @@ mod tests {
         )
         .await;
 
-        assert!(multi_controller.is_ok());
+        assert!(
+            multi_controller.is_ok(),
+            "Failed to create controller: {:?}",
+            multi_controller.err()
+        );
         let controller = multi_controller.unwrap();
-        // Chain ID would be fetched from RPC in actual implementation
-        // assert_eq!(controller.active_chain, short_string!("SN_SEPOLIA"));
         assert_eq!(controller.configured_chains().len(), 1);
+
+        // Verify the chain_id was fetched from RPC
+        let chains = controller.configured_chains();
+        assert_eq!(chains[0], short_string!("SN_SEPOLIA"));
     }
 
-    // #[tokio::test]
-    async fn test_add_chain() {
+    #[tokio::test]
+    async fn test_multi_chain_controller_add_chain() {
+        // Start the first Katana instance
+        let runner1 = KatanaRunner::load();
+
+        // Declare the controller contract
+        runner1.declare_controller(Version::LATEST).await;
+
+        let owner = Owner::Signer(Signer::new_starknet_random());
         let initial_config = ChainConfig {
-            class_hash: felt!("0x1234"),
-            rpc_url: Url::parse("http://localhost:5050").unwrap(),
-            owner: Owner::Signer(Signer::new_starknet_random()),
-            address: Some(felt!("0xabcd")),
+            class_hash: CONTROLLERS[&Version::LATEST].hash,
+            rpc_url: runner1.rpc_url.clone(),
+            owner: owner.clone(),
+            address: None,
         };
 
         let mut multi_controller = MultiChainController::new(
@@ -511,144 +497,196 @@ mod tests {
         .await
         .unwrap();
 
+        // Verify initial state
+        assert_eq!(multi_controller.configured_chains().len(), 1);
+
+        // Create a second Katana instance with different chain_id
+        let katana_port = find_free_port();
+        let mut child = Command::new("katana")
+            .args(["--chain-id", "KATANA2"])
+            .args(["--http.port", &katana_port.to_string()])
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .spawn()
+            .expect("failed to start second katana");
+
+        // Wait for katana to start
+        tokio::time::sleep(std::time::Duration::from_secs(2)).await;
+
         let new_config = ChainConfig {
-            class_hash: felt!("0x5678"),
-            rpc_url: Url::parse("http://localhost:5051").unwrap(),
-            owner: Owner::Signer(Signer::new_starknet_random()),
-            address: Some(felt!("0xdef0")),
+            class_hash: CONTROLLERS[&Version::LATEST].hash,
+            rpc_url: Url::parse(&format!("http://127.0.0.1:{}/", katana_port)).unwrap(),
+            owner: owner.clone(),
+            address: None,
         };
 
+        // Add the second chain
         let result = multi_controller.add_chain(new_config).await;
         assert!(result.is_ok());
         assert_eq!(multi_controller.configured_chains().len(), 2);
+
+        // Verify both chains are present
+        let chains = multi_controller.configured_chains();
+        assert!(chains.contains(&short_string!("SN_SEPOLIA")));
+        assert!(chains.contains(&short_string!("KATANA2")));
+
+        // Clean up
+        let _ = child.kill();
+        let _ = child.wait();
     }
 
-    // #[tokio::test]
-    async fn test_switch_chain() {
-        let initial_config = ChainConfig {
-            class_hash: felt!("0x1234"),
-            rpc_url: Url::parse("http://localhost:5050").unwrap(),
-            owner: Owner::Signer(Signer::new_starknet_random()),
-            address: Some(felt!("0xabcd")),
+    #[tokio::test]
+    async fn test_multi_chain_controller_switch_chain() {
+        // Start two Katana instances
+        let runner1 = KatanaRunner::load();
+
+        // Declare the controller contract
+        runner1.declare_controller(Version::LATEST).await;
+
+        let katana_port = find_free_port();
+        let mut child = Command::new("katana")
+            .args(["--chain-id", "KATANA2"])
+            .args(["--http.port", &katana_port.to_string()])
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .spawn()
+            .expect("failed to start second katana");
+
+        // Wait for katana to start
+        tokio::time::sleep(std::time::Duration::from_secs(2)).await;
+
+        let owner = Owner::Signer(Signer::new_starknet_random());
+
+        let config1 = ChainConfig {
+            class_hash: CONTROLLERS[&Version::LATEST].hash,
+            rpc_url: runner1.rpc_url.clone(),
+            owner: owner.clone(),
+            address: None,
+        };
+
+        let config2 = ChainConfig {
+            class_hash: CONTROLLERS[&Version::LATEST].hash,
+            rpc_url: Url::parse(&format!("http://127.0.0.1:{}/", katana_port)).unwrap(),
+            owner: owner.clone(),
+            address: None,
         };
 
         let mut multi_controller = MultiChainController::new(
             "test_app".to_string(),
             "test_user".to_string(),
-            vec![initial_config],
+            vec![config1, config2],
         )
         .await
         .unwrap();
 
-        let new_config = ChainConfig {
-            class_hash: felt!("0x5678"),
-            rpc_url: Url::parse("http://localhost:5051").unwrap(),
-            owner: Owner::Signer(Signer::new_starknet_random()),
-            address: Some(felt!("0xdef0")),
-        };
+        // Verify initial active chain
+        let initial_chain = multi_controller.active_chain;
+        assert_eq!(initial_chain, short_string!("SN_SEPOLIA"));
 
-        multi_controller
-            .add_chain(new_config.clone())
-            .await
-            .unwrap();
+        // Switch to the second chain
+        let result = multi_controller.switch_chain(short_string!("KATANA2"));
+        assert!(result.is_ok());
+        assert_eq!(multi_controller.active_chain, short_string!("KATANA2"));
 
-        // In actual implementation, we'd get the chain_id from the added controller
-        // For now, we'll comment this out since it needs a running RPC
-        // let chain_id = short_string!("SN_MAIN");
-        // let result = multi_controller.switch_chain(chain_id);
-        // assert!(result.is_ok());
-        // assert_eq!(multi_controller.active_chain, chain_id);
+        // Switch back to the first chain
+        let result = multi_controller.switch_chain(short_string!("SN_SEPOLIA"));
+        assert!(result.is_ok());
+        assert_eq!(multi_controller.active_chain, short_string!("SN_SEPOLIA"));
+
+        // Try to switch to non-existent chain
+        let result = multi_controller.switch_chain(short_string!("INVALID"));
+        assert!(result.is_err());
+
+        // Clean up
+        let _ = child.kill();
+        let _ = child.wait();
     }
 
-    // #[tokio::test]
+    #[cfg(feature = "filestorage")]
+    #[tokio::test]
     async fn test_multi_chain_storage_persistence() {
-        // Create a multi-chain controller with multiple chains
-        let chain1_config = ChainConfig {
-            class_hash: felt!("0x1234"),
-            rpc_url: Url::parse("http://localhost:5050").unwrap(),
-            owner: Owner::Signer(Signer::new_starknet_random()),
-            address: Some(felt!("0xabcd")),
-        };
+        use tempfile::tempdir;
 
+        // Setup temporary directory for file storage
+        let temp_dir = tempdir().unwrap();
+        let storage_path = temp_dir.path().to_path_buf();
+        std::env::set_var("CARTRIDGE_STORAGE_PATH", storage_path.to_str().unwrap());
+
+        // Start two Katana instances
+        let runner1 = KatanaRunner::load();
+
+        // Declare the controller contract
+        runner1.declare_controller(Version::LATEST).await;
+
+        let katana_port = find_free_port();
+        let mut child = Command::new("katana")
+            .args(["--chain-id", "KATANA2"])
+            .args(["--http.port", &katana_port.to_string()])
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .spawn()
+            .expect("failed to start second katana");
+
+        // Wait for katana to start
+        tokio::time::sleep(std::time::Duration::from_secs(2)).await;
+
+        let owner = Owner::Signer(Signer::new_starknet_random());
         let app_id = "test_persistence".to_string();
         let username = "test_user".to_string();
 
-        let mut multi_controller = MultiChainController::new(
-            app_id.clone(),
-            username.clone(),
-            vec![chain1_config.clone()],
-        )
-        .await
-        .unwrap();
-
-        // Add a second chain
-        let chain2_config = ChainConfig {
-            class_hash: felt!("0x5678"),
-            rpc_url: Url::parse("http://localhost:5051").unwrap(),
-            owner: Owner::Signer(Signer::new_starknet_random()),
-            address: Some(felt!("0xdef0")),
+        // Create configs for both chains
+        let config1 = ChainConfig {
+            class_hash: CONTROLLERS[&Version::LATEST].hash,
+            rpc_url: runner1.rpc_url.clone(),
+            owner: owner.clone(),
+            address: None,
         };
 
-        multi_controller
-            .add_chain(chain2_config.clone())
-            .await
-            .unwrap();
-
-        // Add a third chain
-        let chain3_config = ChainConfig {
-            class_hash: felt!("0x9abc"),
-            rpc_url: Url::parse("http://localhost:5052").unwrap(),
-            owner: Owner::Signer(Signer::new_starknet_random()),
-            address: Some(felt!("0x1111")),
+        let config2 = ChainConfig {
+            class_hash: CONTROLLERS[&Version::LATEST].hash,
+            rpc_url: Url::parse(&format!("http://127.0.0.1:{}/", katana_port)).unwrap(),
+            owner: owner.clone(),
+            address: None,
         };
 
+        // Create multi-controller with both chains
+        let mut multi_controller =
+            MultiChainController::new(app_id.clone(), username.clone(), vec![config1, config2])
+                .await
+                .unwrap();
+
+        // Switch to the second chain
         multi_controller
-            .add_chain(chain3_config.clone())
-            .await
+            .switch_chain(short_string!("KATANA2"))
             .unwrap();
 
-        // Switch to the second chain (needs actual chain_id from RPC)
-        // multi_controller
-        //     .switch_chain(short_string!("SN_MAIN"))
-        //     .unwrap();
+        // Store the current state
+        let configured_chains = multi_controller.configured_chains();
+        let active_chain = multi_controller.active_chain;
+        assert_eq!(configured_chains.len(), 2);
+        assert_eq!(active_chain, short_string!("KATANA2"));
 
-        // Store the state
-        let initial_chain_count = multi_controller.configured_chains().len();
-        let initial_active_chain = multi_controller.active_chain;
-
-        // Simulate saving and loading from storage
+        // Save to storage
         multi_controller.update_storage().unwrap();
 
         // Load from storage
-        let loaded_controller = MultiChainController::from_storage(app_id.clone())
+        let loaded = MultiChainController::from_storage(app_id)
             .await
             .unwrap()
-            .expect("Should load multi-chain controller from storage");
+            .expect("Should load from storage");
 
-        // Verify all chains were restored
-        assert_eq!(
-            loaded_controller.configured_chains().len(),
-            initial_chain_count,
-            "All chains should be restored from storage"
-        );
+        // Verify state was persisted correctly
+        assert_eq!(loaded.configured_chains().len(), 2);
+        assert_eq!(loaded.active_chain, active_chain);
 
-        // Verify active chain is preserved
-        assert_eq!(
-            loaded_controller.active_chain, initial_active_chain,
-            "Active chain should be preserved"
-        );
+        // Verify both chains are present
+        let loaded_chains = loaded.configured_chains();
+        assert!(loaded_chains.contains(&short_string!("SN_SEPOLIA")));
+        assert!(loaded_chains.contains(&short_string!("KATANA2")));
 
-        // Verify all chains are present (would need actual chain_ids from RPC)
-        let loaded_chains = loaded_controller.configured_chains();
-        assert_eq!(loaded_chains.len(), 3, "Should have all 3 chains");
-
-        // Verify addresses would be correct (commented out as we need actual chain_ids)
-        // assert_eq!(
-        //     loaded_controller
-        //         .controller_for_chain(short_string!("SN_SEPOLIA"))
-        //         .unwrap()
-        //         .address,
-        //     chain1_config.address.unwrap()
-        // );
+        // Clean up
+        let _ = child.kill();
+        let _ = child.wait();
+        temp_dir.close().unwrap();
     }
 }
