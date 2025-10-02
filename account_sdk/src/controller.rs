@@ -286,44 +286,6 @@ impl Controller {
         self.owner = owner;
     }
 
-    /// Switches the RPC URL and updates all associated components
-    pub async fn switch_rpc(&mut self, new_rpc_url: Url) -> Result<(), ControllerError> {
-        // Create a new provider with the new URL
-        let new_provider = CartridgeJsonRpcProvider::new(new_rpc_url.clone());
-
-        // Fetch and verify chain_id matches current
-        let new_chain_id = new_provider.chain_id().await?;
-
-        // Verify chain_id matches to prevent switching to different network
-        if self.chain_id != new_chain_id {
-            return Err(ControllerError::InvalidChainID(
-                parse_cairo_short_string(&self.chain_id).unwrap_or_else(|_| "unknown".to_string()),
-                parse_cairo_short_string(&new_chain_id).unwrap_or_else(|_| "unknown".to_string()),
-            ));
-        }
-
-        // Update the controller fields
-        self.rpc_url = new_rpc_url;
-        self.provider = new_provider.clone();
-
-        // Recreate the factory with the new provider
-        self.factory = ControllerFactory::new(
-            self.class_hash,
-            self.chain_id,
-            self.owner.clone(),
-            new_provider,
-        );
-
-        // Recreate the contract with the updated controller
-        let new_contract = Box::new(abigen::controller::Controller::new(
-            self.address,
-            self.clone(),
-        ));
-        self.contract = Some(new_contract);
-
-        Ok(())
-    }
-
     pub fn owner_guid(&self) -> Felt {
         self.owner.clone().into()
     }

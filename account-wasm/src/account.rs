@@ -10,7 +10,7 @@ use account_sdk::controller::{Controller, DEFAULT_SESSION_EXPIRATION};
 use account_sdk::errors::ControllerError;
 use account_sdk::session::RevokableSession;
 use account_sdk::storage::selectors::Selectors;
-use account_sdk::storage::{ControllerMetadata, StorageBackend};
+use account_sdk::storage::StorageBackend;
 
 use account_sdk::transaction_waiter::TransactionWaiter;
 use cainome::cairo_serde::NonZero;
@@ -945,53 +945,6 @@ impl CartridgeAccount {
             .unwrap_or(false))
     }
 
-    /// Switches the RPC URL at runtime.
-    ///
-    /// # Parameters
-    /// - `new_rpc_url`: The new RPC URL to switch to
-    ///
-    /// # Returns
-    /// Returns unit on success, or an error if the switch fails
-    ///
-    /// # Errors
-    /// - Invalid URL format
-    /// - Network mismatch (chain_id differs from current)
-    /// - Connection failures
-    #[wasm_bindgen(js_name = switchRpc)]
-    pub async fn switch_rpc(
-        &self,
-        new_rpc_url: String,
-    ) -> std::result::Result<(), JsControllerError> {
-        set_panic_hook();
-
-        // Parse and validate the new RPC URL
-        let new_url = Url::parse(&new_rpc_url).map_err(|e| {
-            JsControllerError::from(ControllerError::InvalidResponseData(format!(
-                "Invalid RPC URL: {}",
-                e
-            )))
-        })?;
-
-        let mut controller = self.controller.lock().await;
-
-        // Use the new public method in Controller to switch RPC
-        controller.switch_rpc(new_url).await?;
-
-        // Extract values needed for storage update
-        let app_id = controller.app_id.clone();
-        let chain_id = controller.chain_id;
-        let address = controller.address;
-        let metadata = ControllerMetadata::from(&*controller);
-
-        // Update storage with new RPC URL
-        controller
-            .storage
-            .set_controller(&app_id, &chain_id, address, metadata)
-            .map_err(|e| JsControllerError::from(ControllerError::StorageError(e)))?;
-
-        Ok(())
-    }
-
     /// Signs an OutsideExecution V3 transaction and returns both the OutsideExecution object and its signature.
     ///
     /// # Parameters
@@ -1401,108 +1354,6 @@ mod tests {
             !check_is_authorized(&stored_policies, &mixed_wasm_policies),
             "Should fail if any call is not authorized"
         );
-    }
-
-    #[test]
-    fn test_switch_rpc_error_handling() {
-        // Test that invalid URL errors are properly converted to JsControllerError
-        let invalid_url_error = ControllerError::InvalidResponseData(
-            "Invalid RPC URL: relative URL without a base".to_string(),
-        );
-        let js_error = JsControllerError::from(invalid_url_error);
-        assert!(matches!(js_error.code, ErrorCode::StarknetUnexpectedError));
-        assert!(js_error.message.contains("Invalid RPC URL"));
-    }
-
-    #[test]
-    fn test_switch_rpc_chain_id_error_conversion() {
-        // Test that chain ID mismatch errors are properly handled
-        let chain_id_error =
-            ControllerError::InvalidChainID("SN_SEPOLIA".to_string(), "SN_MAIN".to_string());
-        let js_error = JsControllerError::from(chain_id_error);
-        assert!(matches!(js_error.code, ErrorCode::InvalidChainId));
-        assert!(js_error.message.contains("SN_SEPOLIA"));
-        assert!(js_error.message.contains("SN_MAIN"));
-    }
-
-    #[test]
-    fn test_switch_rpc_provider_error_conversion() {
-        use starknet::providers::ProviderError;
-
-        // Test that provider errors (like connection failures) are properly converted
-        let provider_error = ControllerError::ProviderError(ProviderError::StarknetError(
-            starknet::core::types::StarknetError::FailedToReceiveTransaction,
-        ));
-        let js_error = JsControllerError::from(provider_error);
-        assert!(matches!(
-            js_error.code,
-            ErrorCode::StarknetFailedToReceiveTransaction
-        ));
-    }
-
-    #[test]
-    fn test_switch_rpc_storage_error_conversion() {
-        use account_sdk::storage::StorageError;
-
-        // Test that storage errors are properly converted
-        let storage_error = ControllerError::StorageError(StorageError::OperationFailed(
-            "Failed to update RPC URL".to_string(),
-        ));
-        let js_error = JsControllerError::from(storage_error);
-        assert!(matches!(js_error.code, ErrorCode::StorageError));
-        assert!(js_error.message.contains("Failed to update RPC URL"));
-    }
-
-    #[test]
-    fn test_switch_rpc_url_parsing() {
-        // Test URL parsing for various formats
-        let valid_urls = vec![
-            "http://localhost:8545",
-            "https://mainnet.infura.io/v3/YOUR-PROJECT-ID",
-            "http://127.0.0.1:5050",
-            "https://starknet-sepolia.public.blastapi.io",
-            "ws://localhost:8546",
-            "wss://mainnet.infura.io/ws/v3/YOUR-PROJECT-ID",
-        ];
-
-        for url_str in valid_urls {
-            let result = url::Url::parse(url_str);
-            assert!(result.is_ok(), "URL {} should be valid", url_str);
-
-            // Verify the URL components are parsed correctly
-            let url = result.unwrap();
-            assert!(!url.scheme().is_empty());
-            assert!(url.host().is_some());
-        }
-
-        let invalid_urls = vec![
-            "",
-            "not-a-url",
-            "ftp://unsupported.protocol", // FTP is valid URL but not for RPC
-            "http://",
-            "://missing-scheme",
-            "localhost:8545", // Missing scheme
-        ];
-
-        for url_str in invalid_urls {
-            let result = url::Url::parse(url_str);
-            if result.is_ok() {
-                // Some URLs parse but aren't suitable for RPC (like ftp://)
-                let url = result.unwrap();
-                let is_http_like = url.scheme() == "http"
-                    || url.scheme() == "https"
-                    || url.scheme() == "ws"
-                    || url.scheme() == "wss";
-
-                // If it's an HTTP-like protocol, it should have a host
-                // If it's not HTTP-like (e.g., ftp), we also consider it invalid for RPC
-                assert!(
-                    !is_http_like || url.host().is_none(),
-                    "URL {} should not be a valid RPC URL",
-                    url_str
-                );
-            }
-        }
     }
 
     #[test]
