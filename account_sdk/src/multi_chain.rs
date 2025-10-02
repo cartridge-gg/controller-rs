@@ -6,12 +6,18 @@ use std::collections::HashMap;
 use url::Url;
 
 use crate::{
+    account::session::{account::SessionAccount, policy::Policy},
     controller::Controller,
     errors::ControllerError,
+    execute_from_outside::FeeSource,
     factory::compute_account_address,
     provider::CartridgeJsonRpcProvider,
+    session::RevokableSession,
     signers::Owner,
-    storage::{selectors::Selectors, ControllerMetadata, Storage, StorageBackend, StorageValue},
+    storage::{
+        selectors::Selectors, ControllerMetadata, SessionMetadata, Storage, StorageBackend,
+        StorageValue,
+    },
 };
 
 /// Configuration for a specific blockchain network
@@ -212,6 +218,19 @@ impl MultiChainController {
         self.controllers.keys().copied().collect()
     }
 
+    /// Gets a mutable controller for a specific chain
+    pub fn controller_for_chain_mut(
+        &mut self,
+        chain_id: Felt,
+    ) -> Result<&mut Controller, ControllerError> {
+        self.controllers.get_mut(&chain_id).ok_or_else(|| {
+            ControllerError::InvalidResponseData(format!(
+                "Controller for chain {} not found",
+                chain_id
+            ))
+        })
+    }
+
     /// Updates the RPC URL for a specific chain
     pub async fn update_chain_rpc(
         &mut self,
@@ -255,6 +274,194 @@ impl MultiChainController {
         self.update_storage()?;
 
         Ok(())
+    }
+
+    // Session Management Methods
+
+    /// Get the active session for a specific chain
+    pub fn session_for_chain(
+        &self,
+        chain_id: Felt,
+    ) -> Result<Option<SessionMetadata>, ControllerError> {
+        let controller = self.controller_for_chain(chain_id)?;
+        Ok(controller.authorized_session())
+    }
+
+    /// Create a session for a specific chain
+    pub async fn create_session_for_chain(
+        &mut self,
+        chain_id: Felt,
+        policies: Vec<Policy>,
+        expires_at: u64,
+    ) -> Result<SessionAccount, ControllerError> {
+        let controller = self.controller_for_chain_mut(chain_id)?;
+        controller.create_session(policies, expires_at).await
+    }
+
+    /// Register a session for a specific chain
+    pub async fn register_session_for_chain(
+        &mut self,
+        chain_id: Felt,
+        policies: Vec<Policy>,
+        expires_at: u64,
+        public_key: Felt,
+        guardian: Felt,
+        max_fee: Option<FeeEstimate>,
+    ) -> Result<InvokeTransactionResult, ControllerError> {
+        let controller = self.controller_for_chain_mut(chain_id)?;
+        controller
+            .register_session(policies, expires_at, public_key, guardian, max_fee)
+            .await
+    }
+
+    /// Revoke sessions for a specific chain
+    pub async fn revoke_sessions_for_chain(
+        &mut self,
+        chain_id: Felt,
+        sessions: Vec<RevokableSession>,
+    ) -> Result<InvokeTransactionResult, ControllerError> {
+        let controller = self.controller_for_chain_mut(chain_id)?;
+        controller.revoke_sessions(sessions).await
+    }
+
+    // ============= Deployment Status Methods =============
+
+    /// Check if the account is deployed on a specific chain
+    pub async fn is_deployed_on_chain(&self, chain_id: Felt) -> Result<bool, ControllerError> {
+        let controller = self.controller_for_chain(chain_id)?;
+        // Check if the account is deployed by trying to get its class hash
+        match controller
+            .provider
+            .get_class_hash_at(
+                starknet::core::types::BlockId::Tag(starknet::core::types::BlockTag::PreConfirmed),
+                controller.address,
+            )
+            .await
+        {
+            Ok(_) => Ok(true),
+            Err(_) => Ok(false),
+        }
+    }
+
+    /// Deploy the account on a specific chain (must be called separately with send())
+    pub fn deploy_on_chain(
+        &self,
+        chain_id: Felt,
+    ) -> Result<
+        starknet::accounts::AccountDeploymentV3<'_, crate::factory::ControllerFactory>,
+        ControllerError,
+    > {
+        let controller = self.controller_for_chain(chain_id)?;
+        Ok(controller.deploy())
+    }
+
+    /// Get deployment status for all chains
+    pub async fn deployment_status(&self) -> HashMap<Felt, bool> {
+        let mut status = HashMap::new();
+        for (chain_id, controller) in &self.controllers {
+            // Best effort - if we can't check deployment status, assume not deployed
+            let is_deployed = controller
+                .provider
+                .get_class_hash_at(
+                    starknet::core::types::BlockId::Tag(
+                        starknet::core::types::BlockTag::PreConfirmed,
+                    ),
+                    controller.address,
+                )
+                .await
+                .is_ok();
+            status.insert(*chain_id, is_deployed);
+        }
+        status
+    }
+
+    // ============= Chain-Specific Execution Methods =============
+
+    /// Execute a transaction on a specific chain
+    pub async fn execute_on_chain(
+        &mut self,
+        chain_id: Felt,
+        calls: Vec<Call>,
+        max_fee: Option<FeeEstimate>,
+        fee_source: Option<FeeSource>,
+    ) -> Result<InvokeTransactionResult, ControllerError> {
+        let controller = self.controller_for_chain_mut(chain_id)?;
+        controller.execute(calls, max_fee, fee_source).await
+    }
+
+    /// Estimate fees for a transaction on a specific chain
+    pub async fn estimate_fees_on_chain(
+        &mut self,
+        chain_id: Felt,
+        calls: Vec<Call>,
+    ) -> Result<FeeEstimate, ControllerError> {
+        let controller = self.controller_for_chain_mut(chain_id)?;
+        controller.estimate_invoke_fee(calls).await
+    }
+
+    /// Execute a transaction from outside (v2) on a specific chain
+    pub async fn execute_from_outside_v2_on_chain(
+        &mut self,
+        chain_id: Felt,
+        calls: Vec<Call>,
+        fee_source: Option<FeeSource>,
+    ) -> Result<InvokeTransactionResult, ControllerError> {
+        let controller = self.controller_for_chain_mut(chain_id)?;
+        controller.execute_from_outside_v2(calls, fee_source).await
+    }
+
+    /// Execute a transaction from outside (v3) on a specific chain
+    pub async fn execute_from_outside_v3_on_chain(
+        &mut self,
+        chain_id: Felt,
+        calls: Vec<Call>,
+        fee_source: Option<FeeSource>,
+    ) -> Result<InvokeTransactionResult, ControllerError> {
+        let controller = self.controller_for_chain_mut(chain_id)?;
+        controller.execute_from_outside_v3(calls, fee_source).await
+    }
+
+    // ============= Chain Configuration Validation =============
+
+    /// Validate a chain configuration before adding it
+    pub async fn validate_chain_config(config: &ChainConfig) -> Result<(), ControllerError> {
+        // Create a provider to test the RPC connection
+        let provider = CartridgeJsonRpcProvider::new(config.rpc_url.clone());
+
+        // Try to get the chain ID to validate the RPC is working
+        provider.chain_id().await?;
+
+        // Additional validation could be added here:
+        // - Check if class_hash exists on chain
+        // - Validate owner configuration
+        // - Check if address (if provided) exists on chain
+
+        Ok(())
+    }
+
+    // ============= Chain-Specific Signer Management =============
+
+    /// Set the owner for a specific chain
+    pub fn set_owner_for_chain(
+        &mut self,
+        chain_id: Felt,
+        owner: Owner,
+    ) -> Result<(), ControllerError> {
+        let controller = self.controller_for_chain_mut(chain_id)?;
+        controller.set_owner(owner);
+        Ok(())
+    }
+
+    /// Get the owner for a specific chain
+    pub fn get_owner_for_chain(&self, chain_id: Felt) -> Result<Owner, ControllerError> {
+        let controller = self.controller_for_chain(chain_id)?;
+        Ok(controller.owner.clone())
+    }
+
+    /// Get the owner GUID for a specific chain
+    pub fn get_owner_guid_for_chain(&self, chain_id: Felt) -> Result<Felt, ControllerError> {
+        let controller = self.controller_for_chain(chain_id)?;
+        Ok(controller.owner_guid())
     }
 
     /// Updates storage with current configuration
@@ -533,6 +740,159 @@ mod tests {
         // Clean up
         let _ = child.kill();
         let _ = child.wait();
+    }
+
+    #[tokio::test]
+    async fn test_session_management_per_chain() {
+        // Start a Katana instance
+        let runner = KatanaRunner::load();
+        runner.declare_controller(Version::LATEST).await;
+
+        let owner = Owner::Signer(Signer::new_starknet_random());
+        let config = ChainConfig {
+            class_hash: CONTROLLERS[&Version::LATEST].hash,
+            rpc_url: runner.rpc_url.clone(),
+            owner: owner.clone(),
+            address: None,
+        };
+
+        let mut multi_controller = MultiChainController::new(
+            "test_app".to_string(),
+            "test_user".to_string(),
+            vec![config],
+        )
+        .await
+        .unwrap();
+
+        let chain_id = multi_controller.configured_chains()[0];
+
+        // Test session creation for a specific chain
+        let policies = vec![];
+        let expires_at = 1000000;
+        let session_result = multi_controller
+            .create_session_for_chain(chain_id, policies.clone(), expires_at)
+            .await;
+
+        assert!(session_result.is_ok(), "Failed to create session");
+
+        // Verify session exists
+        let session = multi_controller.session_for_chain(chain_id).unwrap();
+        assert!(session.is_some(), "Session should exist after creation");
+    }
+
+    #[tokio::test]
+    async fn test_deployment_status_tracking() {
+        // Start a Katana instance
+        let runner = KatanaRunner::load();
+        runner.declare_controller(Version::LATEST).await;
+
+        let owner = Owner::Signer(Signer::new_starknet_random());
+        let config = ChainConfig {
+            class_hash: CONTROLLERS[&Version::LATEST].hash,
+            rpc_url: runner.rpc_url.clone(),
+            owner: owner.clone(),
+            address: None,
+        };
+
+        let multi_controller = MultiChainController::new(
+            "test_app".to_string(),
+            "test_user".to_string(),
+            vec![config],
+        )
+        .await
+        .unwrap();
+
+        let chain_id = multi_controller.configured_chains()[0];
+
+        // Check deployment status (should be false initially)
+        let is_deployed = multi_controller
+            .is_deployed_on_chain(chain_id)
+            .await
+            .unwrap();
+        assert!(!is_deployed, "Account should not be deployed initially");
+
+        // Test deployment status for all chains
+        let all_status = multi_controller.deployment_status().await;
+        assert_eq!(all_status.len(), 1);
+        assert_eq!(all_status.get(&chain_id), Some(&false));
+    }
+
+    #[tokio::test]
+    async fn test_chain_specific_execution() {
+        // Start a Katana instance
+        let runner = KatanaRunner::load();
+        runner.declare_controller(Version::LATEST).await;
+
+        let owner = Owner::Signer(Signer::new_starknet_random());
+        let config = ChainConfig {
+            class_hash: CONTROLLERS[&Version::LATEST].hash,
+            rpc_url: runner.rpc_url.clone(),
+            owner: owner.clone(),
+            address: None,
+        };
+
+        let mut multi_controller = MultiChainController::new(
+            "test_app".to_string(),
+            "test_user".to_string(),
+            vec![config],
+        )
+        .await
+        .unwrap();
+
+        let chain_id = multi_controller.configured_chains()[0];
+
+        // Test fee estimation
+        let calls = vec![];
+        let fee_result = multi_controller
+            .estimate_fees_on_chain(chain_id, calls)
+            .await;
+        assert!(fee_result.is_ok(), "Fee estimation should work");
+    }
+
+    #[tokio::test]
+    async fn test_owner_management_per_chain() {
+        // Start a Katana instance
+        let runner = KatanaRunner::load();
+        runner.declare_controller(Version::LATEST).await;
+
+        let owner1 = Owner::Signer(Signer::new_starknet_random());
+        let config = ChainConfig {
+            class_hash: CONTROLLERS[&Version::LATEST].hash,
+            rpc_url: runner.rpc_url.clone(),
+            owner: owner1.clone(),
+            address: None,
+        };
+
+        let mut multi_controller = MultiChainController::new(
+            "test_app".to_string(),
+            "test_user".to_string(),
+            vec![config],
+        )
+        .await
+        .unwrap();
+
+        let chain_id = multi_controller.configured_chains()[0];
+
+        // Get owner for chain
+        let owner = multi_controller.get_owner_for_chain(chain_id).unwrap();
+        assert_eq!(owner, owner1);
+
+        // Get owner GUID
+        let guid1 = multi_controller.get_owner_guid_for_chain(chain_id).unwrap();
+
+        // Set new owner
+        let owner2 = Owner::Signer(Signer::new_starknet_random());
+        multi_controller
+            .set_owner_for_chain(chain_id, owner2.clone())
+            .unwrap();
+
+        // Verify owner changed
+        let new_owner = multi_controller.get_owner_for_chain(chain_id).unwrap();
+        assert_eq!(new_owner, owner2);
+
+        // Verify GUID changed
+        let guid2 = multi_controller.get_owner_guid_for_chain(chain_id).unwrap();
+        assert_ne!(guid1, guid2);
     }
 
     #[tokio::test]
