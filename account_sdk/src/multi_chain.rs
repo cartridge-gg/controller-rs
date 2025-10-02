@@ -35,7 +35,6 @@ pub struct ChainConfig {
 pub struct MultiChainMetadata {
     pub app_id: String,
     pub username: String,
-    pub active_chain: Felt,
     /// List of all configured chains with their addresses
     pub chains: Vec<ChainInfo>,
 }
@@ -53,7 +52,6 @@ pub struct MultiChainController {
     pub app_id: String,
     pub username: String,
     controllers: HashMap<Felt, Controller>,
-    pub active_chain: Felt,
     pub storage: Storage,
 }
 
@@ -71,7 +69,6 @@ impl MultiChainController {
         }
 
         let mut controllers = HashMap::new();
-        let mut first_chain_id = None;
 
         // Create controllers for all provided configurations
         for config in chain_configs {
@@ -88,11 +85,6 @@ impl MultiChainController {
                 )));
             }
 
-            // Store the first chain_id to use as the active chain
-            if first_chain_id.is_none() {
-                first_chain_id = Some(chain_id);
-            }
-
             controllers.insert(chain_id, controller);
         }
 
@@ -100,7 +92,6 @@ impl MultiChainController {
             app_id,
             username,
             controllers,
-            active_chain: first_chain_id.unwrap(), // Safe unwrap since we checked for empty
             storage: Storage::default(),
         })
     }
@@ -156,12 +147,6 @@ impl MultiChainController {
 
     /// Removes a chain configuration
     pub fn remove_chain(&mut self, chain_id: Felt) -> Result<(), ControllerError> {
-        if self.active_chain == chain_id {
-            return Err(ControllerError::InvalidResponseData(
-                "Cannot remove active chain".to_string(),
-            ));
-        }
-
         self.controllers.remove(&chain_id).ok_or_else(|| {
             ControllerError::InvalidResponseData(format!("Chain {} not found", chain_id))
         })?;
@@ -170,37 +155,6 @@ impl MultiChainController {
         self.update_storage()?;
 
         Ok(())
-    }
-
-    /// Switches to a different chain
-    pub fn switch_chain(&mut self, chain_id: Felt) -> Result<(), ControllerError> {
-        if !self.controllers.contains_key(&chain_id) {
-            return Err(ControllerError::InvalidResponseData(format!(
-                "Chain {} not configured",
-                chain_id
-            )));
-        }
-
-        self.active_chain = chain_id;
-
-        // Update storage with new active chain
-        self.update_storage()?;
-
-        Ok(())
-    }
-
-    /// Gets the currently active controller
-    pub fn active_controller(&self) -> Result<&Controller, ControllerError> {
-        self.controllers.get(&self.active_chain).ok_or_else(|| {
-            ControllerError::InvalidResponseData("Active controller not found".to_string())
-        })
-    }
-
-    /// Gets the currently active controller mutably
-    pub fn active_controller_mut(&mut self) -> Result<&mut Controller, ControllerError> {
-        self.controllers.get_mut(&self.active_chain).ok_or_else(|| {
-            ControllerError::InvalidResponseData("Active controller not found".to_string())
-        })
     }
 
     /// Gets a controller for a specific chain
@@ -478,7 +432,6 @@ impl MultiChainController {
         let multi_chain_metadata = MultiChainMetadata {
             app_id: self.app_id.clone(),
             username: self.username.clone(),
-            active_chain: self.active_chain,
             chains: self
                 .controllers
                 .iter()
@@ -556,7 +509,6 @@ impl MultiChainController {
                 app_id: multi_chain_metadata.app_id,
                 username: multi_chain_metadata.username,
                 controllers,
-                active_chain: multi_chain_metadata.active_chain,
                 storage,
             }))
         } else {
@@ -593,43 +545,12 @@ impl MultiChainController {
                     app_id,
                     username: metadata.username,
                     controllers,
-                    active_chain: chain_id,
                     storage,
                 }))
             }
             Ok(None) => Ok(None),
             Err(e) => Err(ControllerError::StorageError(e)),
         }
-    }
-
-    // Delegate common operations to the active controller
-
-    pub async fn execute(
-        &mut self,
-        calls: Vec<Call>,
-        max_fee: Option<FeeEstimate>,
-        fee_source: Option<crate::execute_from_outside::FeeSource>,
-    ) -> Result<InvokeTransactionResult, ControllerError> {
-        let controller = self.active_controller_mut()?;
-        Controller::execute(controller, calls, max_fee, fee_source).await
-    }
-
-    pub async fn estimate_invoke_fee(
-        &self,
-        calls: Vec<Call>,
-    ) -> Result<FeeEstimate, ControllerError> {
-        let controller = self.active_controller()?;
-        controller.estimate_invoke_fee(calls).await
-    }
-
-    pub fn address(&self) -> Result<Felt, ControllerError> {
-        let controller = self.active_controller()?;
-        Ok(controller.address)
-    }
-
-    pub fn chain_id(&self) -> Result<Felt, ControllerError> {
-        let controller = self.active_controller()?;
-        Ok(controller.chain_id)
     }
 }
 
@@ -922,73 +843,6 @@ mod tests {
         assert_ne!(guid1, guid2);
     }
 
-    #[tokio::test]
-    async fn test_multi_chain_controller_switch_chain() {
-        // Start two Katana instances
-        let runner1 = KatanaRunner::load();
-
-        // Declare the controller contract
-        runner1.declare_controller(Version::LATEST).await;
-
-        let katana_port = find_free_port();
-        let mut child = Command::new("katana")
-            .args(["--chain-id", "KATANA2"])
-            .args(["--http.port", &katana_port.to_string()])
-            .stdout(Stdio::null())
-            .stderr(Stdio::null())
-            .spawn()
-            .expect("failed to start second katana");
-
-        // Wait for katana to start
-        tokio::time::sleep(std::time::Duration::from_secs(2)).await;
-
-        let owner = Owner::Signer(Signer::new_starknet_random());
-
-        let config1 = ChainConfig {
-            class_hash: CONTROLLERS[&Version::LATEST].hash,
-            rpc_url: runner1.rpc_url.clone(),
-            owner: owner.clone(),
-            address: None,
-        };
-
-        let config2 = ChainConfig {
-            class_hash: CONTROLLERS[&Version::LATEST].hash,
-            rpc_url: Url::parse(&format!("http://127.0.0.1:{}/", katana_port)).unwrap(),
-            owner: owner.clone(),
-            address: None,
-        };
-
-        let mut multi_controller = MultiChainController::new(
-            "test_app".to_string(),
-            "test_user".to_string(),
-            vec![config1, config2],
-        )
-        .await
-        .unwrap();
-
-        // Verify initial active chain
-        let initial_chain = multi_controller.active_chain;
-        assert_eq!(initial_chain, short_string!("SN_SEPOLIA"));
-
-        // Switch to the second chain
-        let result = multi_controller.switch_chain(short_string!("KATANA2"));
-        assert!(result.is_ok());
-        assert_eq!(multi_controller.active_chain, short_string!("KATANA2"));
-
-        // Switch back to the first chain
-        let result = multi_controller.switch_chain(short_string!("SN_SEPOLIA"));
-        assert!(result.is_ok());
-        assert_eq!(multi_controller.active_chain, short_string!("SN_SEPOLIA"));
-
-        // Try to switch to non-existent chain
-        let result = multi_controller.switch_chain(short_string!("INVALID"));
-        assert!(result.is_err());
-
-        // Clean up
-        let _ = child.kill();
-        let _ = child.wait();
-    }
-
     #[cfg(feature = "filestorage")]
     #[tokio::test]
     async fn test_multi_chain_storage_persistence() {
@@ -1042,16 +896,9 @@ mod tests {
                 .await
                 .unwrap();
 
-        // Switch to the second chain
-        multi_controller
-            .switch_chain(short_string!("KATANA2"))
-            .unwrap();
-
         // Store the current state
         let configured_chains = multi_controller.configured_chains();
-        let active_chain = multi_controller.active_chain;
         assert_eq!(configured_chains.len(), 2);
-        assert_eq!(active_chain, short_string!("KATANA2"));
 
         // Save to storage
         multi_controller.update_storage().unwrap();
@@ -1064,7 +911,6 @@ mod tests {
 
         // Verify state was persisted correctly
         assert_eq!(loaded.configured_chains().len(), 2);
-        assert_eq!(loaded.active_chain, active_chain);
 
         // Verify both chains are present
         let loaded_chains = loaded.configured_chains();

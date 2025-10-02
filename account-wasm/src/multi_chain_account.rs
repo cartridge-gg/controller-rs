@@ -84,7 +84,7 @@ pub struct MultiChainAccount {
 #[wasm_bindgen]
 impl MultiChainAccount {
     /// Creates a new MultiChainAccount with multiple chain configurations
-    #[wasm_bindgen(js_name = createNew)]
+    #[wasm_bindgen(js_name = create)]
     pub async fn new(
         app_id: String,
         username: String,
@@ -110,15 +110,18 @@ impl MultiChainAccount {
             .await
             .map_err(|e| JsError::new(&e.to_string()))?;
 
-        // Initialize policy storage for the active chain
-        let address = multi_controller
-            .address()
-            .map_err(|e| JsError::new(&e.to_string()))?;
-        let chain_id = multi_controller
-            .chain_id()
+        // Initialize policy storage with the first chain (policy storage will be per-controller)
+        let first_chain_id = multi_controller
+            .configured_chains()
+            .into_iter()
+            .next()
+            .ok_or_else(|| JsError::new("No chains configured"))?;
+        let first_controller = multi_controller
+            .controller_for_chain(first_chain_id)
             .map_err(|e| JsError::new(&e.to_string()))?;
 
-        let policy_storage = PolicyStorage::new(&address, &app_id, &chain_id);
+        let policy_storage =
+            PolicyStorage::new(&first_controller.address, &app_id, &first_chain_id);
 
         Ok(Self {
             multi_controller: Rc::new(WasmMutex::new(multi_controller)),
@@ -139,18 +142,22 @@ impl MultiChainAccount {
             .await
             .map_err(|e| JsError::new(&e.to_string()))?;
 
-        if let Some(controller) = multi_controller {
-            let address = controller
-                .address()
-                .map_err(|e| JsError::new(&e.to_string()))?;
-            let chain_id = controller
-                .chain_id()
+        if let Some(multi_controller) = multi_controller {
+            // Initialize policy storage with the first chain
+            let first_chain_id = multi_controller
+                .configured_chains()
+                .into_iter()
+                .next()
+                .ok_or_else(|| JsError::new("No chains configured"))?;
+            let first_controller = multi_controller
+                .controller_for_chain(first_chain_id)
                 .map_err(|e| JsError::new(&e.to_string()))?;
 
-            let policy_storage = PolicyStorage::new(&address, &app_id, &chain_id);
+            let policy_storage =
+                PolicyStorage::new(&first_controller.address, &app_id, &first_chain_id);
 
             Ok(Some(Self {
-                multi_controller: Rc::new(WasmMutex::new(controller)),
+                multi_controller: Rc::new(WasmMutex::new(multi_controller)),
                 policy_storage: Rc::new(WasmMutex::new(policy_storage)),
                 cartridge_api_url,
             }))
@@ -471,7 +478,6 @@ impl Controller {
 pub struct MultiChainAccountMeta {
     app_id: String,
     username: String,
-    active_chain: JsFelt,
     chains: Vec<JsFelt>,
 }
 
@@ -488,11 +494,6 @@ impl MultiChainAccountMeta {
     }
 
     #[wasm_bindgen(getter)]
-    pub fn active_chain(&self) -> JsFelt {
-        self.active_chain.clone()
-    }
-
-    #[wasm_bindgen(getter)]
     pub fn chains(&self) -> Vec<JsFelt> {
         self.chains.clone()
     }
@@ -505,7 +506,6 @@ impl MultiChainAccount {
         MultiChainAccountMeta {
             app_id: controller.app_id.clone(),
             username: controller.username.clone(),
-            active_chain: controller.active_chain.into(),
             chains: controller
                 .configured_chains()
                 .into_iter()
