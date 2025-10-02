@@ -10,7 +10,7 @@ use account_sdk::controller::{Controller, DEFAULT_SESSION_EXPIRATION};
 use account_sdk::errors::ControllerError;
 use account_sdk::session::RevokableSession;
 use account_sdk::storage::selectors::Selectors;
-use account_sdk::storage::StorageBackend;
+use account_sdk::storage::{ControllerMetadata, StorageBackend};
 
 use account_sdk::transaction_waiter::TransactionWaiter;
 use cainome::cairo_serde::NonZero;
@@ -943,6 +943,53 @@ impl CartridgeAccount {
             .authorized_session()
             .map(|metadata| !metadata.session.is_expired())
             .unwrap_or(false))
+    }
+
+    /// Switches the RPC URL at runtime.
+    ///
+    /// # Parameters
+    /// - `new_rpc_url`: The new RPC URL to switch to
+    ///
+    /// # Returns
+    /// Returns unit on success, or an error if the switch fails
+    ///
+    /// # Errors
+    /// - Invalid URL format
+    /// - Network mismatch (chain_id differs from current)
+    /// - Connection failures
+    #[wasm_bindgen(js_name = switchRpc)]
+    pub async fn switch_rpc(
+        &self,
+        new_rpc_url: String,
+    ) -> std::result::Result<(), JsControllerError> {
+        set_panic_hook();
+
+        // Parse and validate the new RPC URL
+        let new_url = Url::parse(&new_rpc_url).map_err(|e| {
+            JsControllerError::from(ControllerError::InvalidResponseData(format!(
+                "Invalid RPC URL: {}",
+                e
+            )))
+        })?;
+
+        let mut controller = self.controller.lock().await;
+
+        // Use the new public method in Controller to switch RPC
+        controller.switch_rpc(new_url).await?;
+
+        // Extract values needed for storage update
+        let app_id = controller.app_id.clone();
+        let chain_id = controller.chain_id;
+        let address = controller.address;
+        let metadata = ControllerMetadata::from(&*controller);
+
+        // Update storage with new RPC URL
+        controller
+            .storage
+            .set_controller(&app_id, &chain_id, address, metadata)
+            .map_err(|e| JsControllerError::from(ControllerError::StorageError(e)))?;
+
+        Ok(())
     }
 
     /// Signs an OutsideExecution V3 transaction and returns both the OutsideExecution object and its signature.
