@@ -82,20 +82,30 @@ pub struct MultiChainAccount {
 
 #[wasm_bindgen]
 impl MultiChainAccount {
-    /// Creates a new MultiChainAccount with an initial chain configuration
+    /// Creates a new MultiChainAccount with multiple chain configurations
     #[wasm_bindgen(js_name = createNew)]
     pub async fn new(
         app_id: String,
         username: String,
-        initial_config: JsChainConfig,
+        chain_configs: Vec<JsChainConfig>,
         cartridge_api_url: String,
     ) -> Result<MultiChainAccount> {
         set_panic_hook();
 
-        let username = username.to_lowercase();
-        let config: ChainConfig = initial_config.try_into()?;
+        if chain_configs.is_empty() {
+            return Err(JsError::new("At least one chain configuration is required"));
+        }
 
-        let multi_controller = MultiChainController::new(app_id.clone(), username.clone(), config)
+        let username = username.to_lowercase();
+
+        // Convert all JsChainConfigs to ChainConfigs
+        let mut configs = Vec::new();
+        for js_config in chain_configs {
+            let config: ChainConfig = js_config.try_into()?;
+            configs.push(config);
+        }
+
+        let multi_controller = MultiChainController::new(app_id.clone(), username.clone(), configs)
             .await
             .map_err(|e| JsError::new(&e.to_string()))?;
 

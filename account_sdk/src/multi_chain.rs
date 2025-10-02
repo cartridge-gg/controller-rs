@@ -52,29 +52,61 @@ pub struct MultiChainController {
 }
 
 impl MultiChainController {
-    /// Creates a new MultiChainController with an initial chain configuration
+    /// Creates a new MultiChainController with multiple chain configurations
     pub async fn new(
         app_id: String,
         username: String,
-        initial_config: ChainConfig,
+        chain_configs: Vec<ChainConfig>,
     ) -> Result<Self, ControllerError> {
+        if chain_configs.is_empty() {
+            return Err(ControllerError::InvalidResponseData(
+                "At least one chain configuration is required".to_string(),
+            ));
+        }
+
         let mut controllers = HashMap::new();
+        let mut first_chain_id = None;
 
-        // Create the initial controller
-        let controller = Self::create_controller(&app_id, &username, initial_config).await?;
+        // Create controllers for all provided configurations
+        for config in chain_configs {
+            let controller = Self::create_controller(&app_id, &username, config).await?;
 
-        // Get chain_id from the controller (which fetched it from RPC)
-        let chain_id = controller.chain_id;
+            // Get chain_id from the controller (which fetched it from RPC)
+            let chain_id = controller.chain_id;
 
-        controllers.insert(chain_id, controller);
+            // Check for duplicate chain IDs
+            if controllers.contains_key(&chain_id) {
+                return Err(ControllerError::InvalidResponseData(format!(
+                    "Duplicate chain configuration for chain_id: {}",
+                    chain_id
+                )));
+            }
+
+            // Store the first chain_id to use as the active chain
+            if first_chain_id.is_none() {
+                first_chain_id = Some(chain_id);
+            }
+
+            controllers.insert(chain_id, controller);
+        }
 
         Ok(Self {
             app_id,
             username,
             controllers,
-            active_chain: chain_id,
+            active_chain: first_chain_id.unwrap(), // Safe unwrap since we checked for empty
             storage: Storage::default(),
         })
+    }
+
+    /// Creates a new MultiChainController with a single chain configuration
+    /// This is a convenience method for backward compatibility
+    pub async fn new_single(
+        app_id: String,
+        username: String,
+        initial_config: ChainConfig,
+    ) -> Result<Self, ControllerError> {
+        Self::new(app_id, username, vec![initial_config]).await
     }
 
     /// Creates a new Controller from a ChainConfig
@@ -414,7 +446,43 @@ mod tests {
     use starknet::macros::felt;
 
     // #[tokio::test]
-    async fn test_multi_chain_controller_creation() {
+    async fn test_multi_chain_controller_creation_multiple_chains() {
+        let config1 = ChainConfig {
+            class_hash: felt!("0x1234"),
+            rpc_url: Url::parse("http://localhost:5050").unwrap(),
+            owner: Owner::Signer(Signer::new_starknet_random()),
+            address: Some(felt!("0xabcd")),
+        };
+
+        let config2 = ChainConfig {
+            class_hash: felt!("0x5678"),
+            rpc_url: Url::parse("http://localhost:5051").unwrap(),
+            owner: Owner::Signer(Signer::new_starknet_random()),
+            address: Some(felt!("0xef01")),
+        };
+
+        let config3 = ChainConfig {
+            class_hash: felt!("0x9abc"),
+            rpc_url: Url::parse("http://localhost:5052").unwrap(),
+            owner: Owner::Signer(Signer::new_starknet_random()),
+            address: Some(felt!("0x1234")),
+        };
+
+        let multi_controller = MultiChainController::new(
+            "test_app".to_string(),
+            "test_user".to_string(),
+            vec![config1, config2, config3],
+        )
+        .await;
+
+        assert!(multi_controller.is_ok());
+        let controller = multi_controller.unwrap();
+        // Would have 3 chains configured
+        assert_eq!(controller.configured_chains().len(), 3);
+    }
+
+    // #[tokio::test]
+    async fn test_multi_chain_controller_creation_single() {
         let config = ChainConfig {
             class_hash: felt!("0x1234"),
             rpc_url: Url::parse("http://localhost:5050").unwrap(),
@@ -425,7 +493,7 @@ mod tests {
         let multi_controller = MultiChainController::new(
             "test_app".to_string(),
             "test_user".to_string(),
-            config.clone(),
+            vec![config],
         )
         .await;
 
@@ -448,7 +516,7 @@ mod tests {
         let mut multi_controller = MultiChainController::new(
             "test_app".to_string(),
             "test_user".to_string(),
-            initial_config,
+            vec![initial_config],
         )
         .await
         .unwrap();
@@ -477,7 +545,7 @@ mod tests {
         let mut multi_controller = MultiChainController::new(
             "test_app".to_string(),
             "test_user".to_string(),
-            initial_config,
+            vec![initial_config],
         )
         .await
         .unwrap();
@@ -515,10 +583,13 @@ mod tests {
         let app_id = "test_persistence".to_string();
         let username = "test_user".to_string();
 
-        let mut multi_controller =
-            MultiChainController::new(app_id.clone(), username.clone(), chain1_config.clone())
-                .await
-                .unwrap();
+        let mut multi_controller = MultiChainController::new(
+            app_id.clone(),
+            username.clone(),
+            vec![chain1_config.clone()],
+        )
+        .await
+        .unwrap();
 
         // Add a second chain
         let chain2_config = ChainConfig {
