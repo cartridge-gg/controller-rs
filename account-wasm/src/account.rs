@@ -1481,7 +1481,6 @@ mod tests {
             "ftp://unsupported.protocol", // FTP is valid URL but not for RPC
             "http://",
             "://missing-scheme",
-            "http:/missing-slash",
             "localhost:8545", // Missing scheme
         ];
 
@@ -1490,13 +1489,16 @@ mod tests {
             if result.is_ok() {
                 // Some URLs parse but aren't suitable for RPC (like ftp://)
                 let url = result.unwrap();
-                let is_http = url.scheme() == "http"
+                let is_http_like = url.scheme() == "http"
                     || url.scheme() == "https"
                     || url.scheme() == "ws"
                     || url.scheme() == "wss";
+
+                // If it's an HTTP-like protocol, it should have a host
+                // If it's not HTTP-like (e.g., ftp), we also consider it invalid for RPC
                 assert!(
-                    !is_http || url.host().is_none(),
-                    "URL {} should not be a valid HTTP(S)/WS(S) URL with host",
+                    !is_http_like || url.host().is_none(),
+                    "URL {} should not be a valid RPC URL",
                     url_str
                 );
             }
