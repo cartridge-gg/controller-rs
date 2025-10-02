@@ -1403,49 +1403,102 @@ mod tests {
         );
     }
 
-    #[cfg(all(target_arch = "wasm32", test))]
-    mod wasm_tests {
-        use super::*;
-        use wasm_bindgen_test::*;
+    #[test]
+    fn test_switch_rpc_error_handling() {
+        // Test that invalid URL errors are properly converted to JsControllerError
+        let invalid_url_error = ControllerError::InvalidResponseData(
+            "Invalid RPC URL: relative URL without a base".to_string(),
+        );
+        let js_error = JsControllerError::from(invalid_url_error);
+        assert!(matches!(js_error.code, ErrorCode::StarknetUnexpectedError));
+        assert!(js_error.message.contains("Invalid RPC URL"));
+    }
 
-        #[wasm_bindgen_test]
-        async fn test_switch_rpc_invalid_url() {
-            // Create a mock account - this won't work in actual WASM test without proper mocking
-            // but demonstrates the test structure
-            let invalid_url = "not-a-valid-url";
+    #[test]
+    fn test_switch_rpc_chain_id_error_conversion() {
+        // Test that chain ID mismatch errors are properly handled
+        let chain_id_error =
+            ControllerError::InvalidChainID("SN_SEPOLIA".to_string(), "SN_MAIN".to_string());
+        let js_error = JsControllerError::from(chain_id_error);
+        assert!(matches!(js_error.code, ErrorCode::InvalidChainId));
+        assert!(js_error.message.contains("SN_SEPOLIA"));
+        assert!(js_error.message.contains("SN_MAIN"));
+    }
 
-            // In real WASM tests, we'd need to mock the Controller and its dependencies
-            // For now, we test that invalid URL parsing is handled correctly
-            let url_result = url::Url::parse(invalid_url);
-            assert!(url_result.is_err(), "Invalid URL should fail to parse");
+    #[test]
+    fn test_switch_rpc_provider_error_conversion() {
+        use starknet::providers::ProviderError;
+
+        // Test that provider errors (like connection failures) are properly converted
+        let provider_error = ControllerError::ProviderError(ProviderError::StarknetError(
+            starknet::core::types::StarknetError::FailedToReceiveTransaction,
+        ));
+        let js_error = JsControllerError::from(provider_error);
+        assert!(matches!(
+            js_error.code,
+            ErrorCode::StarknetFailedToReceiveTransaction
+        ));
+    }
+
+    #[test]
+    fn test_switch_rpc_storage_error_conversion() {
+        use account_sdk::storage::StorageError;
+
+        // Test that storage errors are properly converted
+        let storage_error = ControllerError::StorageError(StorageError::OperationFailed(
+            "Failed to update RPC URL".to_string(),
+        ));
+        let js_error = JsControllerError::from(storage_error);
+        assert!(matches!(js_error.code, ErrorCode::StorageError));
+        assert!(js_error.message.contains("Failed to update RPC URL"));
+    }
+
+    #[test]
+    fn test_switch_rpc_url_parsing() {
+        // Test URL parsing for various formats
+        let valid_urls = vec![
+            "http://localhost:8545",
+            "https://mainnet.infura.io/v3/YOUR-PROJECT-ID",
+            "http://127.0.0.1:5050",
+            "https://starknet-sepolia.public.blastapi.io",
+            "ws://localhost:8546",
+            "wss://mainnet.infura.io/ws/v3/YOUR-PROJECT-ID",
+        ];
+
+        for url_str in valid_urls {
+            let result = url::Url::parse(url_str);
+            assert!(result.is_ok(), "URL {} should be valid", url_str);
+
+            // Verify the URL components are parsed correctly
+            let url = result.unwrap();
+            assert!(!url.scheme().is_empty());
+            assert!(url.host().is_some());
         }
 
-        #[wasm_bindgen_test]
-        async fn test_switch_rpc_url_validation() {
-            // Test various URL formats
-            let valid_urls = vec![
-                "http://localhost:8545",
-                "https://mainnet.infura.io/v3/YOUR-PROJECT-ID",
-                "http://127.0.0.1:5050",
-                "https://starknet-sepolia.public.blastapi.io",
-            ];
+        let invalid_urls = vec![
+            "",
+            "not-a-url",
+            "ftp://unsupported.protocol", // FTP is valid URL but not for RPC
+            "http://",
+            "://missing-scheme",
+            "http:/missing-slash",
+            "localhost:8545", // Missing scheme
+        ];
 
-            for url_str in valid_urls {
-                let url_result = url::Url::parse(url_str);
-                assert!(url_result.is_ok(), "URL {} should be valid", url_str);
-            }
-
-            let invalid_urls = vec![
-                "",
-                "not-a-url",
-                "ftp://unsupported.protocol",
-                "http://",
-                "://missing-scheme",
-            ];
-
-            for url_str in invalid_urls {
-                let url_result = url::Url::parse(url_str);
-                assert!(url_result.is_err(), "URL {} should be invalid", url_str);
+        for url_str in invalid_urls {
+            let result = url::Url::parse(url_str);
+            if result.is_ok() {
+                // Some URLs parse but aren't suitable for RPC (like ftp://)
+                let url = result.unwrap();
+                let is_http = url.scheme() == "http"
+                    || url.scheme() == "https"
+                    || url.scheme() == "ws"
+                    || url.scheme() == "wss";
+                assert!(
+                    !is_http || url.host().is_none(),
+                    "URL {} should not be a valid HTTP(S)/WS(S) URL with host",
+                    url_str
+                );
             }
         }
     }
