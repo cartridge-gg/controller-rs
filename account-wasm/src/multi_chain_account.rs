@@ -19,7 +19,6 @@ pub type Result<T> = std::result::Result<T, JsError>;
 /// JavaScript-friendly chain configuration
 #[wasm_bindgen]
 pub struct JsChainConfig {
-    chain_id: JsFelt,
     class_hash: JsFelt,
     rpc_url: String,
     owner: Owner,
@@ -29,25 +28,13 @@ pub struct JsChainConfig {
 #[wasm_bindgen]
 impl JsChainConfig {
     #[wasm_bindgen(constructor)]
-    pub fn new(
-        chain_id: JsFelt,
-        class_hash: JsFelt,
-        rpc_url: String,
-        owner: Owner,
-        address: Option<JsFelt>,
-    ) -> Self {
+    pub fn new(class_hash: JsFelt, rpc_url: String, owner: Owner, address: Option<JsFelt>) -> Self {
         Self {
-            chain_id,
             class_hash,
             rpc_url,
             owner,
             address,
         }
-    }
-
-    #[wasm_bindgen(getter)]
-    pub fn chain_id(&self) -> JsFelt {
-        self.chain_id.clone()
     }
 
     #[wasm_bindgen(getter)]
@@ -76,7 +63,6 @@ impl TryFrom<JsChainConfig> for ChainConfig {
 
     fn try_from(config: JsChainConfig) -> Result<Self> {
         Ok(ChainConfig {
-            chain_id: config.chain_id.try_into()?,
             class_hash: config.class_hash.try_into()?,
             rpc_url: Url::parse(&config.rpc_url)?,
             owner: config.owner.into(),
