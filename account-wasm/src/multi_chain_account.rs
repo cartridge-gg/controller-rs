@@ -1,21 +1,17 @@
-use account_sdk::controller::Controller;
 use account_sdk::errors::ControllerError;
 use account_sdk::multi_chain::{ChainConfig, MultiChainController};
-use serde_wasm_bindgen::to_value;
 use starknet::core::types::Felt;
-use starknet::providers::Provider;
 use std::rc::Rc;
 use url::Url;
 use wasm_bindgen::prelude::*;
 
+use crate::account::{CartridgeAccount, CartridgeAccountWithMeta};
 use crate::errors::JsControllerError;
 use crate::set_panic_hook;
 use crate::storage::PolicyStorage;
 use crate::sync::WasmMutex;
-use crate::types::call::JsCall;
-use crate::types::estimate::JsFeeEstimate;
 use crate::types::owner::Owner;
-use crate::types::{JsFeeSource, JsFelt};
+use crate::types::JsFelt;
 
 pub type Result<T> = std::result::Result<T, JsError>;
 
@@ -78,6 +74,7 @@ impl TryFrom<JsChainConfig> for ChainConfig {
 #[wasm_bindgen]
 pub struct MultiChainAccount {
     multi_controller: Rc<WasmMutex<MultiChainController>>,
+    #[allow(dead_code)]
     policy_storage: Rc<WasmMutex<PolicyStorage>>,
     #[allow(dead_code)]
     cartridge_api_url: String,
@@ -209,7 +206,7 @@ impl MultiChainAccount {
     pub async fn controller(
         &self,
         chain_id: JsFelt,
-    ) -> std::result::Result<Account, JsControllerError> {
+    ) -> std::result::Result<CartridgeAccount, JsControllerError> {
         let chain_id_felt: Felt = chain_id.try_into()?;
 
         // Get the controller for this chain
@@ -220,154 +217,12 @@ impl MultiChainAccount {
         let controller_instance = controller.clone();
         drop(multi_controller); // Release the lock
 
-        Ok(Account {
-            controller: WasmMutex::new(controller_instance),
-            policy_storage: Rc::clone(&self.policy_storage),
-            cartridge_api_url: self.cartridge_api_url.clone(),
-        })
-    }
-}
+        // Create a CartridgeAccount using the existing constructor pattern
+        let account_with_meta =
+            CartridgeAccountWithMeta::new(controller_instance, self.cartridge_api_url.clone());
 
-/// An account instance for a specific chain that provides direct access to operations
-#[wasm_bindgen]
-pub struct Account {
-    controller: WasmMutex<Controller>,
-    #[allow(dead_code)]
-    policy_storage: Rc<WasmMutex<PolicyStorage>>,
-    #[allow(dead_code)]
-    cartridge_api_url: String,
-}
-
-#[wasm_bindgen]
-impl Account {
-    /// Get the chain ID this account operates on
-    #[wasm_bindgen(js_name = chainId)]
-    pub async fn chain_id(&self) -> std::result::Result<JsFelt, JsControllerError> {
-        let controller = self.controller.lock().await;
-        Ok(controller.chain_id.into())
-    }
-
-    /// Get the account address on this chain
-    #[wasm_bindgen(js_name = address)]
-    pub async fn address(&self) -> std::result::Result<JsFelt, JsControllerError> {
-        let controller = self.controller.lock().await;
-        Ok(controller.address.into())
-    }
-
-    /// Check if the account is deployed on this chain
-    #[wasm_bindgen(js_name = isDeployed)]
-    pub async fn is_deployed(&self) -> std::result::Result<bool, JsControllerError> {
-        let controller = self.controller.lock().await;
-        // Check if account is deployed by checking class hash at address
-        match controller
-            .provider
-            .get_class_hash_at(
-                starknet::core::types::BlockId::Tag(starknet::core::types::BlockTag::PreConfirmed),
-                controller.address,
-            )
-            .await
-        {
-            Ok(_) => Ok(true),
-            Err(_) => Ok(false),
-        }
-    }
-
-    /// Deploy the account on this chain
-    #[wasm_bindgen(js_name = deploy)]
-    pub async fn deploy(&self) -> std::result::Result<JsValue, JsControllerError> {
-        let controller = self.controller.lock().await;
-        let deployment = controller.deploy();
-
-        // Send the deployment
-        let result = deployment.send().await.map_err(|e| {
-            JsControllerError::from(ControllerError::InvalidResponseData(format!(
-                "Deployment failed: {:?}",
-                e
-            )))
-        })?;
-
-        Ok(to_value(&result)?)
-    }
-
-    /// Execute calls on this chain
-    #[wasm_bindgen(js_name = execute)]
-    pub async fn execute(
-        &self,
-        calls: Vec<JsCall>,
-        max_fee: Option<JsFeeEstimate>,
-        fee_source: Option<JsFeeSource>,
-    ) -> std::result::Result<JsValue, JsControllerError> {
-        let calls = calls
-            .into_iter()
-            .map(TryFrom::try_from)
-            .collect::<std::result::Result<Vec<_>, _>>()?;
-
-        let mut controller = self.controller.lock().await;
-        let result = controller
-            .execute(
-                calls,
-                max_fee.map(Into::into),
-                fee_source.map(|fs| fs.try_into()).transpose()?,
-            )
-            .await?;
-
-        Ok(to_value(&result)?)
-    }
-
-    /// Estimate fees for calls on this chain
-    #[wasm_bindgen(js_name = estimateInvokeFee)]
-    pub async fn estimate_invoke_fee(
-        &self,
-        calls: Vec<JsCall>,
-    ) -> std::result::Result<JsFeeEstimate, JsControllerError> {
-        let calls = calls
-            .into_iter()
-            .map(TryFrom::try_from)
-            .collect::<std::result::Result<Vec<_>, _>>()?;
-
-        let controller = self.controller.lock().await;
-        let fee = controller.estimate_invoke_fee(calls).await?;
-        Ok(fee.into())
-    }
-
-    /// Execute from outside v2
-    #[wasm_bindgen(js_name = executeFromOutsideV2)]
-    pub async fn execute_from_outside_v2(
-        &self,
-        calls: Vec<JsCall>,
-        fee_source: Option<JsFeeSource>,
-    ) -> std::result::Result<JsValue, JsControllerError> {
-        let calls = calls
-            .into_iter()
-            .map(TryFrom::try_from)
-            .collect::<std::result::Result<Vec<_>, _>>()?;
-
-        let mut controller = self.controller.lock().await;
-        let result = controller
-            .execute_from_outside_v2(calls, fee_source.map(|fs| fs.try_into()).transpose()?)
-            .await?;
-
-        Ok(to_value(&result)?)
-    }
-
-    /// Execute from outside v3
-    #[wasm_bindgen(js_name = executeFromOutsideV3)]
-    pub async fn execute_from_outside_v3(
-        &self,
-        calls: Vec<JsCall>,
-        fee_source: Option<JsFeeSource>,
-    ) -> std::result::Result<JsValue, JsControllerError> {
-        let calls = calls
-            .into_iter()
-            .map(TryFrom::try_from)
-            .collect::<std::result::Result<Vec<_>, _>>()?;
-
-        let mut controller = self.controller.lock().await;
-        let result = controller
-            .execute_from_outside_v3(calls, fee_source.map(|fs| fs.try_into()).transpose()?)
-            .await?;
-
-        Ok(to_value(&result)?)
+        // Return just the account part
+        Ok(account_with_meta.into_account())
     }
 }
 
