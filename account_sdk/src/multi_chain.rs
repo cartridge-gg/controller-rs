@@ -1,23 +1,17 @@
 use serde::{Deserialize, Serialize};
-use starknet::core::types::{Call, FeeEstimate, Felt, InvokeTransactionResult};
+use starknet::core::types::Felt;
 use starknet::core::utils::{cairo_short_string_to_felt, parse_cairo_short_string};
 use starknet::providers::Provider;
 use std::collections::HashMap;
 use url::Url;
 
 use crate::{
-    account::session::{account::SessionAccount, policy::Policy},
     controller::Controller,
     errors::ControllerError,
-    execute_from_outside::FeeSource,
     factory::compute_account_address,
     provider::CartridgeJsonRpcProvider,
-    session::RevokableSession,
     signers::Owner,
-    storage::{
-        selectors::Selectors, ControllerMetadata, SessionMetadata, Storage, StorageBackend,
-        StorageValue,
-    },
+    storage::{selectors::Selectors, ControllerMetadata, Storage, StorageBackend, StorageValue},
 };
 
 /// Configuration for a specific blockchain network
@@ -230,151 +224,6 @@ impl MultiChainController {
         Ok(())
     }
 
-    // Session Management Methods
-
-    /// Get the active session for a specific chain
-    pub fn session_for_chain(
-        &self,
-        chain_id: Felt,
-    ) -> Result<Option<SessionMetadata>, ControllerError> {
-        let controller = self.controller_for_chain(chain_id)?;
-        Ok(controller.authorized_session())
-    }
-
-    /// Create a session for a specific chain
-    pub async fn create_session_for_chain(
-        &mut self,
-        chain_id: Felt,
-        policies: Vec<Policy>,
-        expires_at: u64,
-    ) -> Result<SessionAccount, ControllerError> {
-        let controller = self.controller_for_chain_mut(chain_id)?;
-        controller.create_session(policies, expires_at).await
-    }
-
-    /// Register a session for a specific chain
-    pub async fn register_session_for_chain(
-        &mut self,
-        chain_id: Felt,
-        policies: Vec<Policy>,
-        expires_at: u64,
-        public_key: Felt,
-        guardian: Felt,
-        max_fee: Option<FeeEstimate>,
-    ) -> Result<InvokeTransactionResult, ControllerError> {
-        let controller = self.controller_for_chain_mut(chain_id)?;
-        controller
-            .register_session(policies, expires_at, public_key, guardian, max_fee)
-            .await
-    }
-
-    /// Revoke sessions for a specific chain
-    pub async fn revoke_sessions_for_chain(
-        &mut self,
-        chain_id: Felt,
-        sessions: Vec<RevokableSession>,
-    ) -> Result<InvokeTransactionResult, ControllerError> {
-        let controller = self.controller_for_chain_mut(chain_id)?;
-        controller.revoke_sessions(sessions).await
-    }
-
-    // ============= Deployment Status Methods =============
-
-    /// Check if the account is deployed on a specific chain
-    pub async fn is_deployed_on_chain(&self, chain_id: Felt) -> Result<bool, ControllerError> {
-        let controller = self.controller_for_chain(chain_id)?;
-        // Check if the account is deployed by trying to get its class hash
-        match controller
-            .provider
-            .get_class_hash_at(
-                starknet::core::types::BlockId::Tag(starknet::core::types::BlockTag::PreConfirmed),
-                controller.address,
-            )
-            .await
-        {
-            Ok(_) => Ok(true),
-            Err(_) => Ok(false),
-        }
-    }
-
-    /// Deploy the account on a specific chain (must be called separately with send())
-    pub fn deploy_on_chain(
-        &self,
-        chain_id: Felt,
-    ) -> Result<
-        starknet::accounts::AccountDeploymentV3<'_, crate::factory::ControllerFactory>,
-        ControllerError,
-    > {
-        let controller = self.controller_for_chain(chain_id)?;
-        Ok(controller.deploy())
-    }
-
-    /// Get deployment status for all chains
-    pub async fn deployment_status(&self) -> HashMap<Felt, bool> {
-        let mut status = HashMap::new();
-        for (chain_id, controller) in &self.controllers {
-            // Best effort - if we can't check deployment status, assume not deployed
-            let is_deployed = controller
-                .provider
-                .get_class_hash_at(
-                    starknet::core::types::BlockId::Tag(
-                        starknet::core::types::BlockTag::PreConfirmed,
-                    ),
-                    controller.address,
-                )
-                .await
-                .is_ok();
-            status.insert(*chain_id, is_deployed);
-        }
-        status
-    }
-
-    // ============= Chain-Specific Execution Methods =============
-
-    /// Execute a transaction on a specific chain
-    pub async fn execute_on_chain(
-        &mut self,
-        chain_id: Felt,
-        calls: Vec<Call>,
-        max_fee: Option<FeeEstimate>,
-        fee_source: Option<FeeSource>,
-    ) -> Result<InvokeTransactionResult, ControllerError> {
-        let controller = self.controller_for_chain_mut(chain_id)?;
-        controller.execute(calls, max_fee, fee_source).await
-    }
-
-    /// Estimate fees for a transaction on a specific chain
-    pub async fn estimate_fees_on_chain(
-        &mut self,
-        chain_id: Felt,
-        calls: Vec<Call>,
-    ) -> Result<FeeEstimate, ControllerError> {
-        let controller = self.controller_for_chain_mut(chain_id)?;
-        controller.estimate_invoke_fee(calls).await
-    }
-
-    /// Execute a transaction from outside (v2) on a specific chain
-    pub async fn execute_from_outside_v2_on_chain(
-        &mut self,
-        chain_id: Felt,
-        calls: Vec<Call>,
-        fee_source: Option<FeeSource>,
-    ) -> Result<InvokeTransactionResult, ControllerError> {
-        let controller = self.controller_for_chain_mut(chain_id)?;
-        controller.execute_from_outside_v2(calls, fee_source).await
-    }
-
-    /// Execute a transaction from outside (v3) on a specific chain
-    pub async fn execute_from_outside_v3_on_chain(
-        &mut self,
-        chain_id: Felt,
-        calls: Vec<Call>,
-        fee_source: Option<FeeSource>,
-    ) -> Result<InvokeTransactionResult, ControllerError> {
-        let controller = self.controller_for_chain_mut(chain_id)?;
-        controller.execute_from_outside_v3(calls, fee_source).await
-    }
-
     // ============= Chain Configuration Validation =============
 
     /// Validate a chain configuration before adding it
@@ -391,31 +240,6 @@ impl MultiChainController {
         // - Check if address (if provided) exists on chain
 
         Ok(())
-    }
-
-    // ============= Chain-Specific Signer Management =============
-
-    /// Set the owner for a specific chain
-    pub fn set_owner_for_chain(
-        &mut self,
-        chain_id: Felt,
-        owner: Owner,
-    ) -> Result<(), ControllerError> {
-        let controller = self.controller_for_chain_mut(chain_id)?;
-        controller.set_owner(owner);
-        Ok(())
-    }
-
-    /// Get the owner for a specific chain
-    pub fn get_owner_for_chain(&self, chain_id: Felt) -> Result<Owner, ControllerError> {
-        let controller = self.controller_for_chain(chain_id)?;
-        Ok(controller.owner.clone())
-    }
-
-    /// Get the owner GUID for a specific chain
-    pub fn get_owner_guid_for_chain(&self, chain_id: Felt) -> Result<Felt, ControllerError> {
-        let controller = self.controller_for_chain(chain_id)?;
-        Ok(controller.owner_guid())
     }
 
     /// Updates storage with current configuration
@@ -688,17 +512,18 @@ mod tests {
 
         let chain_id = multi_controller.configured_chains()[0];
 
-        // Test session creation for a specific chain
+        // Test session creation for a specific chain via the controller
         let policies = vec![];
         let expires_at = 1000000;
-        let session_result = multi_controller
-            .create_session_for_chain(chain_id, policies.clone(), expires_at)
+        let controller = multi_controller.controller_for_chain_mut(chain_id).unwrap();
+        let session_result = controller
+            .create_session(policies.clone(), expires_at)
             .await;
 
         assert!(session_result.is_ok(), "Failed to create session");
 
         // Verify session exists
-        let session = multi_controller.session_for_chain(chain_id).unwrap();
+        let session = controller.authorized_session();
         assert!(session.is_some(), "Session should exist after creation");
     }
 
@@ -726,17 +551,17 @@ mod tests {
 
         let chain_id = multi_controller.configured_chains()[0];
 
-        // Check deployment status (should be false initially)
-        let is_deployed = multi_controller
-            .is_deployed_on_chain(chain_id)
+        // Check deployment status via the controller
+        let controller = multi_controller.controller_for_chain(chain_id).unwrap();
+        let is_deployed = controller
+            .provider
+            .get_class_hash_at(
+                starknet::core::types::BlockId::Tag(starknet::core::types::BlockTag::PreConfirmed),
+                controller.address,
+            )
             .await
-            .unwrap();
+            .is_ok();
         assert!(!is_deployed, "Account should not be deployed initially");
-
-        // Test deployment status for all chains
-        let all_status = multi_controller.deployment_status().await;
-        assert_eq!(all_status.len(), 1);
-        assert_eq!(all_status.get(&chain_id), Some(&false));
     }
 
     #[tokio::test]
@@ -773,10 +598,9 @@ mod tests {
             calldata: vec![recipient, amount],
         }];
 
-        // Fee estimation should work regardless of deployment status
-        let fee_result = multi_controller
-            .estimate_fees_on_chain(chain_id, calls.clone())
-            .await;
+        // Fee estimation should work via the controller
+        let controller = multi_controller.controller_for_chain_mut(chain_id).unwrap();
+        let fee_result = controller.estimate_invoke_fee(calls.clone()).await;
 
         // The fee estimation itself should succeed, even if it returns NotDeployed error
         // We just want to verify the method works
@@ -786,9 +610,7 @@ mod tests {
         );
 
         // Also test that we can execute on a specific chain (will fail if not deployed, but method should work)
-        let exec_result = multi_controller
-            .execute_on_chain(chain_id, calls, None, None)
-            .await;
+        let exec_result = controller.execute(calls, None, None).await;
 
         // We expect this to fail because the account isn't deployed, but the method should work
         assert!(
@@ -821,25 +643,24 @@ mod tests {
 
         let chain_id = multi_controller.configured_chains()[0];
 
-        // Get owner for chain
-        let owner = multi_controller.get_owner_for_chain(chain_id).unwrap();
+        // Get owner via the controller
+        let controller = multi_controller.controller_for_chain_mut(chain_id).unwrap();
+        let owner = controller.owner.clone();
         assert_eq!(owner, owner1);
 
         // Get owner GUID
-        let guid1 = multi_controller.get_owner_guid_for_chain(chain_id).unwrap();
+        let guid1 = controller.owner_guid();
 
         // Set new owner
         let owner2 = Owner::Signer(Signer::new_starknet_random());
-        multi_controller
-            .set_owner_for_chain(chain_id, owner2.clone())
-            .unwrap();
+        controller.set_owner(owner2.clone());
 
         // Verify owner changed
-        let new_owner = multi_controller.get_owner_for_chain(chain_id).unwrap();
+        let new_owner = controller.owner.clone();
         assert_eq!(new_owner, owner2);
 
         // Verify GUID changed
-        let guid2 = multi_controller.get_owner_guid_for_chain(chain_id).unwrap();
+        let guid2 = controller.owner_guid();
         assert_ne!(guid1, guid2);
     }
 
