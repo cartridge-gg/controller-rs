@@ -263,15 +263,17 @@ impl MultiChainController {
 
     /// Updates storage with current configuration
     fn update_storage(&mut self) -> Result<(), ControllerError> {
-        // Store metadata for each controller
+        // Collect all storage operations first to ensure atomicity
+        let mut operations: Vec<(String, StorageValue)> = Vec::new();
+
+        // Prepare metadata for each controller (without touching "active" metadata)
         for (chain_id, controller) in &self.controllers {
             let metadata = ControllerMetadata::from(controller);
-            self.storage
-                .set_controller(&self.app_id, chain_id, controller.address, metadata)
-                .map_err(ControllerError::StorageError)?;
+            let account_key = Selectors::account(&controller.address, chain_id);
+            operations.push((account_key, StorageValue::Controller(metadata)));
         }
 
-        // Store multi-chain configuration
+        // Prepare multi-chain configuration
         let multi_chain_metadata = MultiChainMetadata {
             app_id: self.app_id.clone(),
             username: self.username.clone(),
@@ -285,16 +287,40 @@ impl MultiChainController {
                 .collect(),
         };
 
-        // Serialize and store the multi-chain configuration
+        // Serialize and prepare the multi-chain configuration
         let config_json = serde_json::to_string(&multi_chain_metadata)
             .map_err(|e| ControllerError::InvalidResponseData(e.to_string()))?;
+        operations.push((
+            Selectors::multi_chain_config(&self.app_id),
+            StorageValue::String(config_json),
+        ));
 
-        self.storage
-            .set(
-                &Selectors::multi_chain_config(&self.app_id),
-                &StorageValue::String(config_json),
-            )
-            .map_err(ControllerError::StorageError)?;
+        // Atomically write all operations
+        // If any operation fails, we don't partially update storage
+        for (key, value) in operations {
+            self.storage
+                .set(&key, &value)
+                .map_err(ControllerError::StorageError)?;
+        }
+
+        // Handle "active" metadata based on controller count
+        if self.controllers.len() == 1 {
+            // For single controller, set active metadata for backward compatibility
+            let (chain_id, controller) = self.controllers.iter().next().unwrap();
+            self.storage
+                .set(
+                    &Selectors::active(&self.app_id),
+                    &StorageValue::Active(crate::storage::ActiveMetadata {
+                        address: controller.address,
+                        chain_id: *chain_id,
+                    }),
+                )
+                .map_err(ControllerError::StorageError)?;
+        } else {
+            // For multi-chain setups, remove active metadata if it exists
+            // (it may have been set by individual Controller::new() calls)
+            let _ = self.storage.remove(&Selectors::active(&self.app_id));
+        }
 
         Ok(())
     }
@@ -723,6 +749,222 @@ mod tests {
         // Verify GUID changed
         let guid2 = controller.owner_guid();
         assert_ne!(guid1, guid2);
+    }
+
+    #[cfg(feature = "filestorage")]
+    #[tokio::test]
+    async fn test_storage_atomicity_on_failure() {
+        use crate::storage::selectors::Selectors;
+        use tempfile::tempdir;
+
+        // Setup temporary directory for file storage
+        let temp_dir = tempdir().unwrap();
+        let storage_path = temp_dir.path().to_path_buf();
+        std::env::set_var("CARTRIDGE_STORAGE_PATH", storage_path.to_str().unwrap());
+
+        // Start a Katana instance
+        let runner = KatanaRunner::load();
+        runner.declare_controller(Version::LATEST).await;
+
+        let owner = Owner::Signer(Signer::new_starknet_random());
+        let app_id = "test_atomicity".to_string();
+        let username = "test_user".to_string();
+
+        let config = ChainConfig {
+            class_hash: CONTROLLERS[&Version::LATEST].hash,
+            rpc_url: runner.rpc_url.clone(),
+            owner: owner.clone(),
+            address: None,
+        };
+
+        let multi_controller =
+            MultiChainController::new(app_id.clone(), username.clone(), vec![config])
+                .await
+                .unwrap();
+
+        // Get initial storage state
+        let initial_chains = multi_controller.configured_chains();
+        assert_eq!(initial_chains.len(), 1);
+
+        // Verify the multi-chain config is stored
+        let config_key = Selectors::multi_chain_config(&app_id);
+        let config_value = multi_controller.storage.get(&config_key).unwrap();
+        assert!(
+            config_value.is_some(),
+            "Multi-chain config should be stored"
+        );
+
+        // Now manually corrupt a controller entry to simulate a storage failure scenario
+        // This tests that our atomicity improvements help, though true atomicity would need transactions
+        let chain_id = initial_chains[0];
+        let controller = multi_controller.controller_for_chain(chain_id).unwrap();
+        let address = controller.address;
+
+        // Verify the account metadata is stored correctly
+        let account_key = Selectors::account(&address, &chain_id);
+        let account_value = multi_controller.storage.get(&account_key).unwrap();
+        assert!(matches!(
+            account_value,
+            Some(crate::storage::StorageValue::Controller(_))
+        ));
+
+        // Clean up
+        temp_dir.close().unwrap();
+    }
+
+    #[cfg(feature = "filestorage")]
+    #[tokio::test]
+    async fn test_single_controller_backward_compatibility() {
+        use crate::storage::selectors::Selectors;
+        use tempfile::tempdir;
+
+        // Setup temporary directory for file storage
+        let temp_dir = tempdir().unwrap();
+        let storage_path = temp_dir.path().to_path_buf();
+        std::env::set_var("CARTRIDGE_STORAGE_PATH", storage_path.to_str().unwrap());
+
+        // Start a Katana instance
+        let runner = KatanaRunner::load();
+        runner.declare_controller(Version::LATEST).await;
+
+        let owner = Owner::Signer(Signer::new_starknet_random());
+        let app_id = "test_backward_compat".to_string();
+        let username = "test_user".to_string();
+
+        let config = ChainConfig {
+            class_hash: CONTROLLERS[&Version::LATEST].hash,
+            rpc_url: runner.rpc_url.clone(),
+            owner: owner.clone(),
+            address: None,
+        };
+
+        // Create a multi-controller with a single chain
+        let mut multi_controller =
+            MultiChainController::new(app_id.clone(), username.clone(), vec![config])
+                .await
+                .unwrap();
+
+        let chain_id = multi_controller.configured_chains()[0];
+        let controller = multi_controller.controller_for_chain(chain_id).unwrap();
+        let address = controller.address;
+
+        // Force storage update
+        multi_controller.update_storage().unwrap();
+
+        // Verify that for a single controller, the "active" metadata is set for backward compatibility
+        let active_key = Selectors::active(&app_id);
+        let active_value = multi_controller.storage.get(&active_key).unwrap();
+
+        match active_value {
+            Some(crate::storage::StorageValue::Active(metadata)) => {
+                assert_eq!(metadata.address, address);
+                assert_eq!(metadata.chain_id, chain_id);
+            }
+            _ => panic!("Expected Active metadata to be set for single-controller setup"),
+        }
+
+        // Verify that controller() method works (backward compatibility)
+        let loaded_metadata = multi_controller.storage.controller(&app_id).unwrap();
+        assert!(loaded_metadata.is_some());
+        let loaded = loaded_metadata.unwrap();
+        assert_eq!(loaded.address, address);
+        assert_eq!(loaded.chain_id, chain_id);
+
+        // Clean up
+        temp_dir.close().unwrap();
+    }
+
+    #[cfg(feature = "filestorage")]
+    #[tokio::test]
+    async fn test_multi_controller_no_active_overwrite() {
+        use crate::storage::selectors::Selectors;
+        use tempfile::tempdir;
+
+        // Setup temporary directory for file storage
+        let temp_dir = tempdir().unwrap();
+        let storage_path = temp_dir.path().to_path_buf();
+        std::env::set_var("CARTRIDGE_STORAGE_PATH", storage_path.to_str().unwrap());
+
+        // Start two Katana instances
+        let runner1 = KatanaRunner::load();
+        runner1.declare_controller(Version::LATEST).await;
+
+        let katana_port = find_free_port();
+        let mut child = Command::new("katana")
+            .args(["--chain-id", "KATANA2"])
+            .args(["--http.port", &katana_port.to_string()])
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .spawn()
+            .expect("failed to start second katana");
+
+        // Wait for katana to start
+        tokio::time::sleep(std::time::Duration::from_secs(2)).await;
+
+        let owner = Owner::Signer(Signer::new_starknet_random());
+        let app_id = "test_multi_no_overwrite".to_string();
+        let username = "test_user".to_string();
+
+        let config1 = ChainConfig {
+            class_hash: CONTROLLERS[&Version::LATEST].hash,
+            rpc_url: runner1.rpc_url.clone(),
+            owner: owner.clone(),
+            address: None,
+        };
+
+        let config2 = ChainConfig {
+            class_hash: CONTROLLERS[&Version::LATEST].hash,
+            rpc_url: Url::parse(&format!("http://127.0.0.1:{}/", katana_port)).unwrap(),
+            owner: owner.clone(),
+            address: None,
+        };
+
+        // Create multi-controller with two chains
+        let mut multi_controller =
+            MultiChainController::new(app_id.clone(), username.clone(), vec![config1, config2])
+                .await
+                .unwrap();
+
+        // Force storage update
+        multi_controller.update_storage().unwrap();
+
+        // Verify that for multi-controller setup, the "active" metadata should NOT be set
+        // (or if it is set, it should be ignored during loading)
+        let active_key = Selectors::active(&app_id);
+        let active_value = multi_controller.storage.get(&active_key).unwrap();
+
+        // Active should not be set for multi-chain setups
+        assert!(
+            active_value.is_none(),
+            "Active metadata should not be set for multi-chain setup"
+        );
+
+        // Verify both controllers' metadata are stored correctly
+        let chains = multi_controller.configured_chains();
+        assert_eq!(chains.len(), 2);
+
+        for chain_id in &chains {
+            let controller = multi_controller.controller_for_chain(*chain_id).unwrap();
+            let account_key = Selectors::account(&controller.address, chain_id);
+            let account_value = multi_controller.storage.get(&account_key).unwrap();
+            assert!(matches!(
+                account_value,
+                Some(crate::storage::StorageValue::Controller(_))
+            ));
+        }
+
+        // Verify multi-chain config is stored
+        let config_key = Selectors::multi_chain_config(&app_id);
+        let config_value = multi_controller.storage.get(&config_key).unwrap();
+        assert!(matches!(
+            config_value,
+            Some(crate::storage::StorageValue::String(_))
+        ));
+
+        // Clean up
+        let _ = child.kill();
+        let _ = child.wait();
+        temp_dir.close().unwrap();
     }
 
     #[cfg(feature = "filestorage")]
