@@ -102,6 +102,7 @@ impl CartridgeAccount {
             rpc_url,
             owner.into(),
             address.try_into()?,
+            None,
         )
         .await
         .map_err(|e| JsError::new(&e.to_string()))?;
@@ -150,6 +151,7 @@ impl CartridgeAccount {
             rpc_url,
             owner,
             address,
+            None,
         )
         .await
         .map_err(|e| JsError::new(&e.to_string()))?;

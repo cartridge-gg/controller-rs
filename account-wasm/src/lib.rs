@@ -6,6 +6,9 @@ mod alloc;
 pub mod account;
 
 #[cfg(feature = "controller_account")]
+pub mod multi_chain_account;
+
+#[cfg(feature = "controller_account")]
 mod factory;
 
 #[cfg(feature = "controller_account")]

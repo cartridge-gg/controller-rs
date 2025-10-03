@@ -187,16 +187,17 @@ impl KatanaRunner {
             .await
             .unwrap();
 
-        Controller::new_with_storage(
+        Controller::new(
             "app_id".to_string(),
             username,
             CONTROLLERS[&version].hash,
             self.rpc_url.clone(),
             owner,
             address,
+            None,
         )
         .await
-        .expect("controller creation with storage should succeed")
+        .expect("controller creation should succeed")
     }
 }
 

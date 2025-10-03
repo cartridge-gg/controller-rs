@@ -69,12 +69,39 @@ impl Controller {
         rpc_url: Url,
         owner: Owner,
         address: Felt,
+        storage: Option<Storage>,
     ) -> Result<Self, ControllerError> {
         let provider = CartridgeJsonRpcProvider::new(rpc_url.clone());
         let chain_id = provider.chain_id().await?;
         let salt = cairo_short_string_to_felt(&username).unwrap();
 
+        // Verify the address exists on-chain if it's already deployed
+        // This helps catch misconfigurations early
+        match provider
+            .get_class_hash_at(
+                starknet::core::types::BlockId::Tag(starknet::core::types::BlockTag::PreConfirmed),
+                address,
+            )
+            .await
+        {
+            Ok(on_chain_class_hash) => {
+                // Account exists on-chain, verify it has the expected class hash
+                if on_chain_class_hash != class_hash {
+                    return Err(ControllerError::InvalidResponseData(format!(
+                        "Account at {} has class hash {} but expected {}",
+                        address, on_chain_class_hash, class_hash
+                    )));
+                }
+            }
+            Err(_) => {
+                // Account doesn't exist on-chain yet, which is fine for new accounts
+                // They will be deployed later
+            }
+        }
+
         let factory = ControllerFactory::new(class_hash, chain_id, owner.clone(), provider.clone());
+
+        let storage = storage.unwrap_or_default();
 
         let mut controller = Self {
             app_id: app_id.clone(),
@@ -82,13 +109,13 @@ impl Controller {
             chain_id,
             class_hash,
             rpc_url,
-            username,
+            username: username.clone(),
             salt,
             provider,
             owner,
             contract: None,
             factory,
-            storage: Storage::default(),
+            storage: storage.clone(),
             nonce: Felt::ZERO,
             execute_from_outside_nonce: (
                 starknet::signers::SigningKey::from_random().secret_scalar(),
@@ -102,14 +129,25 @@ impl Controller {
         ));
         controller.contract = Some(contract);
 
-        // Clears the stored session if it's been revoked in a fire-and-forget style when the controller is created (with fromStorage for example).
-        // Doing this eagerly prevents having to thread mutability/async through callers that only need an initialized controller.
+        // Persist controller metadata immediately to prevent data loss
+        controller
+            .storage
+            .set_controller(
+                &app_id,
+                &chain_id,
+                address,
+                ControllerMetadata::from(&controller),
+            )
+            .map_err(ControllerError::StorageError)?;
+
+        // Clears the stored session if it's been revoked
         controller.clear_invalid_session();
 
         Ok(controller)
     }
 
-    pub async fn new_with_storage(
+    // This method exists for backward compatibility and persists immediately
+    pub async fn new_with_existing_storage(
         app_id: String,
         username: String,
         class_hash: Felt,
@@ -117,28 +155,8 @@ impl Controller {
         owner: Owner,
         address: Felt,
     ) -> Result<Self, ControllerError> {
-        let mut controller = Controller::new(
-            app_id.clone(),
-            username,
-            class_hash,
-            rpc_url,
-            owner,
-            address,
-        )
-        .await?;
-        let chain_id = controller.chain_id;
-
-        controller
-            .storage
-            .set_controller(
-                app_id.as_str(),
-                &chain_id,
-                address,
-                ControllerMetadata::from(&controller),
-            )
-            .expect("Should store controller");
-
-        Ok(controller)
+        // Just call the new method with no storage (will create default and persist)
+        Self::new(app_id, username, class_hash, rpc_url, owner, address, None).await
     }
 
     pub async fn new_headless(
@@ -262,6 +280,7 @@ impl Controller {
                     rpc_url,
                     m.owner.try_into()?,
                     m.address,
+                    None,
                 )
                 .await?,
             ))

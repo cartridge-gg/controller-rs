@@ -31,4 +31,9 @@ impl Selectors {
             chain_id
         )
     }
+
+    /// Storage key for multi-chain controller configuration
+    pub fn multi_chain_config(app_id: &str) -> String {
+        format!("@cartridge/multi_chain/{}/config", app_id)
+    }
 }
