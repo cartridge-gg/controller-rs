@@ -62,11 +62,14 @@ impl MultiChainController {
             ));
         }
 
+        let storage = Storage::default();
         let mut controllers = HashMap::new();
 
-        // Create controllers for all provided configurations
+        // Create controllers for all provided configurations with shared storage
         for config in chain_configs {
-            let controller = Self::create_controller(&app_id, &username, config).await?;
+            let controller =
+                Self::create_controller_with_storage(&app_id, &username, config, storage.clone())
+                    .await?;
 
             // Get chain_id from the controller (which fetched it from RPC)
             let chain_id = controller.chain_id;
@@ -86,15 +89,16 @@ impl MultiChainController {
             app_id,
             username,
             controllers,
-            storage: Storage::default(),
+            storage,
         })
     }
 
-    /// Creates a new Controller from a ChainConfig
-    async fn create_controller(
+    /// Creates a new Controller from a ChainConfig with shared storage
+    async fn create_controller_with_storage(
         app_id: &str,
         username: &str,
         config: ChainConfig,
+        storage: Storage,
     ) -> Result<Controller, ControllerError> {
         // Compute address if not provided
         let address = match config.address {
@@ -106,20 +110,27 @@ impl MultiChainController {
             }
         };
 
-        Controller::new(
+        Controller::new_with_shared_storage(
             app_id.to_string(),
             username.to_string(),
             config.class_hash,
             config.rpc_url,
             config.owner,
             address,
+            storage,
         )
         .await
     }
 
     /// Adds a new chain configuration
     pub async fn add_chain(&mut self, config: ChainConfig) -> Result<(), ControllerError> {
-        let controller = Self::create_controller(&self.app_id, &self.username, config).await?;
+        let controller = Self::create_controller_with_storage(
+            &self.app_id,
+            &self.username,
+            config,
+            self.storage.clone(),
+        )
+        .await?;
 
         // Get chain_id from the controller (which fetched it from RPC)
         let chain_id = controller.chain_id;
@@ -201,19 +212,17 @@ impl MultiChainController {
             ));
         }
 
-        // Create a new controller with the updated RPC URL
-        let mut new_controller = Controller::new(
+        // Create a new controller with the updated RPC URL and shared storage
+        let new_controller = Controller::new_with_shared_storage(
             existing_controller.app_id.clone(),
             existing_controller.username.clone(),
             existing_controller.class_hash,
             new_rpc_url,
             existing_controller.owner.clone(),
             existing_controller.address,
+            self.storage.clone(), // Use the shared storage from MultiChainController
         )
         .await?;
-
-        // Preserve the storage backend
-        new_controller.storage = existing_controller.storage.clone();
 
         // Replace the controller
         self.controllers.insert(chain_id, new_controller);
@@ -302,30 +311,70 @@ impl MultiChainController {
 
             // Load all controllers from the configuration
             let mut controllers = HashMap::new();
+            let mut failed_chains = Vec::new();
 
             for chain_info in &multi_chain_metadata.chains {
                 // Load controller metadata for this chain
                 let account_key = Selectors::account(&chain_info.address, &chain_info.chain_id);
 
-                if let Ok(Some(StorageValue::Controller(metadata))) = storage.get(&account_key) {
-                    let rpc_url = Url::parse(&metadata.rpc_url)
-                        .map_err(|e| ControllerError::InvalidResponseData(e.to_string()))?;
+                match storage.get(&account_key) {
+                    Ok(Some(StorageValue::Controller(metadata))) => {
+                        let rpc_url = Url::parse(&metadata.rpc_url)
+                            .map_err(|e| ControllerError::InvalidResponseData(e.to_string()))?;
 
-                    let controller = Controller::new(
-                        app_id.clone(),
-                        metadata.username.clone(),
-                        metadata.class_hash,
-                        rpc_url,
-                        metadata.owner.try_into()?,
-                        metadata.address,
-                    )
-                    .await?;
+                        // Create controller with shared storage
+                        match Controller::new_with_shared_storage(
+                            app_id.clone(),
+                            metadata.username.clone(),
+                            metadata.class_hash,
+                            rpc_url,
+                            metadata.owner.clone().try_into()?,
+                            metadata.address,
+                            storage.clone(),
+                        )
+                        .await
+                        {
+                            Ok(controller) => {
+                                controllers.insert(chain_info.chain_id, controller);
+                            }
+                            Err(e) => {
+                                // Track failed chains instead of silently skipping
+                                failed_chains.push((chain_info.chain_id, e));
+                            }
+                        }
+                    }
+                    Ok(_) => {
+                        // Wrong storage type or missing data
+                        failed_chains.push((
+                            chain_info.chain_id,
+                            ControllerError::InvalidResponseData(format!(
+                                "Invalid storage data for chain {}",
+                                chain_info.chain_id
+                            )),
+                        ));
+                    }
+                    Err(e) => {
+                        // Storage error
+                        failed_chains.push((chain_info.chain_id, ControllerError::StorageError(e)));
+                    }
+                }
+            }
 
-                    controllers.insert(chain_info.chain_id, controller);
+            // Log warning about failed chains
+            if !failed_chains.is_empty() {
+                // In a real implementation, we might want to log this or return a partial success
+                // For now, we'll continue if at least one chain loaded successfully
+                eprintln!("Warning: Failed to load {} chains", failed_chains.len());
+                for (chain_id, error) in &failed_chains {
+                    eprintln!("  Chain {}: {:?}", chain_id, error);
                 }
             }
 
             if controllers.is_empty() {
+                if !failed_chains.is_empty() {
+                    // If we had chains but all failed to load, return the first error
+                    return Err(failed_chains.into_iter().next().unwrap().1);
+                }
                 return Ok(None);
             }
 
@@ -351,13 +400,14 @@ impl MultiChainController {
                 let rpc_url = Url::parse(&metadata.rpc_url)
                     .map_err(|e| ControllerError::InvalidResponseData(e.to_string()))?;
 
-                let controller = Controller::new(
+                let controller = Controller::new_with_shared_storage(
                     app_id.clone(),
                     metadata.username.clone(),
                     metadata.class_hash,
                     rpc_url,
                     metadata.owner.try_into()?,
                     metadata.address,
+                    storage.clone(),
                 )
                 .await?;
 

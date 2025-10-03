@@ -109,6 +109,53 @@ impl Controller {
         Ok(controller)
     }
 
+    pub async fn new_with_shared_storage(
+        app_id: String,
+        username: String,
+        class_hash: Felt,
+        rpc_url: Url,
+        owner: Owner,
+        address: Felt,
+        storage: Storage,
+    ) -> Result<Self, ControllerError> {
+        let provider = CartridgeJsonRpcProvider::new(rpc_url.clone());
+        let chain_id = provider.chain_id().await?;
+        let salt = cairo_short_string_to_felt(&username).unwrap();
+
+        let factory = ControllerFactory::new(class_hash, chain_id, owner.clone(), provider.clone());
+
+        let mut controller = Controller {
+            app_id,
+            address,
+            chain_id,
+            class_hash,
+            rpc_url,
+            username,
+            salt,
+            provider,
+            owner,
+            contract: None,
+            factory,
+            storage, // Use the provided storage instead of creating a new one
+            nonce: Felt::ZERO,
+            execute_from_outside_nonce: (
+                starknet::signers::SigningKey::from_random().secret_scalar(),
+                0,
+            ),
+        };
+
+        let contract = Box::new(abigen::controller::Controller::new(
+            address,
+            controller.clone(),
+        ));
+        controller.contract = Some(contract);
+
+        // Clears the stored session if it's been revoked
+        controller.clear_invalid_session();
+
+        Ok(controller)
+    }
+
     pub async fn new_with_storage(
         app_id: String,
         username: String,
