@@ -187,7 +187,7 @@ impl KatanaRunner {
             .await
             .unwrap();
 
-        Controller::new_with_storage(
+        Controller::new(
             "app_id".to_string(),
             username,
             CONTROLLERS[&version].hash,
@@ -197,7 +197,7 @@ impl KatanaRunner {
             None,
         )
         .await
-        .expect("controller creation with storage should succeed")
+        .expect("controller creation should succeed")
     }
 }
 

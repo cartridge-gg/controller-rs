@@ -319,6 +319,7 @@ async fn test_change_owner_invalidate_old_sessions() {
         runner.rpc_url.clone(),
         Owner::Signer(new_signer.clone()),
         controller.address(),
+        None,
     )
     .await
     .unwrap();

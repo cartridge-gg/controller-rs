@@ -120,7 +120,7 @@ impl MultiChainController {
             }
         };
 
-        Controller::new_with_storage(
+        Controller::new(
             app_id.to_string(),
             username.to_string(),
             config.class_hash,
@@ -223,7 +223,7 @@ impl MultiChainController {
         }
 
         // Create a new controller with the updated RPC URL and shared storage
-        let new_controller = Controller::new_with_storage(
+        let new_controller = Controller::new(
             existing_controller.app_id.clone(),
             existing_controller.username.clone(),
             existing_controller.class_hash,
@@ -333,7 +333,7 @@ impl MultiChainController {
                             .map_err(|e| ControllerError::InvalidResponseData(e.to_string()))?;
 
                         // Create controller with shared storage
-                        match Controller::new_with_storage(
+                        match Controller::new(
                             app_id.clone(),
                             metadata.username.clone(),
                             metadata.class_hash,
@@ -410,7 +410,7 @@ impl MultiChainController {
                 let rpc_url = Url::parse(&metadata.rpc_url)
                     .map_err(|e| ControllerError::InvalidResponseData(e.to_string()))?;
 
-                let controller = Controller::new_with_storage(
+                let controller = Controller::new(
                     app_id.clone(),
                     metadata.username.clone(),
                     metadata.class_hash,

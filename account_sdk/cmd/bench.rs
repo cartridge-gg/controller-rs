@@ -63,6 +63,7 @@ async fn main() {
         rpc_url,
         owner.clone(),
         address,
+        None,
     )
     .await
     .expect("controller construction should succeed");

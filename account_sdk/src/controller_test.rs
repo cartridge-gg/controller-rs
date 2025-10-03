@@ -48,6 +48,7 @@ async fn test_deploy_controller() {
         runner.rpc_url.clone(),
         owner.clone(),
         address,
+        None,
     )
     .await
     .unwrap();
@@ -96,6 +97,7 @@ async fn test_controller_not_deployed() {
         runner.rpc_url.clone(),
         Owner::Signer(signer.clone()),
         felt!("0xdeadbeef"),
+        None,
     )
     .await
     .unwrap();
@@ -137,6 +139,7 @@ async fn test_controller_nonce_mismatch_recovery() {
         runner.rpc_url.clone(),
         Owner::Signer(signer.clone()),
         controller1.address,
+        None,
     )
     .await
     .unwrap();

@@ -59,6 +59,7 @@ impl ControllerFactory {
             rpc_url,
             owner.clone().into(),
             address_felt,
+            None,
         )
         .await
         .map_err(|e| JsError::new(&e.to_string()))?;
@@ -147,6 +148,7 @@ impl ControllerFactory {
             Url::parse(&rpc_url)?,
             owner.into(),
             *address.as_felt(),
+            None,
         )
         .await
         .map_err(|e| JsError::new(&e.to_string()))?;

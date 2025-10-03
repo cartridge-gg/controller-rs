@@ -166,6 +166,7 @@ async fn test_verify_execute_paymaster_should_fail() {
         runner.rpc_url.clone(),
         Owner::Signer(Signer::new_starknet_random()),
         controller.address(),
+        None,
     )
     .await
     .unwrap();

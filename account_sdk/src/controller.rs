@@ -69,17 +69,6 @@ impl Controller {
         rpc_url: Url,
         owner: Owner,
         address: Felt,
-    ) -> Result<Self, ControllerError> {
-        Self::new_with_storage(app_id, username, class_hash, rpc_url, owner, address, None).await
-    }
-
-    pub async fn new_with_storage(
-        app_id: String,
-        username: String,
-        class_hash: Felt,
-        rpc_url: Url,
-        owner: Owner,
-        address: Felt,
         storage: Option<Storage>,
     ) -> Result<Self, ControllerError> {
         let provider = CartridgeJsonRpcProvider::new(rpc_url.clone());
@@ -167,7 +156,7 @@ impl Controller {
         address: Felt,
     ) -> Result<Self, ControllerError> {
         // Just call the new method with no storage (will create default and persist)
-        Self::new_with_storage(app_id, username, class_hash, rpc_url, owner, address, None).await
+        Self::new(app_id, username, class_hash, rpc_url, owner, address, None).await
     }
 
     pub async fn new_headless(
@@ -291,6 +280,7 @@ impl Controller {
                     rpc_url,
                     m.owner.try_into()?,
                     m.address,
+                    None,
                 )
                 .await?,
             ))
