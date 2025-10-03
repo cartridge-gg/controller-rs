@@ -120,14 +120,14 @@ impl MultiChainController {
             }
         };
 
-        Controller::new_with_shared_storage(
+        Controller::new_with_storage(
             app_id.to_string(),
             username.to_string(),
             config.class_hash,
             config.rpc_url,
             config.owner,
             address,
-            storage,
+            Some(storage),
         )
         .await
     }
@@ -223,14 +223,14 @@ impl MultiChainController {
         }
 
         // Create a new controller with the updated RPC URL and shared storage
-        let new_controller = Controller::new_with_shared_storage(
+        let new_controller = Controller::new_with_storage(
             existing_controller.app_id.clone(),
             existing_controller.username.clone(),
             existing_controller.class_hash,
             new_rpc_url,
             existing_controller.owner.clone(),
             existing_controller.address,
-            self.storage.clone(), // Use the shared storage from MultiChainController
+            Some(self.storage.clone()), // Use the shared storage from MultiChainController
         )
         .await?;
 
@@ -333,14 +333,14 @@ impl MultiChainController {
                             .map_err(|e| ControllerError::InvalidResponseData(e.to_string()))?;
 
                         // Create controller with shared storage
-                        match Controller::new_with_shared_storage(
+                        match Controller::new_with_storage(
                             app_id.clone(),
                             metadata.username.clone(),
                             metadata.class_hash,
                             rpc_url,
                             metadata.owner.clone().try_into()?,
                             metadata.address,
-                            storage.clone(),
+                            Some(storage.clone()),
                         )
                         .await
                         {
@@ -410,14 +410,14 @@ impl MultiChainController {
                 let rpc_url = Url::parse(&metadata.rpc_url)
                     .map_err(|e| ControllerError::InvalidResponseData(e.to_string()))?;
 
-                let controller = Controller::new_with_shared_storage(
+                let controller = Controller::new_with_storage(
                     app_id.clone(),
                     metadata.username.clone(),
                     metadata.class_hash,
                     rpc_url,
                     metadata.owner.try_into()?,
                     metadata.address,
-                    storage.clone(),
+                    Some(storage.clone()),
                 )
                 .await?;
 
