@@ -51,6 +51,11 @@ pub struct MultiChainController {
 
 impl MultiChainController {
     /// Creates a new MultiChainController with multiple chain configurations
+    ///
+    /// Note: Storage sharing works correctly with FileSystemBackend (default in production).
+    /// InMemoryBackend creates separate instances when cloned, which may cause state
+    /// divergence in tests. Consider using FileSystemBackend for integration tests
+    /// that require consistent storage across controllers.
     pub async fn new(
         app_id: String,
         username: String,
@@ -85,12 +90,17 @@ impl MultiChainController {
             controllers.insert(chain_id, controller);
         }
 
-        Ok(Self {
+        let mut multi_controller = Self {
             app_id,
             username,
             controllers,
             storage,
-        })
+        };
+
+        // Persist the initial configuration to storage
+        multi_controller.update_storage()?;
+
+        Ok(multi_controller)
     }
 
     /// Creates a new Controller from a ChainConfig with shared storage
