@@ -344,6 +344,7 @@ async fn test_change_owner_invalidate_old_sessions() {
     .unwrap();
 }
 
+#[cfg(feature = "webauthn")]
 #[tokio::test]
 async fn test_call_unallowed_methods() {
     let (signer, _) = WebauthnSigner::register(

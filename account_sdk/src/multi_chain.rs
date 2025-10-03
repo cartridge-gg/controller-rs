@@ -553,6 +553,7 @@ mod tests {
 
         // Check deployment status via the controller
         let controller = multi_controller.controller_for_chain(chain_id).unwrap();
+        use starknet::providers::Provider;
         let is_deployed = controller
             .provider
             .get_class_hash_at(
