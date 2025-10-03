@@ -277,8 +277,8 @@ pub struct Credentials {
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq)]
 pub struct ActiveMetadata {
-    address: Felt,
-    chain_id: Felt,
+    pub address: Felt,
+    pub chain_id: Felt,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
