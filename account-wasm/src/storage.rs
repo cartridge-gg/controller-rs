@@ -252,7 +252,9 @@ mod policy_check_tests {
 mod tests {
     use super::*;
     use crate::types::{
-        policy::{get_approve_selector, get_increase_allowance_selector, CallPolicy, TypedDataPolicy},
+        policy::{
+            get_approve_selector, get_increase_allowance_selector, CallPolicy, TypedDataPolicy,
+        },
         JsFelt,
     };
     use starknet::{core::types::Felt, macros::felt};
@@ -354,7 +356,9 @@ mod tests {
         });
 
         // Store both policies
-        storage.store(vec![approve_policy.clone(), regular_policy.clone()]).unwrap();
+        storage
+            .store(vec![approve_policy.clone(), regular_policy.clone()])
+            .unwrap();
 
         // Verify that only the regular policy is stored (approve should be filtered out)
         let stored = storage.get().unwrap().unwrap();

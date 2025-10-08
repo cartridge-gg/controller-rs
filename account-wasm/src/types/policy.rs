@@ -137,9 +137,7 @@ impl Policy {
     /// Check if this policy is for the "approve" entrypoint
     pub fn is_approve_policy(&self) -> bool {
         match self {
-            Policy::Call(call_policy) => {
-                call_policy.method == get_approve_selector().into()
-            }
+            Policy::Call(call_policy) => call_policy.method == get_approve_selector().into(),
             _ => false,
         }
     }
@@ -165,10 +163,12 @@ pub fn get_approve_selector() -> Felt {
 
 /// Get the selector for the "increaseAllowance" entrypoint
 pub fn get_increase_allowance_selector() -> Felt {
-    get_selector_from_name("increaseAllowance").expect("Failed to compute increaseAllowance selector")
+    get_selector_from_name("increaseAllowance")
+        .expect("Failed to compute increaseAllowance selector")
 }
 
 /// Get the selector for the "increase_allowance" entrypoint (snake_case variant)
 pub fn get_increase_allowance_snake_case_selector() -> Felt {
-    get_selector_from_name("increase_allowance").expect("Failed to compute increase_allowance selector")
+    get_selector_from_name("increase_allowance")
+        .expect("Failed to compute increase_allowance selector")
 }
