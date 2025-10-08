@@ -299,7 +299,7 @@ impl CartridgeAccount {
         // First, check if any policies are forbidden (increaseAllowance, increase_allowance)
         for policy in &policies {
             if policy.is_forbidden_policy() {
-                return Err(JsControllerError::from(ControllerError::InvalidOwner(
+                return Err(JsControllerError::from(ControllerError::ForbiddenEntrypoint(
                     "increaseAllowance and increase_allowance are not allowed in session policies"
                         .to_string(),
                 )));
