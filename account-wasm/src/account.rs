@@ -18,7 +18,7 @@ use cainome::cairo_serde::Zeroable;
 use chrono::Utc;
 use serde_wasm_bindgen::to_value;
 use starknet::accounts::ConnectedAccount;
-use starknet::core::types::{BlockId, BlockTag, Call, FeeEstimate, FunctionCall, TypedData};
+use starknet::core::types::{BlockId, BlockTag, Call, FeeEstimate, FunctionCall, TypedData, U256};
 use starknet::signers::SigningKey;
 
 use starknet::core::utils::parse_cairo_short_string;
@@ -331,9 +331,8 @@ impl CartridgeAccount {
                 .iter()
                 .filter_map(|policy| match policy {
                     Policy::Approval(approval_policy) => {
-                        // Convert Felt to U256 by treating it as low limb
-                        // For amounts that fit in a Felt (252 bits), high limb is 0
-                        let amount_felt = *approval_policy.amount.as_felt();
+                        // Convert Felt to U256 using starknet-rs, which handles the conversion
+                        let amount_u256 = U256::from(*approval_policy.amount.as_felt());
 
                         Some(Call {
                             to: *approval_policy.target.as_felt(),
@@ -342,8 +341,8 @@ impl CartridgeAccount {
                             // U256 is serialized as two Felts (low, high)
                             calldata: vec![
                                 *approval_policy.spender.as_felt(),
-                                amount_felt, // low limb
-                                Felt::ZERO,  // high limb (0 for normal amounts)
+                                Felt::from(amount_u256.low()),
+                                Felt::from(amount_u256.high()),
                             ],
                         })
                     }
