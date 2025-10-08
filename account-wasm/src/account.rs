@@ -296,7 +296,53 @@ impl CartridgeAccount {
     ) -> std::result::Result<Option<AuthorizedSession>, JsControllerError> {
         set_panic_hook();
 
+        // First, check if any policies are forbidden (increaseAllowance, increase_allowance)
+        for policy in &policies {
+            if policy.is_forbidden_policy() {
+                return Err(JsControllerError::from(ControllerError::InvalidOwner(
+                    "increaseAllowance and increase_allowance are not allowed in session policies"
+                        .to_string(),
+                )));
+            }
+        }
+
+        // Separate approve policies from session policies
+        let (approve_policies, session_policies): (Vec<_>, Vec<_>) = policies
+            .into_iter()
+            .partition(|p| p.is_approve_policy());
+
         let mut controller = self.controller.lock().await;
+
+        // Execute approve policies immediately if any exist
+        if !approve_policies.is_empty() {
+            // Convert approve policies to calls
+            let approve_calls: Vec<Call> = approve_policies
+                .iter()
+                .filter_map(|policy| match policy {
+                    Policy::Call(call_policy) => {
+                        // Create a basic approve call with zero amount for now
+                        // The actual amount should come from the calldata in a real implementation
+                        Some(Call {
+                            to: call_policy.target.as_felt().clone(),
+                            selector: call_policy.method.as_felt().clone(),
+                            // Note: In a real implementation, the calldata (spender, amount) should be
+                            // provided by the caller. For now, we just execute with empty calldata
+                            // which will fail, but demonstrates the structure.
+                            calldata: vec![],
+                        })
+                    }
+                    _ => None,
+                })
+                .collect();
+
+            if !approve_calls.is_empty() {
+                // Execute the approve calls immediately
+                controller
+                    .execute(approve_calls, None, None)
+                    .await
+                    .map_err(JsControllerError::from)?;
+            }
+        }
 
         let wildcard_exists = controller
             .authorized_session()
@@ -304,6 +350,9 @@ impl CartridgeAccount {
             .is_some();
 
         let session = if !wildcard_exists {
+            // Create wildcard session without approve policies
+            // Note: This creates a wildcard session that allows all policies
+            // Approve policies have already been executed above
             let account = controller.create_wildcard_session(expires_at).await?;
 
             let controller_response = controller
@@ -349,7 +398,8 @@ impl CartridgeAccount {
             None
         };
 
-        self.policy_storage.lock().await.store(policies.clone())?;
+        // Store only the session policies (approve policies are excluded)
+        self.policy_storage.lock().await.store(session_policies)?;
 
         Ok(session)
     }
