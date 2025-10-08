@@ -1536,4 +1536,261 @@ mod tests {
             "Valid session with no stored policies should require manual execution"
         );
     }
+
+    #[test]
+    fn test_is_approve_policy_with_approval_type() {
+        use crate::types::policy::ApprovalPolicy;
+
+        let approval_policy = Policy::Approval(ApprovalPolicy {
+            target: JsFelt(felt!("0x1234")),
+            spender: JsFelt(felt!("0x5678")),
+            amount: JsFelt(felt!("0x100")),
+        });
+
+        assert!(
+            approval_policy.is_approve_policy(),
+            "Approval policy type should be detected as approve policy"
+        );
+    }
+
+    #[test]
+    fn test_is_approve_policy_with_call_type() {
+        use crate::types::policy::get_approve_selector;
+
+        let approve_call_policy = Policy::Call(CallPolicy {
+            target: JsFelt(felt!("0x1234")),
+            method: JsFelt(get_approve_selector()),
+            authorized: Some(true),
+        });
+
+        assert!(
+            approve_call_policy.is_approve_policy(),
+            "Call policy with approve selector should be detected as approve policy"
+        );
+    }
+
+    #[test]
+    fn test_is_not_approve_policy() {
+        let regular_policy = Policy::Call(CallPolicy {
+            target: JsFelt(felt!("0x1234")),
+            method: JsFelt(felt!("0x5678")),
+            authorized: Some(true),
+        });
+
+        assert!(
+            !regular_policy.is_approve_policy(),
+            "Regular call policy should not be detected as approve policy"
+        );
+    }
+
+    #[test]
+    fn test_is_forbidden_policy_increase_allowance() {
+        use crate::types::policy::get_increase_allowance_selector;
+
+        let forbidden_policy = Policy::Call(CallPolicy {
+            target: JsFelt(felt!("0x1234")),
+            method: JsFelt(get_increase_allowance_selector()),
+            authorized: Some(true),
+        });
+
+        assert!(
+            forbidden_policy.is_forbidden_policy(),
+            "increaseAllowance should be detected as forbidden policy"
+        );
+    }
+
+    #[test]
+    fn test_is_forbidden_policy_increase_allowance_snake_case() {
+        use crate::types::policy::get_increase_allowance_snake_case_selector;
+
+        let forbidden_policy = Policy::Call(CallPolicy {
+            target: JsFelt(felt!("0x1234")),
+            method: JsFelt(get_increase_allowance_snake_case_selector()),
+            authorized: Some(true),
+        });
+
+        assert!(
+            forbidden_policy.is_forbidden_policy(),
+            "increase_allowance should be detected as forbidden policy"
+        );
+    }
+
+    #[test]
+    fn test_is_not_forbidden_policy() {
+        let regular_policy = Policy::Call(CallPolicy {
+            target: JsFelt(felt!("0x1234")),
+            method: JsFelt(felt!("0x5678")),
+            authorized: Some(true),
+        });
+
+        assert!(
+            !regular_policy.is_forbidden_policy(),
+            "Regular call policy should not be detected as forbidden policy"
+        );
+    }
+
+    #[test]
+    fn test_approval_policy_not_forbidden() {
+        use crate::types::policy::ApprovalPolicy;
+
+        let approval_policy = Policy::Approval(ApprovalPolicy {
+            target: JsFelt(felt!("0x1234")),
+            spender: JsFelt(felt!("0x5678")),
+            amount: JsFelt(felt!("0x100")),
+        });
+
+        assert!(
+            !approval_policy.is_forbidden_policy(),
+            "Approval policy type should not be detected as forbidden"
+        );
+    }
+
+    #[test]
+    fn test_approve_calldata_conversion_with_u256() {
+        use crate::types::policy::ApprovalPolicy;
+
+        // Test with a small amount that fits in low limb
+        let approval_policy = ApprovalPolicy {
+            target: JsFelt(felt!("0x1234")),
+            spender: JsFelt(felt!("0x5678")),
+            amount: JsFelt(felt!("1000")),
+        };
+
+        // Convert amount to U256
+        let amount_u256 = U256::from(*approval_policy.amount.as_felt());
+
+        // Verify low and high limbs
+        assert_eq!(amount_u256.low(), 1000u128);
+        assert_eq!(amount_u256.high(), 0u128);
+
+        // Verify conversion to Felt works
+        let low_felt = Felt::from(amount_u256.low());
+        let high_felt = Felt::from(amount_u256.high());
+
+        assert_eq!(low_felt, felt!("1000"));
+        assert_eq!(high_felt, Felt::ZERO);
+    }
+
+    #[test]
+    fn test_approve_calldata_conversion_with_large_amount() {
+        use crate::types::policy::ApprovalPolicy;
+
+        // Test with max u128 value
+        let max_u128_felt = Felt::from(u128::MAX);
+
+        let approval_policy = ApprovalPolicy {
+            target: JsFelt(felt!("0x1234")),
+            spender: JsFelt(felt!("0x5678")),
+            amount: JsFelt(max_u128_felt),
+        };
+
+        // Convert amount to U256
+        let amount_u256 = U256::from(*approval_policy.amount.as_felt());
+
+        // Verify low limb contains the full value
+        assert_eq!(amount_u256.low(), u128::MAX);
+        assert_eq!(amount_u256.high(), 0u128);
+
+        // Verify conversion to Felt works
+        let low_felt = Felt::from(amount_u256.low());
+        let high_felt = Felt::from(amount_u256.high());
+
+        assert_eq!(low_felt, max_u128_felt);
+        assert_eq!(high_felt, Felt::ZERO);
+    }
+
+    #[test]
+    fn test_approve_policy_filtered_from_storage() {
+        use crate::types::policy::ApprovalPolicy;
+
+        let policies = vec![
+            Policy::Call(CallPolicy {
+                target: JsFelt(felt!("0x1234")),
+                method: JsFelt(felt!("0x5678")),
+                authorized: Some(true),
+            }),
+            Policy::Approval(ApprovalPolicy {
+                target: JsFelt(felt!("0xabcd")),
+                spender: JsFelt(felt!("0xef01")),
+                amount: JsFelt(felt!("100")),
+            }),
+            Policy::Call(CallPolicy {
+                target: JsFelt(felt!("0x9999")),
+                method: JsFelt(felt!("0xaaaa")),
+                authorized: Some(true),
+            }),
+        ];
+
+        // Filter out approve policies (as storage does)
+        let session_policies: Vec<Policy> = policies
+            .into_iter()
+            .filter(|p| !p.is_approve_policy())
+            .collect();
+
+        // Should only have 2 policies (the regular Call policies)
+        assert_eq!(
+            session_policies.len(),
+            2,
+            "Approve policies should be filtered out"
+        );
+
+        // Verify remaining policies are Call policies
+        for policy in &session_policies {
+            assert!(
+                matches!(policy, Policy::Call(_)),
+                "Only Call policies should remain after filtering"
+            );
+        }
+    }
+
+    #[test]
+    fn test_approve_policy_partition() {
+        use crate::types::policy::ApprovalPolicy;
+
+        let policies = vec![
+            Policy::Call(CallPolicy {
+                target: JsFelt(felt!("0x1234")),
+                method: JsFelt(felt!("0x5678")),
+                authorized: Some(true),
+            }),
+            Policy::Approval(ApprovalPolicy {
+                target: JsFelt(felt!("0xabcd")),
+                spender: JsFelt(felt!("0xef01")),
+                amount: JsFelt(felt!("100")),
+            }),
+            Policy::Approval(ApprovalPolicy {
+                target: JsFelt(felt!("0x1111")),
+                spender: JsFelt(felt!("0x2222")),
+                amount: JsFelt(felt!("200")),
+            }),
+            Policy::Call(CallPolicy {
+                target: JsFelt(felt!("0x9999")),
+                method: JsFelt(felt!("0xaaaa")),
+                authorized: Some(true),
+            }),
+        ];
+
+        // Partition policies (as createSession does)
+        let (approve_policies, session_policies): (Vec<_>, Vec<_>) =
+            policies.into_iter().partition(|p| p.is_approve_policy());
+
+        assert_eq!(approve_policies.len(), 2, "Should have 2 approve policies");
+        assert_eq!(session_policies.len(), 2, "Should have 2 session policies");
+
+        // Verify all approve policies are Approval type
+        for policy in &approve_policies {
+            assert!(
+                matches!(policy, Policy::Approval(_)),
+                "All approve policies should be Approval type"
+            );
+        }
+
+        // Verify all session policies are Call type
+        for policy in &session_policies {
+            assert!(
+                matches!(policy, Policy::Call(_)),
+                "All session policies should be Call type"
+            );
+        }
+    }
 }
