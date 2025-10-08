@@ -36,7 +36,7 @@ use crate::types::call::JsCall;
 use crate::types::estimate::JsFeeEstimate;
 use crate::types::outside_execution::JsSignedOutsideExecution;
 use crate::types::owner::Owner;
-use crate::types::policy::{get_approve_selector, ApprovalPolicy, CallPolicy, Policy, TypedDataPolicy};
+use crate::types::policy::{get_approve_selector, CallPolicy, Policy, TypedDataPolicy};
 use crate::types::register::{JsRegister, JsRegisterResponse};
 use crate::types::session::{AuthorizedSession, JsRevokableSession};
 use crate::types::signer::{JsAddSignerInput, JsRemoveSignerInput, Signer};
@@ -330,7 +330,9 @@ impl CartridgeAccount {
                             ],
                         })
                     }
-                    Policy::Call(call_policy) if call_policy.method == get_approve_selector().into() => {
+                    Policy::Call(call_policy)
+                        if call_policy.method == get_approve_selector().into() =>
+                    {
                         // Legacy support: handle Call policies with approve selector
                         // Note: These won't have proper calldata, so they'll likely fail
                         Some(Call {
@@ -432,6 +434,8 @@ impl CartridgeAccount {
                     scope_hash: td_policy.scope_hash,
                     authorized: Some(false),
                 }),
+                // Approval policies remain unchanged (they don't have an authorized field)
+                Policy::Approval(approval) => Policy::Approval(approval),
             })
             .collect();
 

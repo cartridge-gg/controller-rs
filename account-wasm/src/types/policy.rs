@@ -116,13 +116,11 @@ impl TryFrom<Policy> for SdkPolicy {
                 authorized,
             })),
             // Convert Approval policies to Call policies with approve selector
-            Policy::Approval(ApprovalPolicy { target, .. }) => {
-                Ok(SdkPolicy::Call(SdkCallPolicy {
-                    contract_address: target.try_into()?,
-                    selector: get_approve_selector(),
-                    authorized: Some(true),
-                }))
-            }
+            Policy::Approval(ApprovalPolicy { target, .. }) => Ok(SdkPolicy::Call(SdkCallPolicy {
+                contract_address: target.try_into()?,
+                selector: get_approve_selector(),
+                authorized: Some(true),
+            })),
         }
     }
 }

@@ -3,7 +3,7 @@ use starknet_types_core::felt::Felt;
 use wasm_bindgen::JsError;
 use web_sys::window;
 
-use crate::types::policy::{ApprovalPolicy, Policy};
+use crate::types::policy::Policy;
 
 type Result<T> = std::result::Result<T, JsError>;
 
@@ -259,7 +259,8 @@ mod tests {
     use super::*;
     use crate::types::{
         policy::{
-            get_approve_selector, get_increase_allowance_selector, CallPolicy, TypedDataPolicy,
+            get_approve_selector, get_increase_allowance_selector, ApprovalPolicy, CallPolicy,
+            TypedDataPolicy,
         },
         JsFelt,
     };
