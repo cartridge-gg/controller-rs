@@ -41,6 +41,7 @@ use crate::types::register::{JsRegister, JsRegisterResponse};
 use crate::types::session::{AuthorizedSession, JsRevokableSession};
 use crate::types::signer::{JsAddSignerInput, JsRemoveSignerInput, Signer};
 use crate::types::{Felts, JsFeeSource, JsFelt};
+use cainome::cairo_serde::U256;
 
 pub type Result<T> = std::result::Result<T, JsError>;
 
@@ -331,17 +332,18 @@ impl CartridgeAccount {
                 .iter()
                 .filter_map(|policy| match policy {
                     Policy::Approval(approval_policy) => {
-                        // Create approve call with spender and amount (uint256)
-                        // Amount is represented as uint256 with two limbs (low, high)
+                        // Convert Felt to U256 (automatically handles low/high split)
+                        let amount_u256 = U256::from(*approval_policy.amount.as_felt());
+
                         Some(Call {
                             to: *approval_policy.target.as_felt(),
                             selector: get_approve_selector(),
                             // ERC20 approve expects (spender, amount: Uint256) as calldata
-                            // Uint256 is represented as two Felts (low, high)
+                            // U256 is serialized as two Felts (low, high)
                             calldata: vec![
                                 *approval_policy.spender.as_felt(),
-                                *approval_policy.amount_low.as_felt(), // low 128 bits
-                                *approval_policy.amount_high.as_felt(), // high 128 bits
+                                amount_u256.low,
+                                amount_u256.high,
                             ],
                         })
                     }

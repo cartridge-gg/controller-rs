@@ -110,8 +110,7 @@ pub(crate) fn check_is_authorized(stored_policies: &[Policy], policies: &[Policy
             (Policy::Approval(stored_approval), Policy::Approval(requested_approval)) => {
                 stored_approval.target == requested_approval.target
                     && stored_approval.spender == requested_approval.spender
-                    && stored_approval.amount_low == requested_approval.amount_low
-                    && stored_approval.amount_high == requested_approval.amount_high
+                    && stored_approval.amount == requested_approval.amount
             }
             _ => false,
         }
@@ -353,8 +352,7 @@ mod tests {
         let approval_policy = Policy::Approval(ApprovalPolicy {
             target: JsFelt(felt!("0x1234")),
             spender: JsFelt(felt!("0x5678")),
-            amount_low: JsFelt(felt!("1000")),
-            amount_high: JsFelt(felt!("0")),
+            amount: JsFelt(felt!("1000")),
         });
 
         // Create a legacy approve policy using Call
@@ -427,8 +425,7 @@ mod tests {
         let approval_policy = Policy::Approval(ApprovalPolicy {
             target: JsFelt(felt!("0x1234")),
             spender: JsFelt(felt!("0x5678")),
-            amount_low: JsFelt(felt!("1000")),
-            amount_high: JsFelt(felt!("0")),
+            amount: JsFelt(felt!("1000")),
         });
 
         assert!(approval_policy.is_approve_policy());
