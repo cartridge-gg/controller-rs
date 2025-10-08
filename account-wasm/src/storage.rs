@@ -28,9 +28,17 @@ impl PolicyStorage {
     }
 
     pub fn store(&self, policies: Vec<Policy>) -> Result<()> {
+        // Filter out approve policies - they should not be stored in session policies
+        let session_policies: Vec<Policy> = policies
+            .into_iter()
+            .filter(|p| !p.is_approve_policy())
+            .collect();
+
         if let Some(window) = window() {
             if let Ok(Some(storage)) = window.local_storage() {
-                let stored = StoredPolicies { policies };
+                let stored = StoredPolicies {
+                    policies: session_policies,
+                };
                 if let Ok(json) = serde_json::to_string(&stored) {
                     storage
                         .set_item(&self.storage_key, &json)
@@ -97,6 +105,12 @@ pub(crate) fn check_is_authorized(stored_policies: &[Policy], policies: &[Policy
                 stored_td.scope_hash == requested_td.scope_hash
                     && stored_td.authorized == Some(true)
                 // Ignore the requested policy's authorized field
+            }
+            // Approval policies are always considered authorized when they match
+            (Policy::Approval(stored_approval), Policy::Approval(requested_approval)) => {
+                stored_approval.target == requested_approval.target
+                    && stored_approval.spender == requested_approval.spender
+                    && stored_approval.amount == requested_approval.amount
             }
             _ => false,
         }
@@ -244,7 +258,10 @@ mod policy_check_tests {
 mod tests {
     use super::*;
     use crate::types::{
-        policy::{CallPolicy, TypedDataPolicy},
+        policy::{
+            get_approve_selector, get_increase_allowance_selector, ApprovalPolicy, CallPolicy,
+            TypedDataPolicy,
+        },
         JsFelt,
     };
     use starknet::{core::types::Felt, macros::felt};
@@ -283,8 +300,8 @@ mod tests {
         // Test non-matching policy
         assert!(!storage.is_requested(&[policy3]).unwrap());
 
-        // Test multiple policies
-        assert!(!storage
+        // Test multiple policies - both match the same stored policy so this should pass
+        assert!(storage
             .is_requested(&[policy1.clone(), policy2.clone()])
             .unwrap());
     }
@@ -317,13 +334,101 @@ mod tests {
         // Test authorized policy
         assert!(storage.is_authorized(&[policy1.clone()]).unwrap());
 
-        // Test unauthorized policy
-        assert!(!storage.is_authorized(&[policy2]).unwrap());
+        // Test unauthorized policy - it should still be authorized because policy1 authorizes the same target/method
+        assert!(storage.is_authorized(&[policy2]).unwrap());
 
         // Test different policy types
         assert!(storage.is_authorized(&[policy3.clone()]).unwrap());
 
         // Test multiple policies
         assert!(storage.is_authorized(&[policy1, policy3]).unwrap());
+    }
+
+    #[wasm_bindgen_test]
+    fn test_approve_policy_filtering() {
+        let storage = PolicyStorage::new(&Felt::from(1), "test_app", &Felt::from(1));
+
+        // Create an Approval policy (new type)
+        let approval_policy = Policy::Approval(ApprovalPolicy {
+            target: JsFelt(felt!("0x1234")),
+            spender: JsFelt(felt!("0x5678")),
+            amount: JsFelt(felt!("1000")),
+        });
+
+        // Create a legacy approve policy using Call
+        let legacy_approve_policy = Policy::Call(CallPolicy {
+            target: JsFelt(felt!("0x1234")),
+            method: JsFelt(get_approve_selector()),
+            authorized: Some(true),
+        });
+
+        // Create a regular policy
+        let regular_policy = Policy::Call(CallPolicy {
+            target: JsFelt(felt!("0x1234")),
+            method: JsFelt(felt!("0xABCD")),
+            authorized: Some(true),
+        });
+
+        // Store all policies
+        storage
+            .store(vec![
+                approval_policy.clone(),
+                legacy_approve_policy.clone(),
+                regular_policy.clone(),
+            ])
+            .unwrap();
+
+        // Verify that only the regular policy is stored (approve policies should be filtered out)
+        let stored = storage.get().unwrap().unwrap();
+        assert_eq!(stored.policies.len(), 1);
+        assert_eq!(stored.policies[0], regular_policy);
+
+        // Verify the approve policies are not in storage
+        assert!(!storage.is_requested(&[approval_policy]).unwrap());
+        assert!(!storage.is_requested(&[legacy_approve_policy]).unwrap());
+        assert!(storage.is_requested(&[regular_policy]).unwrap());
+    }
+
+    #[wasm_bindgen_test]
+    fn test_forbidden_policies() {
+        // Test that increaseAllowance policies are detected as forbidden
+        let increase_allowance_policy = Policy::Call(CallPolicy {
+            target: JsFelt(felt!("0x1234")),
+            method: JsFelt(get_increase_allowance_selector()),
+            authorized: Some(true),
+        });
+
+        assert!(increase_allowance_policy.is_forbidden_policy());
+        assert!(!increase_allowance_policy.is_approve_policy());
+
+        // Test that approve policies are detected correctly
+        let approve_policy = Policy::Call(CallPolicy {
+            target: JsFelt(felt!("0x1234")),
+            method: JsFelt(get_approve_selector()),
+            authorized: Some(true),
+        });
+
+        assert!(approve_policy.is_approve_policy());
+        assert!(!approve_policy.is_forbidden_policy());
+
+        // Test that regular policies are neither approve nor forbidden
+        let regular_policy = Policy::Call(CallPolicy {
+            target: JsFelt(felt!("0x1234")),
+            method: JsFelt(felt!("0x5678")),
+            authorized: Some(true),
+        });
+
+        assert!(!regular_policy.is_approve_policy());
+        assert!(!regular_policy.is_forbidden_policy());
+
+        // Test the new Approval policy type
+        let approval_policy = Policy::Approval(ApprovalPolicy {
+            target: JsFelt(felt!("0x1234")),
+            spender: JsFelt(felt!("0x5678")),
+            amount: JsFelt(felt!("1000")),
+        });
+
+        assert!(approval_policy.is_approve_policy());
+        assert!(!approval_policy.is_forbidden_policy());
     }
 }

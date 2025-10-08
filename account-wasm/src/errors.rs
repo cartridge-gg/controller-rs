@@ -104,6 +104,7 @@ pub enum ErrorCode {
     InvalidChainId = 141,
     SessionRefreshRequired = 142,
     ManualExecutionRequired = 143,
+    ForbiddenEntrypoint = 144,
 }
 
 impl From<ControllerError> for JsControllerError {
@@ -238,6 +239,11 @@ impl From<ControllerError> for JsControllerError {
             ControllerError::InvalidChainID(expected, got) => JsControllerError {
                 code: ErrorCode::InvalidChainId,
                 message: format!("Expected {expected}, got {got}"),
+                data: None,
+            },
+            ControllerError::ForbiddenEntrypoint(e) => JsControllerError {
+                code: ErrorCode::ForbiddenEntrypoint,
+                message: e,
                 data: None,
             },
         }
