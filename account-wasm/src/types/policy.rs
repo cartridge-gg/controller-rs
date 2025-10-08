@@ -29,6 +29,14 @@ pub struct TypedDataPolicy {
     pub authorized: Option<bool>,
 }
 
+#[derive(Tsify, Serialize, Deserialize, Debug, Clone, PartialEq)]
+#[tsify(into_wasm_abi, from_wasm_abi)]
+pub struct ApprovalPolicy {
+    pub target: JsFelt,
+    pub spender: JsFelt,
+    pub amount: JsFelt,
+}
+
 #[allow(non_snake_case)]
 #[derive(Tsify, Serialize, Deserialize, Debug, Clone, PartialEq)]
 #[tsify(into_wasm_abi, from_wasm_abi)]
@@ -36,6 +44,7 @@ pub struct TypedDataPolicy {
 pub enum Policy {
     Call(CallPolicy),
     TypedData(TypedDataPolicy),
+    Approval(ApprovalPolicy),
 }
 
 impl Policy {
@@ -46,6 +55,11 @@ impl Policy {
             }
             (Policy::TypedData(self_td), Policy::TypedData(policy_td)) => {
                 self_td.scope_hash == policy_td.scope_hash
+            }
+            (Policy::Approval(self_approval), Policy::Approval(policy_approval)) => {
+                self_approval.target == policy_approval.target
+                    && self_approval.spender == policy_approval.spender
+                    && self_approval.amount == policy_approval.amount
             }
             _ => false,
         }
@@ -60,6 +74,12 @@ impl Policy {
             }
             (Policy::TypedData(self_td), Policy::TypedData(policy_td)) => {
                 self_td.scope_hash == policy_td.scope_hash && self_td.authorized.unwrap_or(false)
+            }
+            // Approval policies are always considered authorized (they don't have an authorized field)
+            (Policy::Approval(self_approval), Policy::Approval(policy_approval)) => {
+                self_approval.target == policy_approval.target
+                    && self_approval.spender == policy_approval.spender
+                    && self_approval.amount == policy_approval.amount
             }
             _ => false,
         }
@@ -95,6 +115,14 @@ impl TryFrom<Policy> for SdkPolicy {
                 scope_hash: scope_hash.try_into()?,
                 authorized,
             })),
+            // Convert Approval policies to Call policies with approve selector
+            Policy::Approval(ApprovalPolicy { target, .. }) => {
+                Ok(SdkPolicy::Call(SdkCallPolicy {
+                    contract_address: target.try_into()?,
+                    selector: get_approve_selector(),
+                    authorized: Some(true),
+                }))
+            }
         }
     }
 }
@@ -138,6 +166,7 @@ impl Policy {
     pub fn is_approve_policy(&self) -> bool {
         match self {
             Policy::Call(call_policy) => call_policy.method == get_approve_selector().into(),
+            Policy::Approval(_) => true,
             _ => false,
         }
     }
@@ -150,6 +179,8 @@ impl Policy {
                 *selector == get_increase_allowance_selector()
                     || *selector == get_increase_allowance_snake_case_selector()
             }
+            // Approval policies are not forbidden
+            Policy::Approval(_) => false,
             _ => false,
         }
     }

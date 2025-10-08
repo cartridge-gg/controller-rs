@@ -36,7 +36,7 @@ use crate::types::call::JsCall;
 use crate::types::estimate::JsFeeEstimate;
 use crate::types::outside_execution::JsSignedOutsideExecution;
 use crate::types::owner::Owner;
-use crate::types::policy::{CallPolicy, Policy, TypedDataPolicy};
+use crate::types::policy::{get_approve_selector, ApprovalPolicy, CallPolicy, Policy, TypedDataPolicy};
 use crate::types::register::{JsRegister, JsRegisterResponse};
 use crate::types::session::{AuthorizedSession, JsRevokableSession};
 use crate::types::signer::{JsAddSignerInput, JsRemoveSignerInput, Signer};
@@ -314,19 +314,28 @@ impl CartridgeAccount {
 
         // Execute approve policies immediately if any exist
         if !approve_policies.is_empty() {
-            // Convert approve policies to calls
+            // Convert approve policies to calls with proper calldata
             let approve_calls: Vec<Call> = approve_policies
                 .iter()
                 .filter_map(|policy| match policy {
-                    Policy::Call(call_policy) => {
-                        // Create a basic approve call with zero amount for now
-                        // The actual amount should come from the calldata in a real implementation
+                    Policy::Approval(approval_policy) => {
+                        // Create approve call with spender and amount
+                        Some(Call {
+                            to: *approval_policy.target.as_felt(),
+                            selector: get_approve_selector(),
+                            // ERC20 approve expects (spender, amount) as calldata
+                            calldata: vec![
+                                *approval_policy.spender.as_felt(),
+                                *approval_policy.amount.as_felt(),
+                            ],
+                        })
+                    }
+                    Policy::Call(call_policy) if call_policy.method == get_approve_selector().into() => {
+                        // Legacy support: handle Call policies with approve selector
+                        // Note: These won't have proper calldata, so they'll likely fail
                         Some(Call {
                             to: *call_policy.target.as_felt(),
                             selector: *call_policy.method.as_felt(),
-                            // Note: In a real implementation, the calldata (spender, amount) should be
-                            // provided by the caller. For now, we just execute with empty calldata
-                            // which will fail, but demonstrates the structure.
                             calldata: vec![],
                         })
                     }

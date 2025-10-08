@@ -3,7 +3,7 @@ use starknet_types_core::felt::Felt;
 use wasm_bindgen::JsError;
 use web_sys::window;
 
-use crate::types::policy::Policy;
+use crate::types::policy::{ApprovalPolicy, Policy};
 
 type Result<T> = std::result::Result<T, JsError>;
 
@@ -105,6 +105,12 @@ pub(crate) fn check_is_authorized(stored_policies: &[Policy], policies: &[Policy
                 stored_td.scope_hash == requested_td.scope_hash
                     && stored_td.authorized == Some(true)
                 // Ignore the requested policy's authorized field
+            }
+            // Approval policies are always considered authorized when they match
+            (Policy::Approval(stored_approval), Policy::Approval(requested_approval)) => {
+                stored_approval.target == requested_approval.target
+                    && stored_approval.spender == requested_approval.spender
+                    && stored_approval.amount == requested_approval.amount
             }
             _ => false,
         }
@@ -341,8 +347,15 @@ mod tests {
     fn test_approve_policy_filtering() {
         let storage = PolicyStorage::new(&Felt::from(1), "test_app", &Felt::from(1));
 
-        // Create an approve policy
-        let approve_policy = Policy::Call(CallPolicy {
+        // Create an Approval policy (new type)
+        let approval_policy = Policy::Approval(ApprovalPolicy {
+            target: JsFelt(felt!("0x1234")),
+            spender: JsFelt(felt!("0x5678")),
+            amount: JsFelt(felt!("1000")),
+        });
+
+        // Create a legacy approve policy using Call
+        let legacy_approve_policy = Policy::Call(CallPolicy {
             target: JsFelt(felt!("0x1234")),
             method: JsFelt(get_approve_selector()),
             authorized: Some(true),
@@ -351,22 +364,27 @@ mod tests {
         // Create a regular policy
         let regular_policy = Policy::Call(CallPolicy {
             target: JsFelt(felt!("0x1234")),
-            method: JsFelt(felt!("0x5678")),
+            method: JsFelt(felt!("0xABCD")),
             authorized: Some(true),
         });
 
-        // Store both policies
+        // Store all policies
         storage
-            .store(vec![approve_policy.clone(), regular_policy.clone()])
+            .store(vec![
+                approval_policy.clone(),
+                legacy_approve_policy.clone(),
+                regular_policy.clone(),
+            ])
             .unwrap();
 
-        // Verify that only the regular policy is stored (approve should be filtered out)
+        // Verify that only the regular policy is stored (approve policies should be filtered out)
         let stored = storage.get().unwrap().unwrap();
         assert_eq!(stored.policies.len(), 1);
         assert_eq!(stored.policies[0], regular_policy);
 
-        // Verify the approve policy is not in storage
-        assert!(!storage.is_requested(&[approve_policy]).unwrap());
+        // Verify the approve policies are not in storage
+        assert!(!storage.is_requested(&[approval_policy]).unwrap());
+        assert!(!storage.is_requested(&[legacy_approve_policy]).unwrap());
         assert!(storage.is_requested(&[regular_policy]).unwrap());
     }
 
@@ -401,5 +419,15 @@ mod tests {
 
         assert!(!regular_policy.is_approve_policy());
         assert!(!regular_policy.is_forbidden_policy());
+
+        // Test the new Approval policy type
+        let approval_policy = Policy::Approval(ApprovalPolicy {
+            target: JsFelt(felt!("0x1234")),
+            spender: JsFelt(felt!("0x5678")),
+            amount: JsFelt(felt!("1000")),
+        });
+
+        assert!(approval_policy.is_approve_policy());
+        assert!(!approval_policy.is_forbidden_policy());
     }
 }
