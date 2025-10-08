@@ -342,8 +342,8 @@ impl CartridgeAccount {
                             // U256 is serialized as two Felts (low, high)
                             calldata: vec![
                                 *approval_policy.spender.as_felt(),
-                                amount_u256.low,
-                                amount_u256.high,
+                                Felt::from(amount_u256.low),
+                                Felt::from(amount_u256.high),
                             ],
                         })
                     }
