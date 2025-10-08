@@ -34,7 +34,8 @@ pub struct TypedDataPolicy {
 pub struct ApprovalPolicy {
     pub target: JsFelt,
     pub spender: JsFelt,
-    pub amount: JsFelt,
+    pub amount_low: JsFelt,
+    pub amount_high: JsFelt,
 }
 
 #[allow(non_snake_case)]
@@ -59,7 +60,8 @@ impl Policy {
             (Policy::Approval(self_approval), Policy::Approval(policy_approval)) => {
                 self_approval.target == policy_approval.target
                     && self_approval.spender == policy_approval.spender
-                    && self_approval.amount == policy_approval.amount
+                    && self_approval.amount_low == policy_approval.amount_low
+                    && self_approval.amount_high == policy_approval.amount_high
             }
             _ => false,
         }
@@ -79,7 +81,8 @@ impl Policy {
             (Policy::Approval(self_approval), Policy::Approval(policy_approval)) => {
                 self_approval.target == policy_approval.target
                     && self_approval.spender == policy_approval.spender
-                    && self_approval.amount == policy_approval.amount
+                    && self_approval.amount_low == policy_approval.amount_low
+                    && self_approval.amount_high == policy_approval.amount_high
             }
             _ => false,
         }

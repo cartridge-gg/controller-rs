@@ -296,13 +296,25 @@ impl CartridgeAccount {
     ) -> std::result::Result<Option<AuthorizedSession>, JsControllerError> {
         set_panic_hook();
 
-        // First, check if any policies are forbidden (increaseAllowance, increase_allowance)
+        // First, validate policies
         for policy in &policies {
+            // Check for forbidden entrypoints (increaseAllowance, increase_allowance)
             if policy.is_forbidden_policy() {
                 return Err(JsControllerError::from(ControllerError::ForbiddenEntrypoint(
                     "increaseAllowance and increase_allowance are not allowed in session policies"
                         .to_string(),
                 )));
+            }
+            // Check if approve is being passed as a regular Call policy instead of Approval
+            if let Policy::Call(call_policy) = policy {
+                if call_policy.method == get_approve_selector().into() {
+                    return Err(JsControllerError::from(
+                        ControllerError::ForbiddenEntrypoint(
+                            "approve must be passed as an Approval policy, not a Call policy"
+                                .to_string(),
+                        ),
+                    ));
+                }
             }
         }
 
@@ -319,26 +331,18 @@ impl CartridgeAccount {
                 .iter()
                 .filter_map(|policy| match policy {
                     Policy::Approval(approval_policy) => {
-                        // Create approve call with spender and amount
+                        // Create approve call with spender and amount (uint256)
+                        // Amount is represented as uint256 with two limbs (low, high)
                         Some(Call {
                             to: *approval_policy.target.as_felt(),
                             selector: get_approve_selector(),
-                            // ERC20 approve expects (spender, amount) as calldata
+                            // ERC20 approve expects (spender, amount: Uint256) as calldata
+                            // Uint256 is represented as two Felts (low, high)
                             calldata: vec![
                                 *approval_policy.spender.as_felt(),
-                                *approval_policy.amount.as_felt(),
+                                *approval_policy.amount_low.as_felt(), // low 128 bits
+                                *approval_policy.amount_high.as_felt(), // high 128 bits
                             ],
-                        })
-                    }
-                    Policy::Call(call_policy)
-                        if call_policy.method == get_approve_selector().into() =>
-                    {
-                        // Legacy support: handle Call policies with approve selector
-                        // Note: These won't have proper calldata, so they'll likely fail
-                        Some(Call {
-                            to: *call_policy.target.as_felt(),
-                            selector: *call_policy.method.as_felt(),
-                            calldata: vec![],
                         })
                     }
                     _ => None,
