@@ -401,14 +401,14 @@ mod tests {
         assert!(increase_allowance_policy.is_forbidden_policy());
         assert!(!increase_allowance_policy.is_approve_policy());
 
-        // Test that approve policies are detected correctly
+        // Test that approve Call policies are NOT detected as approve policies (for incremental migration)
         let approve_policy = Policy::Call(CallPolicy {
             target: JsFelt(felt!("0x1234")),
             method: JsFelt(get_approve_selector()),
             authorized: Some(true),
         });
 
-        assert!(approve_policy.is_approve_policy());
+        assert!(!approve_policy.is_approve_policy());
         assert!(!approve_policy.is_forbidden_policy());
 
         // Test that regular policies are neither approve nor forbidden
