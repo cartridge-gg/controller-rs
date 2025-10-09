@@ -91,9 +91,6 @@ pub enum ControllerError {
 
     #[error("Expected: {0}, Got {1}")]
     InvalidChainID(String, String),
-
-    #[error("Forbidden entrypoint: {0}")]
-    ForbiddenEntrypoint(String),
 }
 
 impl From<ExecuteFromOutsideError> for ControllerError {
