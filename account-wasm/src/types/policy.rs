@@ -161,12 +161,10 @@ impl Policy {
     }
 
     /// Check if this policy is for the "approve" entrypoint
+    /// Only returns true for Policy::Approval type, allowing approve Call policies
+    /// to be treated as regular session policies for incremental migration
     pub fn is_approve_policy(&self) -> bool {
-        match self {
-            Policy::Call(call_policy) => call_policy.method == get_approve_selector().into(),
-            Policy::Approval(_) => true,
-            _ => false,
-        }
+        matches!(self, Policy::Approval(_))
     }
 
     /// Check if this policy is for a forbidden entrypoint (increaseAllowance, increase_allowance)
