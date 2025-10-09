@@ -305,17 +305,6 @@ impl CartridgeAccount {
                         .to_string(),
                 )));
             }
-            // Check if approve is being passed as a regular Call policy instead of Approval
-            if let Policy::Call(call_policy) = policy {
-                if call_policy.method == get_approve_selector().into() {
-                    return Err(JsControllerError::from(
-                        ControllerError::ForbiddenEntrypoint(
-                            "approve must be passed as an Approval policy, not a Call policy"
-                                .to_string(),
-                        ),
-                    ));
-                }
-            }
         }
 
         // Separate approve policies from session policies
