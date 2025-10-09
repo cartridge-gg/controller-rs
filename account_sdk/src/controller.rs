@@ -75,30 +75,6 @@ impl Controller {
         let chain_id = provider.chain_id().await?;
         let salt = cairo_short_string_to_felt(&username).unwrap();
 
-        // Verify the address exists on-chain if it's already deployed
-        // This helps catch misconfigurations early
-        match provider
-            .get_class_hash_at(
-                starknet::core::types::BlockId::Tag(starknet::core::types::BlockTag::PreConfirmed),
-                address,
-            )
-            .await
-        {
-            Ok(on_chain_class_hash) => {
-                // Account exists on-chain, verify it has the expected class hash
-                if on_chain_class_hash != class_hash {
-                    return Err(ControllerError::InvalidResponseData(format!(
-                        "Account at {} has class hash {} but expected {}",
-                        address, on_chain_class_hash, class_hash
-                    )));
-                }
-            }
-            Err(_) => {
-                // Account doesn't exist on-chain yet, which is fine for new accounts
-                // They will be deployed later
-            }
-        }
-
         let factory = ControllerFactory::new(class_hash, chain_id, owner.clone(), provider.clone());
 
         let storage = storage.unwrap_or_default();
