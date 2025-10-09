@@ -1553,8 +1553,8 @@ mod tests {
         });
 
         assert!(
-            approve_call_policy.is_approve_policy(),
-            "Call policy with approve selector should be detected as approve policy"
+            !approve_call_policy.is_approve_policy(),
+            "Call policy with approve selector should NOT be detected as approve policy for incremental migration"
         );
     }
 
