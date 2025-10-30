@@ -49,7 +49,7 @@ impl Owner {
             Ok(SdkOwner::Signer(signer.try_into()?))
         } else if let Some(account) = self.account {
             // Felt to ContractAddress conversion is infallible
-            Ok(SdkOwner::Account((*account.as_felt()).into()))
+            Ok(SdkOwner::Account(*account.as_felt()))
         } else {
             Err(JsControllerError {
                 code: crate::errors::ErrorCode::InvalidOwner,
