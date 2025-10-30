@@ -358,9 +358,11 @@ impl HashSigner for WebauthnSigner {
             s = s_neg;
             y_parity = !y_parity;
         }
+        let r_bytes = r.to_bytes();
+        let s_bytes = s.to_bytes();
         let signature = Signature {
-            r: U256::from_bytes_be(r.to_bytes().as_slice().try_into().unwrap()),
-            s: U256::from_bytes_be(s.to_bytes().as_slice().try_into().unwrap()),
+            r: U256::from_bytes_be(r_bytes.as_ref()),
+            s: U256::from_bytes_be(s_bytes.as_ref()),
             y_parity,
         };
 
@@ -433,9 +435,11 @@ impl HashSigner for WebauthnSigners {
             s = s_neg;
             y_parity = !y_parity;
         }
+        let r_bytes = r.to_bytes();
+        let s_bytes = s.to_bytes();
         let signature = Signature {
-            r: U256::from_bytes_be(r.to_bytes().as_slice().try_into().unwrap()),
-            s: U256::from_bytes_be(s.to_bytes().as_slice().try_into().unwrap()),
+            r: U256::from_bytes_be(r_bytes.as_ref()),
+            s: U256::from_bytes_be(s_bytes.as_ref()),
             y_parity,
         };
 
