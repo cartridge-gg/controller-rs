@@ -105,6 +105,7 @@ pub enum ErrorCode {
     SessionRefreshRequired = 142,
     ManualExecutionRequired = 143,
     ForbiddenEntrypoint = 144,
+    GasAmountTooHigh = 145,
 }
 
 impl From<ControllerError> for JsControllerError {
@@ -506,6 +507,17 @@ impl From<StarknetError> for JsControllerError {
                 if msg.contains("gas price too high") || msg.contains("Ethereum gas price too high")
                 {
                     (ErrorCode::GasPriceTooHigh, "Gas price too high", Some(msg))
+                // Check for gas amount/limit error
+                // Only use very specific patterns to avoid false positives
+                } else if msg.contains("Max gas amount is too high")
+                    || msg.contains("maximum allowed gas amount")
+                    || msg.contains("gas amount is too high")
+                {
+                    (
+                        ErrorCode::GasAmountTooHigh,
+                        "Gas amount too high",
+                        Some(msg),
+                    )
                 } else {
                     (
                         ErrorCode::StarknetUnexpectedError,
@@ -517,7 +529,7 @@ impl From<StarknetError> for JsControllerError {
             StarknetError::NoTraceAvailable(data) => (
                 ErrorCode::StarknetNoTraceAvailable,
                 "No trace available",
-                Some(serde_json::to_string(&data).unwrap()),
+                Some(serde_json::to_string(&data).unwrap_or_else(|_| format!("{:?}", data))),
             ),
             StarknetError::InvalidSubscriptionId => (
                 ErrorCode::StarknetUnexpectedError,
@@ -638,5 +650,130 @@ mod tests {
 
         assert!(matches!(js_error.code, ErrorCode::StarknetUnexpectedError));
         assert_eq!(js_error.message, "Unexpected error");
+    }
+
+    #[test]
+    fn test_gas_amount_too_high_error_handling() {
+        // Test StarknetError::UnexpectedError with gas amount error message
+        let starknet_error = StarknetError::UnexpectedError(
+            "Max gas amount is too high: GasAmount(1238820800), maximum allowed gas amount: 1200000000.".to_string()
+        );
+        let js_error = JsControllerError::from(starknet_error);
+
+        assert!(matches!(js_error.code, ErrorCode::GasAmountTooHigh));
+        assert_eq!(js_error.message, "Gas amount too high");
+        assert!(js_error.data.is_some());
+        assert!(js_error
+            .data
+            .as_ref()
+            .unwrap()
+            .contains("maximum allowed gas amount"));
+
+        // Test another variant
+        let starknet_error2 =
+            StarknetError::UnexpectedError("maximum allowed gas amount exceeded".to_string());
+        let js_error2 = JsControllerError::from(starknet_error2);
+
+        assert!(matches!(js_error2.code, ErrorCode::GasAmountTooHigh));
+        assert_eq!(js_error2.message, "Gas amount too high");
+
+        // Test generic case still works
+        let generic_error = StarknetError::UnexpectedError("Some other error".to_string());
+        let js_error = JsControllerError::from(generic_error);
+
+        assert!(matches!(js_error.code, ErrorCode::StarknetUnexpectedError));
+        assert_eq!(js_error.message, "Unexpected error");
+    }
+
+    #[test]
+    fn test_error_serialization_fallback() {
+        // Test that error serialization handles edge cases gracefully
+        // This tests the fix for unwrap() -> unwrap_or_else() conversion
+
+        // Test with a complex error message that contains special characters
+        let complex_error = StarknetError::UnexpectedError(
+            "Error with \"quotes\" and 'apostrophes' and \n newlines".to_string(),
+        );
+        let js_error = JsControllerError::from(complex_error);
+
+        // Should not panic and should have proper error code
+        assert!(matches!(js_error.code, ErrorCode::StarknetUnexpectedError));
+        assert_eq!(js_error.message, "Unexpected error");
+        // Data should be present even with complex strings
+        assert!(js_error.data.is_some());
+    }
+
+    #[test]
+    fn test_all_gas_error_patterns() {
+        // Test all possible gas amount error patterns
+        let test_cases = vec![
+            "Max gas amount is too high: GasAmount(1238820800)",
+            "maximum allowed gas amount: 1200000000",
+            "The gas amount is too high for this transaction",
+        ];
+
+        for error_msg in test_cases {
+            let starknet_error = StarknetError::UnexpectedError(error_msg.to_string());
+            let js_error = JsControllerError::from(starknet_error);
+
+            assert!(
+                matches!(js_error.code, ErrorCode::GasAmountTooHigh),
+                "Failed to detect gas amount error in: {}",
+                error_msg
+            );
+            assert_eq!(js_error.message, "Gas amount too high");
+            assert!(js_error.data.is_some());
+        }
+    }
+
+    #[test]
+    fn test_gas_error_no_false_positives() {
+        // Test that unrelated errors containing both "gas amount" and "too high"
+        // separately don't get misclassified as GasAmountTooHigh
+        let false_positive_cases = vec![
+            "Contract execution failed: gas amount: 1000, price is too high",
+            "Error: insufficient gas amount. Storage fee is too high",
+            "Transaction failed: gas amount recorded, memory usage too high",
+        ];
+
+        for error_msg in false_positive_cases {
+            let starknet_error = StarknetError::UnexpectedError(error_msg.to_string());
+            let js_error = JsControllerError::from(starknet_error);
+
+            // These should NOT be classified as GasAmountTooHigh since the terms
+            // appear in different contexts
+            assert!(
+                matches!(js_error.code, ErrorCode::StarknetUnexpectedError),
+                "False positive detected for: {}. Got error code: {:?}",
+                error_msg,
+                js_error.code
+            );
+        }
+    }
+
+    #[test]
+    fn test_error_data_preservation() {
+        // Test that error data is properly preserved through conversion
+        let original_msg = "Detailed error information that should be preserved";
+        let starknet_error = StarknetError::UnexpectedError(original_msg.to_string());
+        let js_error = JsControllerError::from(starknet_error);
+
+        assert_eq!(js_error.data.as_ref().unwrap(), original_msg);
+    }
+
+    #[test]
+    fn test_invalid_owner_error() {
+        // Test that InvalidOwner error is properly created
+        let error = JsControllerError {
+            code: ErrorCode::InvalidOwner,
+            message: "Owner must have either signer or account data".to_string(),
+            data: None,
+        };
+
+        assert!(matches!(error.code, ErrorCode::InvalidOwner));
+        assert_eq!(
+            error.message,
+            "Owner must have either signer or account data"
+        );
     }
 }

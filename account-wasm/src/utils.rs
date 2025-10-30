@@ -24,8 +24,8 @@ pub async fn subscribe_create_session(
 }
 
 #[wasm_bindgen(js_name = signerToGuid)]
-pub fn signer_to_guid(signer: Signer) -> JsFelt {
-    let signer: account_sdk::signers::Signer = signer.try_into().unwrap();
+pub fn signer_to_guid(signer: Signer) -> Result<JsFelt> {
+    let signer: account_sdk::signers::Signer = signer.try_into()?;
     let felt: Felt = signer.into();
-    felt.into()
+    Ok(felt.into())
 }
