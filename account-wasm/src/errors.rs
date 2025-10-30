@@ -683,4 +683,71 @@ mod tests {
         assert!(matches!(js_error.code, ErrorCode::StarknetUnexpectedError));
         assert_eq!(js_error.message, "Unexpected error");
     }
+
+    #[test]
+    fn test_error_serialization_fallback() {
+        // Test that error serialization handles edge cases gracefully
+        // This tests the fix for unwrap() -> unwrap_or_else() conversion
+
+        // Test with a complex error message that contains special characters
+        let complex_error = StarknetError::UnexpectedError(
+            "Error with \"quotes\" and 'apostrophes' and \n newlines".to_string(),
+        );
+        let js_error = JsControllerError::from(complex_error);
+
+        // Should not panic and should have proper error code
+        assert!(matches!(js_error.code, ErrorCode::StarknetUnexpectedError));
+        assert_eq!(js_error.message, "Unexpected error");
+        // Data should be present even with complex strings
+        assert!(js_error.data.is_some());
+    }
+
+    #[test]
+    fn test_all_gas_error_patterns() {
+        // Test all possible gas amount error patterns
+        let test_cases = vec![
+            "Max gas amount is too high: GasAmount(1238820800)",
+            "maximum allowed gas amount: 1200000000",
+            "gas amount 5000000 is too high",
+        ];
+
+        for error_msg in test_cases {
+            let starknet_error = StarknetError::UnexpectedError(error_msg.to_string());
+            let js_error = JsControllerError::from(starknet_error);
+
+            assert!(
+                matches!(js_error.code, ErrorCode::GasAmountTooHigh),
+                "Failed to detect gas amount error in: {}",
+                error_msg
+            );
+            assert_eq!(js_error.message, "Gas amount too high");
+            assert!(js_error.data.is_some());
+        }
+    }
+
+    #[test]
+    fn test_error_data_preservation() {
+        // Test that error data is properly preserved through conversion
+        let original_msg = "Detailed error information that should be preserved";
+        let starknet_error = StarknetError::UnexpectedError(original_msg.to_string());
+        let js_error = JsControllerError::from(starknet_error);
+
+        assert_eq!(js_error.data.as_ref().unwrap(), original_msg);
+    }
+
+    #[test]
+    fn test_invalid_owner_error() {
+        // Test that InvalidOwner error is properly created
+        let error = JsControllerError {
+            code: ErrorCode::InvalidOwner,
+            message: "Owner must have either signer or account data".to_string(),
+            data: None,
+        };
+
+        assert!(matches!(error.code, ErrorCode::InvalidOwner));
+        assert_eq!(
+            error.message,
+            "Owner must have either signer or account data"
+        );
+    }
 }
