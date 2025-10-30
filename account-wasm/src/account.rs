@@ -140,7 +140,13 @@ impl CartridgeAccount {
         ));
 
         // Compute the controller address based on the generated signer and username
-        let salt = starknet::core::utils::cairo_short_string_to_felt(&username).unwrap();
+        let salt = starknet::core::utils::cairo_short_string_to_felt(&username).map_err(|e| {
+            JsControllerError {
+                code: ErrorCode::EncodingError,
+                message: format!("Invalid username for short string: {}", e),
+                data: Some(username.clone()),
+            }
+        })?;
         let address =
             account_sdk::factory::compute_account_address(class_hash_felt, owner.clone(), salt);
 
@@ -218,7 +224,11 @@ impl CartridgeAccount {
             methods,
             expires_at,
             &AbigenSigner::Starknet(StarknetSigner {
-                pubkey: NonZero::new(pub_key).unwrap(),
+                pubkey: NonZero::new(pub_key).ok_or_else(|| JsControllerError {
+                    code: ErrorCode::EncodingError,
+                    message: "Public key cannot be zero".to_string(),
+                    data: None,
+                })?,
             }),
             Felt::ZERO,
         )?;
@@ -453,11 +463,11 @@ impl CartridgeAccount {
         let controller = self.controller.lock().await;
 
         if controller.chain_id != short_string!("SN_MAIN") {
-            return Err(ControllerError::InvalidChainID(
-                "SN_MAIN".to_string(),
-                parse_cairo_short_string(&controller.chain_id).expect("Expected valid shortstring"),
-            )
-            .into());
+            let chain_id_str = parse_cairo_short_string(&controller.chain_id)
+                .unwrap_or_else(|_| format!("{:#x}", controller.chain_id));
+            return Err(
+                ControllerError::InvalidChainID("SN_MAIN".to_string(), chain_id_str).into(),
+            );
         }
 
         std::mem::drop(controller);
@@ -505,11 +515,11 @@ impl CartridgeAccount {
         let mut controller = self.controller.lock().await;
 
         if controller.chain_id != short_string!("SN_MAIN") {
-            return Err(ControllerError::InvalidChainID(
-                "SN_MAIN".to_string(),
-                parse_cairo_short_string(&controller.chain_id).expect("Expected valid shortstring"),
-            )
-            .into());
+            let chain_id_str = parse_cairo_short_string(&controller.chain_id)
+                .unwrap_or_else(|_| format!("{:#x}", controller.chain_id));
+            return Err(
+                ControllerError::InvalidChainID("SN_MAIN".to_string(), chain_id_str).into(),
+            );
         }
 
         let mut remove_owner_input: account_sdk::graphql::owner::remove_owner::SignerInput =

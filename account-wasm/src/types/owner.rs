@@ -3,6 +3,8 @@ use serde::{Deserialize, Serialize};
 use tsify_next::Tsify;
 use wasm_bindgen::prelude::*;
 
+use crate::errors::JsControllerError;
+
 use super::{signer::Signer, JsFelt};
 
 #[allow(non_snake_case)]
@@ -33,14 +35,27 @@ impl Owner {
     }
 }
 
+// Keep From implementation for backward compatibility, but use try_into_sdk_owner internally
 impl From<Owner> for SdkOwner {
     fn from(owner: Owner) -> Self {
-        if let Some(signer) = owner.signer {
-            SdkOwner::Signer(signer.try_into().unwrap())
-        } else if let Some(account) = owner.account {
-            SdkOwner::Account(account.try_into().unwrap())
+        owner.try_into_sdk_owner().expect("Owner conversion should not fail - this is a bug, please use try_into_sdk_owner instead")
+    }
+}
+
+impl Owner {
+    /// Safely convert Owner to SdkOwner, returning an error instead of panicking
+    pub fn try_into_sdk_owner(self) -> Result<SdkOwner, JsControllerError> {
+        if let Some(signer) = self.signer {
+            Ok(SdkOwner::Signer(signer.try_into()?))
+        } else if let Some(account) = self.account {
+            // Felt to ContractAddress conversion is infallible
+            Ok(SdkOwner::Account((*account.as_felt()).into()))
         } else {
-            panic!("Missing owner data")
+            Err(JsControllerError {
+                code: crate::errors::ErrorCode::InvalidOwner,
+                message: "Owner must have either signer or account data".to_string(),
+                data: None,
+            })
         }
     }
 }

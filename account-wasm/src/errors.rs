@@ -105,6 +105,7 @@ pub enum ErrorCode {
     SessionRefreshRequired = 142,
     ManualExecutionRequired = 143,
     ForbiddenEntrypoint = 144,
+    GasAmountTooHigh = 145,
 }
 
 impl From<ControllerError> for JsControllerError {
@@ -506,6 +507,16 @@ impl From<StarknetError> for JsControllerError {
                 if msg.contains("gas price too high") || msg.contains("Ethereum gas price too high")
                 {
                     (ErrorCode::GasPriceTooHigh, "Gas price too high", Some(msg))
+                // Check for gas amount/limit error
+                } else if msg.contains("Max gas amount is too high")
+                    || msg.contains("maximum allowed gas amount")
+                    || msg.contains("gas amount") && msg.contains("too high")
+                {
+                    (
+                        ErrorCode::GasAmountTooHigh,
+                        "Gas amount too high",
+                        Some(msg),
+                    )
                 } else {
                     (
                         ErrorCode::StarknetUnexpectedError,
@@ -517,7 +528,7 @@ impl From<StarknetError> for JsControllerError {
             StarknetError::NoTraceAvailable(data) => (
                 ErrorCode::StarknetNoTraceAvailable,
                 "No trace available",
-                Some(serde_json::to_string(&data).unwrap()),
+                Some(serde_json::to_string(&data).unwrap_or_else(|_| format!("{:?}", data))),
             ),
             StarknetError::InvalidSubscriptionId => (
                 ErrorCode::StarknetUnexpectedError,
@@ -631,6 +642,39 @@ mod tests {
         assert!(matches!(js_error.code, ErrorCode::GasPriceTooHigh));
         assert_eq!(js_error.message, "Gas price too high");
         assert!(js_error.data.is_some());
+
+        // Test generic case still works
+        let generic_error = StarknetError::UnexpectedError("Some other error".to_string());
+        let js_error = JsControllerError::from(generic_error);
+
+        assert!(matches!(js_error.code, ErrorCode::StarknetUnexpectedError));
+        assert_eq!(js_error.message, "Unexpected error");
+    }
+
+    #[test]
+    fn test_gas_amount_too_high_error_handling() {
+        // Test StarknetError::UnexpectedError with gas amount error message
+        let starknet_error = StarknetError::UnexpectedError(
+            "Max gas amount is too high: GasAmount(1238820800), maximum allowed gas amount: 1200000000.".to_string()
+        );
+        let js_error = JsControllerError::from(starknet_error);
+
+        assert!(matches!(js_error.code, ErrorCode::GasAmountTooHigh));
+        assert_eq!(js_error.message, "Gas amount too high");
+        assert!(js_error.data.is_some());
+        assert!(js_error
+            .data
+            .as_ref()
+            .unwrap()
+            .contains("maximum allowed gas amount"));
+
+        // Test another variant
+        let starknet_error2 =
+            StarknetError::UnexpectedError("maximum allowed gas amount exceeded".to_string());
+        let js_error2 = JsControllerError::from(starknet_error2);
+
+        assert!(matches!(js_error2.code, ErrorCode::GasAmountTooHigh));
+        assert_eq!(js_error2.message, "Gas amount too high");
 
         // Test generic case still works
         let generic_error = StarknetError::UnexpectedError("Some other error".to_string());
