@@ -508,9 +508,10 @@ impl From<StarknetError> for JsControllerError {
                 {
                     (ErrorCode::GasPriceTooHigh, "Gas price too high", Some(msg))
                 // Check for gas amount/limit error
+                // Only use very specific patterns to avoid false positives
                 } else if msg.contains("Max gas amount is too high")
                     || msg.contains("maximum allowed gas amount")
-                    || msg.contains("gas amount") && msg.contains("too high")
+                    || msg.contains("gas amount is too high")
                 {
                     (
                         ErrorCode::GasAmountTooHigh,
@@ -708,7 +709,7 @@ mod tests {
         let test_cases = vec![
             "Max gas amount is too high: GasAmount(1238820800)",
             "maximum allowed gas amount: 1200000000",
-            "gas amount 5000000 is too high",
+            "The gas amount is too high for this transaction",
         ];
 
         for error_msg in test_cases {
@@ -722,6 +723,31 @@ mod tests {
             );
             assert_eq!(js_error.message, "Gas amount too high");
             assert!(js_error.data.is_some());
+        }
+    }
+
+    #[test]
+    fn test_gas_error_no_false_positives() {
+        // Test that unrelated errors containing both "gas amount" and "too high"
+        // separately don't get misclassified as GasAmountTooHigh
+        let false_positive_cases = vec![
+            "Contract execution failed: gas amount: 1000, price is too high",
+            "Error: insufficient gas amount. Storage fee is too high",
+            "Transaction failed: gas amount recorded, memory usage too high",
+        ];
+
+        for error_msg in false_positive_cases {
+            let starknet_error = StarknetError::UnexpectedError(error_msg.to_string());
+            let js_error = JsControllerError::from(starknet_error);
+
+            // These should NOT be classified as GasAmountTooHigh since the terms
+            // appear in different contexts
+            assert!(
+                matches!(js_error.code, ErrorCode::StarknetUnexpectedError),
+                "False positive detected for: {}. Got error code: {:?}",
+                error_msg,
+                js_error.code
+            );
         }
     }
 
