@@ -28,7 +28,7 @@ use starknet_types_core::felt::Felt;
 use url::Url;
 use wasm_bindgen::prelude::*;
 
-use crate::errors::JsControllerError;
+use crate::errors::{ErrorCode, JsControllerError};
 use crate::set_panic_hook;
 use crate::storage::PolicyStorage;
 use crate::sync::WasmMutex;
