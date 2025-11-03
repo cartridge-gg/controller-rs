@@ -36,6 +36,32 @@ impl ControllerFactory {
         CartridgeAccount::from_storage(app_id, cartridge_api_url).await
     }
 
+    /// Login to an existing controller account.
+    ///
+    /// # Parameters
+    ///
+    /// * `create_wildcard_session` - Whether to create a wildcard session on login. Defaults to `true`
+    ///   for backward compatibility. Set to `false` when using the `register_session` flow where
+    ///   specific policies will be registered instead of using a wildcard session.
+    ///
+    /// # Returns
+    ///
+    /// Returns a `LoginResult` containing:
+    /// * `account` - The controller account
+    /// * `session` - Optional session (Some if `create_wildcard_session` is true, None otherwise)
+    ///
+    /// # Testing
+    ///
+    /// The core logic is tested in the SDK layer:
+    /// * `account_sdk::tests::session_test::test_wildcard_session_creation` - Tests session creation
+    /// * `account_sdk::tests::session_test::test_login_with_wildcard_session_and_execute` - Tests login with session + execution
+    /// * `account_sdk::tests::session_test::test_login_without_session_can_still_execute` - Tests login without session + execution
+    ///
+    /// The WASM layer is a thin wrapper that:
+    /// 1. Converts WASM types to SDK types
+    /// 2. Calls `Controller::new` and optionally `create_wildcard_session`
+    /// 3. Handles WebAuthn signer updates when multiple signers are present
+    /// 4. Registers the session with Cartridge API if requested
     #[allow(clippy::new_ret_no_self, clippy::too_many_arguments)]
     #[wasm_bindgen(js_name = login)]
     pub async fn login(
