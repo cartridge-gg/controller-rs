@@ -42,3 +42,36 @@ pub async fn test_session_revokation() {
         ExecutionResult::Succeeded
     );
 }
+
+#[tokio::test]
+pub async fn test_wildcard_session_creation() {
+    let owner = Owner::Signer(Signer::new_starknet_random());
+    let runner = KatanaRunner::load();
+    let mut controller = runner
+        .deploy_controller("username".to_owned(), owner.clone(), Version::LATEST)
+        .await;
+
+    // Test that wildcard session can be created
+    let session = controller.create_wildcard_session(u64::MAX).await.unwrap();
+
+    // Verify the session is a wildcard session (no specific policies)
+    assert!(session.session.is_wildcard());
+
+    // Verify the session is stored and can be retrieved
+    let stored_session = controller.authorized_session();
+    assert!(stored_session.is_some());
+    assert!(stored_session.unwrap().is_wildcard());
+}
+
+#[tokio::test]
+pub async fn test_no_wildcard_session_when_not_requested() {
+    let owner = Owner::Signer(Signer::new_starknet_random());
+    let runner = KatanaRunner::load();
+    let controller = runner
+        .deploy_controller("username".to_owned(), owner.clone(), Version::LATEST)
+        .await;
+
+    // Verify no session exists when wildcard session creation is skipped
+    let stored_session = controller.authorized_session();
+    assert!(stored_session.is_none());
+}
