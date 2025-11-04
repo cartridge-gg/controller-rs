@@ -106,6 +106,7 @@ pub enum ErrorCode {
     ManualExecutionRequired = 143,
     ForbiddenEntrypoint = 144,
     GasAmountTooHigh = 145,
+    ApproveExecutionRequired = 146,
 }
 
 impl From<ControllerError> for JsControllerError {
@@ -246,6 +247,16 @@ impl From<ControllerError> for JsControllerError {
                 code: ErrorCode::ForbiddenEntrypoint,
                 message: e,
                 data: None,
+            },
+            ControllerError::ApproveExecutionRequired { fee_estimate } => JsControllerError {
+                code: ErrorCode::ApproveExecutionRequired,
+                message: "Approve execution requires user authorization".to_string(),
+                data: Some(
+                    serde_json::to_string(&serde_json::json!({
+                        "fee_estimate": fee_estimate
+                    }))
+                    .unwrap(),
+                ),
             },
         }
     }

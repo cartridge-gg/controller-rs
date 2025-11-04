@@ -94,6 +94,9 @@ pub enum ControllerError {
 
     #[error("Forbidden entrypoint: {0}")]
     ForbiddenEntrypoint(String),
+
+    #[error("Approve execution requires user authorization. Fee estimate: {fee_estimate:?}")]
+    ApproveExecutionRequired { fee_estimate: Box<FeeEstimate> },
 }
 
 impl From<ExecuteFromOutsideError> for ControllerError {
