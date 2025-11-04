@@ -303,8 +303,11 @@ impl CartridgeAccount {
         &self,
         policies: Vec<Policy>,
         expires_at: u64,
+        authorize_user_execution: Option<bool>,
     ) -> std::result::Result<Option<AuthorizedSession>, JsControllerError> {
         set_panic_hook();
+
+        let authorize_user_execution = authorize_user_execution.unwrap_or(false);
 
         // First, validate policies
         for policy in &policies {
@@ -350,11 +353,40 @@ impl CartridgeAccount {
                 .collect();
 
             if !approve_calls.is_empty() {
-                // Execute the approve calls immediately
-                controller
-                    .execute(approve_calls, None, None)
-                    .await
-                    .map_err(JsControllerError::from)?;
+                if authorize_user_execution {
+                    // User has already authorized - execute directly with user funds
+                    let estimate = controller
+                        .estimate_invoke_fee(approve_calls.clone())
+                        .await?;
+                    controller
+                        .execute(approve_calls, Some(estimate), None)
+                        .await
+                        .map_err(JsControllerError::from)?;
+                } else {
+                    // Try to execute approve calls with paymaster first (execute_from_outside_v3)
+                    match controller
+                        .execute_from_outside_v3(approve_calls.clone(), None)
+                        .await
+                    {
+                        Ok(_) => {
+                            // Paymaster execution succeeded
+                        }
+                        Err(e) => match e {
+                            ControllerError::PaymasterNotSupported => {
+                                // Paymaster not supported - return error with fee estimate
+                                let fee_estimate = controller
+                                    .estimate_invoke_fee(approve_calls.clone())
+                                    .await?;
+                                return Err(JsControllerError::from(
+                                    ControllerError::ApproveExecutionRequired {
+                                        fee_estimate: Box::new(fee_estimate),
+                                    },
+                                ));
+                            }
+                            other => return Err(JsControllerError::from(other)),
+                        },
+                    }
+                }
             }
         }
 
