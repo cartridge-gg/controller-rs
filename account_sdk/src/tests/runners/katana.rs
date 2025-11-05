@@ -70,7 +70,7 @@ impl KatanaRunner {
 
         let testnet = SubprocessRunner::new(child, |l| l.contains(r#""target":"katana::cli""#));
 
-        let rpc_url = Url::parse(&format!("http://0.0.0.0:{}/", katana_port)).unwrap();
+        let rpc_url = Url::parse(&format!("http://0.0.0.0:{katana_port}/")).unwrap();
         let proxy_url = Url::parse(&format!("http://0.0.0.0:{}/", find_free_port())).unwrap();
         let client = CartridgeJsonRpcProvider::new(proxy_url.clone());
 

@@ -344,7 +344,7 @@ impl Controller {
                 if let Err(e) =
                     futures::executor::block_on(controller_clone.clear_session_if_revoked())
                 {
-                    println!("Error clearing session if revoked: {}", e);
+                    println!("Error clearing session if revoked: {e}");
                 }
             });
         }

@@ -221,7 +221,7 @@ lazy_static! {{
         "latest_version": latest_version,
         "controllers": versions.iter().map(|v| {
             (v.to_string(), {
-                let path = format!("./artifacts/classes/controller.{}.contract_class.json", v);
+                let path = format!("./artifacts/classes/controller.{v}.contract_class.json");
                 let class_hash = extract_class_hash(&PathBuf::from(&path));
                 let casm_hash = extract_compiled_class_hash(v);
                 let mut controller_info = serde_json::json!({

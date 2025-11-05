@@ -4,15 +4,15 @@ pub struct Selectors;
 
 impl Selectors {
     pub fn active(app_id: &str) -> String {
-        format!("@cartridge/{}/active", app_id)
+        format!("@cartridge/{app_id}/active")
     }
 
     pub fn account(address: &Felt, chain_id: &Felt) -> String {
-        format!("@cartridge/account/0x{:x}/0x{:x}", address, chain_id)
+        format!("@cartridge/account/0x{address:x}/0x{chain_id:x}")
     }
 
     pub fn deployment(address: &Felt, chain_id: &Felt) -> String {
-        format!("@cartridge/deployment/0x{:x}/0x{:x}", address, chain_id)
+        format!("@cartridge/deployment/0x{address:x}/0x{chain_id:x}")
     }
 
     pub fn admin(address: &Felt, origin: &str) -> String {
@@ -34,6 +34,6 @@ impl Selectors {
 
     /// Storage key for multi-chain controller configuration
     pub fn multi_chain_config(app_id: &str) -> String {
-        format!("@cartridge/multi_chain/{}/config", app_id)
+        format!("@cartridge/multi_chain/{app_id}/config")
     }
 }

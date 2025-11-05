@@ -75,15 +75,13 @@ fn test_metadata_loading() {
         if version_key != "latest" {
             assert!(
                 controller_info.version_info.is_some(),
-                "Version {} should have version info",
-                version_key
+                "Version {version_key} should have version info"
             );
 
             let version_info = controller_info.version_info.as_ref().unwrap();
             assert!(
                 !version_info.changes.is_empty() || version_key == "v1.0.4",
-                "Version {} should have changes (except v1.0.4)",
-                version_key
+                "Version {version_key} should have changes (except v1.0.4)"
             );
         }
     }
@@ -284,25 +282,21 @@ fn test_controller_info_structure() {
         // All controllers should have class_hash and casm_hash
         assert!(
             !controller_info.class_hash.is_empty(),
-            "Version {} should have class_hash",
-            version_key
+            "Version {version_key} should have class_hash"
         );
         assert!(
             !controller_info.casm_hash.is_empty(),
-            "Version {} should have casm_hash",
-            version_key
+            "Version {version_key} should have casm_hash"
         );
 
         // class_hash should be valid hex
         assert!(
             Felt::from_hex(&controller_info.class_hash).is_ok(),
-            "Version {} should have valid class_hash",
-            version_key
+            "Version {version_key} should have valid class_hash"
         );
         assert!(
             Felt::from_hex(&controller_info.casm_hash).is_ok(),
-            "Version {} should have valid casm_hash",
-            version_key
+            "Version {version_key} should have valid casm_hash"
         );
 
         // Latest should not have version_info, others should
@@ -314,8 +308,7 @@ fn test_controller_info_structure() {
         } else {
             assert!(
                 controller_info.version_info.is_some(),
-                "Version {} should have version_info",
-                version_key
+                "Version {version_key} should have version_info"
             );
         }
     }

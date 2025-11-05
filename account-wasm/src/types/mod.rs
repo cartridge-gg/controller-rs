@@ -39,7 +39,7 @@ impl<'de> Deserialize<'de> for JsFelt {
     {
         let string_repr = String::deserialize(deserializer)?;
         let felt = Felt::from_str(&string_repr)
-            .map_err(|e| serde::de::Error::custom(format!("Invalid Felt: {}", e)))?;
+            .map_err(|e| serde::de::Error::custom(format!("Invalid Felt: {e}")))?;
         Ok(JsFelt(felt))
     }
 }

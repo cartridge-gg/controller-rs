@@ -538,7 +538,7 @@ impl WebauthnSigner {
         let res = OPERATIONS.create_credential(options).await?;
         let ao =
             AttestationObject::<Registration>::try_from(res.response.attestation_object.as_ref())
-                .map_err(|e| DeviceError::CreateCredential(format!("CoseError: {:?}", e)))
+                .map_err(|e| DeviceError::CreateCredential(format!("CoseError: {e:?}")))
                 .unwrap();
 
         let cred = ao.auth_data.acd.unwrap();

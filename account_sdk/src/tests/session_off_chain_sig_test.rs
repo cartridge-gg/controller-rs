@@ -29,7 +29,7 @@ pub async fn test_verify_session_off_chain_sig(owner: Owner) {
 
     let typed_data = (0..10)
         .map(|i| AbiTypedData {
-            scope_hash: get_selector_from_name(&format!("Type{}", i)).unwrap(),
+            scope_hash: get_selector_from_name(&format!("Type{i}")).unwrap(),
             typed_data_hash: poseidon_hash_many([&Felt::from(i), &Felt::from(i)]),
         })
         .collect::<Vec<_>>();

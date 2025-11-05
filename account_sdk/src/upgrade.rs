@@ -66,15 +66,13 @@ pub fn determine_upgrade_path(
         .get(target_version_key)
         .ok_or_else(|| {
             ControllerError::InvalidResponseData(format!(
-                "Target controller version {} not found",
-                target_version_key
+                "Target controller version {target_version_key} not found"
             ))
         })?;
 
     let target_version_info = target_controller.version_info.as_ref().ok_or_else(|| {
         ControllerError::InvalidResponseData(format!(
-            "Target version {} has no version info",
-            target_version_key
+            "Target version {target_version_key} has no version info"
         ))
     })?;
 
@@ -92,7 +90,7 @@ pub fn determine_upgrade_path(
     };
 
     let target_hash = Felt::from_hex(&target_controller.class_hash)
-        .map_err(|e| ControllerError::InvalidResponseData(format!("Invalid target hash: {}", e)))?;
+        .map_err(|e| ControllerError::InvalidResponseData(format!("Invalid target hash: {e}")))?;
 
     Ok(UpgradePath {
         available,
@@ -105,7 +103,7 @@ pub fn find_version_by_hash(
     hash: Felt,
 ) -> Result<Option<(String, ControllerVersionInfo)>, ControllerError> {
     let metadata = ControllerMetadata::load()?;
-    let hash_str = format!("{:#x}", hash);
+    let hash_str = format!("{hash:#x}");
 
     for (version_key, controller_info) in metadata.controllers.iter() {
         if controller_info.class_hash == hash_str && version_key != "latest" {

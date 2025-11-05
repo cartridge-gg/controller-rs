@@ -143,7 +143,7 @@ impl CartridgeAccount {
         let salt = starknet::core::utils::cairo_short_string_to_felt(&username).map_err(|e| {
             JsControllerError {
                 code: ErrorCode::EncodingError,
-                message: format!("Invalid username for short string: {}", e),
+                message: format!("Invalid username for short string: {e}"),
                 data: Some(username.clone()),
             }
         })?;

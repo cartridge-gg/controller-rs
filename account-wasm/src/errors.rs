@@ -190,27 +190,27 @@ impl From<ControllerError> for JsControllerError {
             },
             ControllerError::UrlParseError(e) => JsControllerError {
                 code: ErrorCode::UrlParseError,
-                message: format!("Failed to parse URL: {}", e),
+                message: format!("Failed to parse URL: {e}"),
                 data: None,
             },
             ControllerError::Base64DecodeError(e) => JsControllerError {
                 code: ErrorCode::Base64DecodeError,
-                message: format!("Failed to decode Base64: {}", e),
+                message: format!("Failed to decode Base64: {e}"),
                 data: None,
             },
             ControllerError::CoseError(e) => JsControllerError {
                 code: ErrorCode::CoseError,
-                message: format!("COSE error: {}", e),
+                message: format!("COSE error: {e}"),
                 data: None,
             },
             ControllerError::Api(e) => JsControllerError {
                 code: ErrorCode::ProviderOther,
-                message: format!("GraphQL API error: {:?}", e),
+                message: format!("GraphQL API error: {e:?}"),
                 data: None,
             },
             ControllerError::ReqwestError(e) => JsControllerError {
                 code: ErrorCode::ProviderOther,
-                message: format!("Reqwest error: {:?}", e),
+                message: format!("Reqwest error: {e:?}"),
                 data: None,
             },
             ControllerError::TransactionReverted(e) => JsControllerError {
@@ -230,7 +230,7 @@ impl From<ControllerError> for JsControllerError {
             },
             ControllerError::ParseCairoShortString(e) => JsControllerError {
                 code: ErrorCode::StarknetUnexpectedError,
-                message: format!("Failed to parse cairo short string: {}", e),
+                message: format!("Failed to parse cairo short string: {e}"),
                 data: None,
             },
             ControllerError::ConversionError(e) => JsControllerError {
@@ -540,7 +540,7 @@ impl From<StarknetError> for JsControllerError {
             StarknetError::NoTraceAvailable(data) => (
                 ErrorCode::StarknetNoTraceAvailable,
                 "No trace available",
-                Some(serde_json::to_string(&data).unwrap_or_else(|_| format!("{:?}", data))),
+                Some(serde_json::to_string(&data).unwrap_or_else(|_| format!("{data:?}"))),
             ),
             StarknetError::InvalidSubscriptionId => (
                 ErrorCode::StarknetUnexpectedError,
@@ -634,7 +634,7 @@ impl fmt::Display for JsControllerError {
             "message": self.message,
             "data": self.data
         });
-        write!(f, "{}", json)
+        write!(f, "{json}")
     }
 }
 
@@ -729,8 +729,7 @@ mod tests {
 
             assert!(
                 matches!(js_error.code, ErrorCode::GasAmountTooHigh),
-                "Failed to detect gas amount error in: {}",
-                error_msg
+                "Failed to detect gas amount error in: {error_msg}"
             );
             assert_eq!(js_error.message, "Gas amount too high");
             assert!(js_error.data.is_some());
