@@ -258,8 +258,7 @@ async fn test_session_registration_failure_recovery() {
             // but the error handling path is what we're testing
             assert!(
                 e.to_string().contains("session") || e.to_string().contains("Session"),
-                "Unexpected error: {:?}",
-                e
+                "Unexpected error: {e:?}"
             );
         }
     }

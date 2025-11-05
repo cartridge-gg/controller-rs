@@ -82,7 +82,7 @@ impl CartridgeProxy {
 
         let server = Server::bind(&proxy_addr).serve(make_svc);
         if let Err(e) = server.await {
-            eprintln!("server error: {}", e);
+            eprintln!("server error: {e}");
         }
     }
 
@@ -365,7 +365,7 @@ mod tests {
 
         let result = parse_execute_outside_transaction_params(params);
         if let Err(e) = result {
-            panic!("Error parsing execute outside transaction: {}", e);
+            panic!("Error parsing execute outside transaction: {e}");
         }
 
         let (address, outside_execution, signature, _) = result.unwrap();

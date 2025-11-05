@@ -82,8 +82,7 @@ impl MultiChainController {
             // Check for duplicate chain IDs
             if controllers.contains_key(&chain_id) {
                 return Err(ControllerError::InvalidResponseData(format!(
-                    "Duplicate chain configuration for chain_id: {}",
-                    chain_id
+                    "Duplicate chain configuration for chain_id: {chain_id}"
                 )));
             }
 
@@ -147,8 +146,7 @@ impl MultiChainController {
 
         if self.controllers.contains_key(&chain_id) {
             return Err(ControllerError::InvalidResponseData(format!(
-                "Chain {} already exists",
-                chain_id
+                "Chain {chain_id} already exists"
             )));
         }
 
@@ -163,7 +161,7 @@ impl MultiChainController {
     /// Removes a chain configuration
     pub fn remove_chain(&mut self, chain_id: Felt) -> Result<(), ControllerError> {
         self.controllers.remove(&chain_id).ok_or_else(|| {
-            ControllerError::InvalidResponseData(format!("Chain {} not found", chain_id))
+            ControllerError::InvalidResponseData(format!("Chain {chain_id} not found"))
         })?;
 
         // Update storage
@@ -176,8 +174,7 @@ impl MultiChainController {
     pub fn controller_for_chain(&self, chain_id: Felt) -> Result<&Controller, ControllerError> {
         self.controllers.get(&chain_id).ok_or_else(|| {
             ControllerError::InvalidResponseData(format!(
-                "Controller for chain {} not found",
-                chain_id
+                "Controller for chain {chain_id} not found"
             ))
         })
     }
@@ -194,8 +191,7 @@ impl MultiChainController {
     ) -> Result<&mut Controller, ControllerError> {
         self.controllers.get_mut(&chain_id).ok_or_else(|| {
             ControllerError::InvalidResponseData(format!(
-                "Controller for chain {} not found",
-                chain_id
+                "Controller for chain {chain_id} not found"
             ))
         })
     }
@@ -208,7 +204,7 @@ impl MultiChainController {
     ) -> Result<(), ControllerError> {
         // Get the existing controller configuration
         let existing_controller = self.controllers.get(&chain_id).ok_or_else(|| {
-            ControllerError::InvalidResponseData(format!("Chain {} not configured", chain_id))
+            ControllerError::InvalidResponseData(format!("Chain {chain_id} not configured"))
         })?;
 
         // Verify the new RPC is for the same chain
@@ -402,7 +398,7 @@ impl MultiChainController {
                 // For now, we'll continue if at least one chain loaded successfully
                 eprintln!("Warning: Failed to load {} chains", failed_chains.len());
                 for (chain_id, error) in &failed_chains {
-                    eprintln!("  Chain {}: {:?}", chain_id, error);
+                    eprintln!("  Chain {chain_id}: {error:?}");
                 }
             }
 
@@ -554,7 +550,7 @@ mod tests {
 
         let new_config = ChainConfig {
             class_hash: CONTROLLERS[&Version::LATEST].hash,
-            rpc_url: Url::parse(&format!("http://127.0.0.1:{}/", katana_port)).unwrap(),
+            rpc_url: Url::parse(&format!("http://127.0.0.1:{katana_port}/")).unwrap(),
             owner: owner.clone(),
             address: None,
         };
@@ -914,7 +910,7 @@ mod tests {
 
         let config2 = ChainConfig {
             class_hash: CONTROLLERS[&Version::LATEST].hash,
-            rpc_url: Url::parse(&format!("http://127.0.0.1:{}/", katana_port)).unwrap(),
+            rpc_url: Url::parse(&format!("http://127.0.0.1:{katana_port}/")).unwrap(),
             owner: owner.clone(),
             address: None,
         };
@@ -1009,7 +1005,7 @@ mod tests {
 
         let config2 = ChainConfig {
             class_hash: CONTROLLERS[&Version::LATEST].hash,
-            rpc_url: Url::parse(&format!("http://127.0.0.1:{}/", katana_port)).unwrap(),
+            rpc_url: Url::parse(&format!("http://127.0.0.1:{katana_port}/")).unwrap(),
             owner: owner.clone(),
             address: None,
         };

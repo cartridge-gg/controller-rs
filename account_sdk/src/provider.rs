@@ -642,7 +642,7 @@ mod tests {
                 assert!(failure_reason.contains("('session/already-revoked')"));
             }
             _ => {
-                panic!("Unexpected error: {:?}", error_from_json);
+                panic!("Unexpected error: {error_from_json:?}");
             }
         }
     }
@@ -668,7 +668,7 @@ mod tests {
                 assert!(failure_reason.contains("('session/already-revoked')"));
             }
             _ => {
-                panic!("Unexpected error: {:?}", error_from_json);
+                panic!("Unexpected error: {error_from_json:?}");
             }
         }
     }
@@ -689,10 +689,7 @@ mod tests {
                 );
             }
             _ => {
-                panic!(
-                    "Expected ExecuteFromOutsideNotSupported, got: {:?}",
-                    error_from_json
-                );
+                panic!("Expected ExecuteFromOutsideNotSupported, got: {error_from_json:?}");
             }
         }
     }

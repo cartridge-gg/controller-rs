@@ -113,7 +113,7 @@ async fn test_controller_not_deployed() {
     // Assert that the result is a NotDeployed error
     match result {
         Err(ControllerError::NotDeployed { .. }) => {}
-        _ => panic!("Expected NotDeployed error, got: {:?}", result),
+        _ => panic!("Expected NotDeployed error, got: {result:?}"),
     }
 }
 
@@ -238,7 +238,7 @@ async fn test_controller_storage() {
         .await;
 
     // Verify that the controller was stored
-    let storage_file = storage_path.join(format!("@cartridge/{}/active", app_id));
+    let storage_file = storage_path.join(format!("@cartridge/{app_id}/active"));
     assert!(storage_file.exists(), "Storage file was not created");
 
     // Initialize a new controller from storage

@@ -35,9 +35,8 @@ impl FileSystemBackend {
     }
 
     fn ensure_path_exists(&self, path: PathBuf) -> Result<(), StorageError> {
-        fs::create_dir_all(path).map_err(|e| {
-            StorageError::OperationFailed(format!("Failed to create directory: {}", e))
-        })
+        fs::create_dir_all(path)
+            .map_err(|e| StorageError::OperationFailed(format!("Failed to create directory: {e}")))
     }
 }
 
@@ -54,20 +53,18 @@ impl StorageBackend for FileSystemBackend {
             self.ensure_path_exists(parent.to_path_buf())?;
         }
         fs::write(&path, value)
-            .map_err(|e| StorageError::OperationFailed(format!("Failed to write file: {}", e)))?;
+            .map_err(|e| StorageError::OperationFailed(format!("Failed to write file: {e}")))?;
         Ok(())
     }
 
     fn get(&self, key: &str) -> Result<Option<StorageValue>, StorageError> {
         let path = self.file_path(key);
         if path.exists() {
-            let mut file = fs::File::open(&path).map_err(|e| {
-                StorageError::OperationFailed(format!("Failed to open file: {}", e))
-            })?;
+            let mut file = fs::File::open(&path)
+                .map_err(|e| StorageError::OperationFailed(format!("Failed to open file: {e}")))?;
             let mut contents = String::new();
-            file.read_to_string(&mut contents).map_err(|e| {
-                StorageError::OperationFailed(format!("Failed to read file: {}", e))
-            })?;
+            file.read_to_string(&mut contents)
+                .map_err(|e| StorageError::OperationFailed(format!("Failed to read file: {e}")))?;
             let deserialized = serde_json::from_str(&contents)?;
             Ok(Some(deserialized))
         } else {
@@ -79,7 +76,7 @@ impl StorageBackend for FileSystemBackend {
         let path = self.file_path(key);
         if path.exists() {
             fs::remove_file(&path).map_err(|e| {
-                StorageError::OperationFailed(format!("Failed to remove file: {}", e))
+                StorageError::OperationFailed(format!("Failed to remove file: {e}"))
             })?;
         }
         Ok(())
@@ -88,7 +85,7 @@ impl StorageBackend for FileSystemBackend {
     fn clear(&mut self) -> Result<(), StorageError> {
         if self.base_path.exists() {
             fs::remove_dir_all(&self.base_path).map_err(|e| {
-                StorageError::OperationFailed(format!("Failed to remove directory: {}", e))
+                StorageError::OperationFailed(format!("Failed to remove directory: {e}"))
             })?;
         }
         self.ensure_path_exists(self.base_path.clone())?;
@@ -99,15 +96,15 @@ impl StorageBackend for FileSystemBackend {
         let mut keys = Vec::new();
         if self.base_path.exists() {
             for entry in fs::read_dir(&self.base_path).map_err(|e| {
-                StorageError::OperationFailed(format!("Failed to read directory: {}", e))
+                StorageError::OperationFailed(format!("Failed to read directory: {e}"))
             })? {
                 let entry = entry.map_err(|e| {
-                    StorageError::OperationFailed(format!("Failed to read directory entry: {}", e))
+                    StorageError::OperationFailed(format!("Failed to read directory entry: {e}"))
                 })?;
                 if entry
                     .file_type()
                     .map_err(|e| {
-                        StorageError::OperationFailed(format!("Failed to get file type: {}", e))
+                        StorageError::OperationFailed(format!("Failed to get file type: {e}"))
                     })?
                     .is_file()
                 {

@@ -24,10 +24,10 @@ impl SubprocessRunner {
     }
     pub fn kill(&mut self) {
         if let Err(e) = self.child.kill() {
-            eprintln!("Failed to kill katana subprocess: {}", e);
+            eprintln!("Failed to kill katana subprocess: {e}");
         }
         if let Err(e) = self.child.wait() {
-            eprintln!("Failed to wait for katana subprocess: {}", e);
+            eprintln!("Failed to wait for katana subprocess: {e}");
         }
     }
 }

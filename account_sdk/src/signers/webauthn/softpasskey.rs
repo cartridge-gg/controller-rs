@@ -63,7 +63,7 @@ impl WebauthnOperations for SoftPasskeyOperations {
             unknown_keys: Default::default(),
         };
         let client_data_str = serde_json::to_string(&client_data)
-            .map_err(|e| DeviceError::GetAssertion(format!("{:?}", e)))?;
+            .map_err(|e| DeviceError::GetAssertion(format!("{e:?}")))?;
 
         let client_data_hash = Sha256::new().chain(client_data_str.clone()).finalize();
         let mut cred = AuthenticatorBackendHashedClientData::perform_auth(
@@ -72,7 +72,7 @@ impl WebauthnOperations for SoftPasskeyOperations {
             options,
             500_u32,
         )
-        .map_err(|e| DeviceError::GetAssertion(format!("{:?}", e)))?;
+        .map_err(|e| DeviceError::GetAssertion(format!("{e:?}")))?;
         cred.response.client_data_json = Base64UrlSafeData::from(client_data_str.as_bytes());
 
         Ok(cred)
@@ -89,11 +89,11 @@ impl WebauthnOperations for SoftPasskeyOperations {
             options,
             500_u32,
         )
-        .map_err(|e| DeviceError::CreateCredential(format!("{:?}", e)))?;
+        .map_err(|e| DeviceError::CreateCredential(format!("{e:?}")))?;
 
         let ao =
             AttestationObject::<Registration>::try_from(r.response.attestation_object.as_ref())
-                .map_err(|e| DeviceError::CreateCredential(format!("CoseError: {:?}", e)))?;
+                .map_err(|e| DeviceError::CreateCredential(format!("CoseError: {e:?}")))?;
 
         let cred = ao.auth_data.acd.unwrap();
 

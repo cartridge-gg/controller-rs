@@ -173,8 +173,7 @@ impl MultiChainAccount {
     ) -> std::result::Result<(), JsControllerError> {
         let chain_config: ChainConfig = config.try_into().map_err(|e: JsError| {
             JsControllerError::from(ControllerError::InvalidResponseData(format!(
-                "Invalid chain config: {:?}",
-                e
+                "Invalid chain config: {e:?}"
             )))
         })?;
 

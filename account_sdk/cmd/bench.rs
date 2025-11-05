@@ -54,7 +54,7 @@ async fn main() {
 
     let address = factory.address(salt);
 
-    println!("Controller address: {:#x}", address);
+    println!("Controller address: {address:#x}");
 
     let mut controller = Controller::new(
         "app_id".to_string(),
@@ -84,10 +84,10 @@ async fn main() {
                     &error_data.execution_error,
                     "is unavailable for deployment",
                 ) {
-                    println!("Deployment failed: {:?}", e);
+                    println!("Deployment failed: {e:?}");
                 }
             } else {
-                println!("Deployment failed: {:?}", e);
+                println!("Deployment failed: {e:?}");
             }
         }
     }
@@ -142,10 +142,10 @@ async fn main() {
 
             match flip(&controller, contract_address.into(), x, y, nonce).await {
                 Ok(_) => {
-                    println!("Routine {}: Successfully executed flip function", i);
+                    println!("Routine {i}: Successfully executed flip function");
                 }
                 Err(err) => {
-                    eprintln!("Routine {}: Failed to execute flip function: {:?}", i, err);
+                    eprintln!("Routine {i}: Failed to execute flip function: {err:?}");
                 }
             }
         });
