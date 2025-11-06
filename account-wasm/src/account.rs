@@ -1731,46 +1731,35 @@ mod tests {
     }
 
     #[test]
-    fn test_approve_policy_filtered_from_storage() {
+    fn test_approve_policy_converted_to_call_with_authorized_false() {
         use crate::types::policy::ApprovalPolicy;
 
-        let policies = vec![
-            Policy::Call(CallPolicy {
-                target: JsFelt(felt!("0x1234")),
-                method: JsFelt(felt!("0x5678")),
-                authorized: Some(true),
-            }),
-            Policy::Approval(ApprovalPolicy {
-                target: JsFelt(felt!("0xabcd")),
-                spender: JsFelt(felt!("0xef01")),
-                amount: JsFelt(felt!("100")),
-            }),
-            Policy::Call(CallPolicy {
-                target: JsFelt(felt!("0x9999")),
-                method: JsFelt(felt!("0xaaaa")),
-                authorized: Some(true),
-            }),
-        ];
+        let approval_policy = Policy::Approval(ApprovalPolicy {
+            target: JsFelt(felt!("0xabcd")),
+            spender: JsFelt(felt!("0xef01")),
+            amount: JsFelt(felt!("100")),
+        });
 
-        // Filter out approve policies (as storage does)
-        let session_policies: Vec<Policy> = policies
-            .into_iter()
-            .filter(|p| !p.is_approve_policy())
-            .collect();
+        // Convert to SDK policy
+        let sdk_policy: account_sdk::account::session::policy::Policy =
+            approval_policy.try_into().unwrap();
 
-        // Should only have 2 policies (the regular Call policies)
-        assert_eq!(
-            session_policies.len(),
-            2,
-            "Approve policies should be filtered out"
-        );
-
-        // Verify remaining policies are Call policies
-        for policy in &session_policies {
-            assert!(
-                matches!(policy, Policy::Call(_)),
-                "Only Call policies should remain after filtering"
-            );
+        // Verify it's converted to a Call policy with authorized: false
+        match sdk_policy {
+            account_sdk::account::session::policy::Policy::Call(call_policy) => {
+                assert_eq!(call_policy.contract_address, felt!("0xabcd"));
+                assert_eq!(
+                    call_policy.selector,
+                    get_approve_selector(),
+                    "Should be approve selector"
+                );
+                assert_eq!(
+                    call_policy.authorized,
+                    Some(false),
+                    "Approval policies should have authorized: false"
+                );
+            }
+            _ => panic!("Approval policy should be converted to Call policy"),
         }
     }
 
