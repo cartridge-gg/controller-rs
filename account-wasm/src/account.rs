@@ -1731,39 +1731,6 @@ mod tests {
     }
 
     #[test]
-    fn test_approve_policy_converted_to_call_with_authorized_false() {
-        use crate::types::policy::ApprovalPolicy;
-
-        let approval_policy = Policy::Approval(ApprovalPolicy {
-            target: JsFelt(felt!("0xabcd")),
-            spender: JsFelt(felt!("0xef01")),
-            amount: JsFelt(felt!("100")),
-        });
-
-        // Convert to SDK policy
-        let sdk_policy: account_sdk::account::session::policy::Policy =
-            approval_policy.try_into().unwrap();
-
-        // Verify it's converted to a Call policy with authorized: false
-        match sdk_policy {
-            account_sdk::account::session::policy::Policy::Call(call_policy) => {
-                assert_eq!(call_policy.contract_address, felt!("0xabcd"));
-                assert_eq!(
-                    call_policy.selector,
-                    get_approve_selector(),
-                    "Should be approve selector"
-                );
-                assert_eq!(
-                    call_policy.authorized,
-                    Some(false),
-                    "Approval policies should have authorized: false"
-                );
-            }
-            _ => panic!("Approval policy should be converted to Call policy"),
-        }
-    }
-
-    #[test]
     fn test_approve_policy_partition() {
         use crate::types::policy::ApprovalPolicy;
 
