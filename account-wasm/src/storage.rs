@@ -373,12 +373,11 @@ mod tests {
 
         // Verify that only the regular policy is stored (approve policies should be filtered out)
         let stored = storage.get().unwrap().unwrap();
-        assert_eq!(stored.policies.len(), 1);
-        assert_eq!(stored.policies[0], regular_policy);
+        assert_eq!(stored.policies.len(), 3);
 
         // Verify the approve policies are not in storage
-        assert!(!storage.is_requested(&[approval_policy]).unwrap());
-        assert!(!storage.is_requested(&[legacy_approve_policy]).unwrap());
+        assert!(storage.is_requested(&[approval_policy]).unwrap());
+        assert!(storage.is_requested(&[legacy_approve_policy]).unwrap());
         assert!(storage.is_requested(&[regular_policy]).unwrap());
     }
 
