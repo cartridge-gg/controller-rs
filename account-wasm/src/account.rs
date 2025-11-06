@@ -321,8 +321,10 @@ impl CartridgeAccount {
         }
 
         // Separate approve policies from session policies
-        let (approve_policies, session_policies): (Vec<_>, Vec<_>) =
-            policies.into_iter().partition(|p| p.is_approve_policy());
+        let (approve_policies, _session_policies): (Vec<_>, Vec<_>) = policies
+            .iter()
+            .cloned()
+            .partition(|p| p.is_approve_policy());
 
         let mut controller = self.controller.lock().await;
 
@@ -444,8 +446,7 @@ impl CartridgeAccount {
             None
         };
 
-        // Store only the session policies (approve policies are excluded)
-        self.policy_storage.lock().await.store(session_policies)?;
+        self.policy_storage.lock().await.store(policies)?;
 
         Ok(session)
     }
