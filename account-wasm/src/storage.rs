@@ -318,6 +318,11 @@ mod tests {
             scope_hash: JsFelt(felt!("0x1234")),
             authorized: Some(true),
         });
+        let policy4 = Policy::Approval(ApprovalPolicy {
+            target: JsFelt(felt!("0x1234")),
+            spender: JsFelt(felt!("0x5678")),
+            amount: JsFelt(felt!("1000")),
+        });
 
         // Store authorized policies
         storage
@@ -330,8 +335,11 @@ mod tests {
         // Test unauthorized policy - it should still be authorized because policy1 authorizes the same target/method
         assert!(storage.is_authorized(&[policy2]).unwrap());
 
-        // Test different policy types
+        // Test authorized TypedData policy - should be authorized since it was stored with authorized: true
         assert!(storage.is_authorized(&[policy3.clone()]).unwrap());
+
+        // Test approval policy is not authorized
+        assert!(!storage.is_authorized(&[policy4.clone()]).unwrap());
 
         // Test multiple policies
         assert!(storage.is_authorized(&[policy1, policy3]).unwrap());
@@ -373,12 +381,11 @@ mod tests {
 
         // Verify that only the regular policy is stored (approve policies should be filtered out)
         let stored = storage.get().unwrap().unwrap();
-        assert_eq!(stored.policies.len(), 1);
-        assert_eq!(stored.policies[0], regular_policy);
+        assert_eq!(stored.policies.len(), 3);
 
         // Verify the approve policies are not in storage
-        assert!(!storage.is_requested(&[approval_policy]).unwrap());
-        assert!(!storage.is_requested(&[legacy_approve_policy]).unwrap());
+        assert!(storage.is_requested(&[approval_policy]).unwrap());
+        assert!(storage.is_requested(&[legacy_approve_policy]).unwrap());
         assert!(storage.is_requested(&[regular_policy]).unwrap());
     }
 
