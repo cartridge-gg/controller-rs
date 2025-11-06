@@ -28,17 +28,10 @@ impl PolicyStorage {
     }
 
     pub fn store(&self, policies: Vec<Policy>) -> Result<()> {
-        // Filter out approve policies - they should not be stored in session policies
-        let session_policies: Vec<Policy> = policies
-            .into_iter()
-            .filter(|p| !p.is_approve_policy())
-            .collect();
-
+        // Store all policies including approval policies for comparison
         if let Some(window) = window() {
             if let Ok(Some(storage)) = window.local_storage() {
-                let stored = StoredPolicies {
-                    policies: session_policies,
-                };
+                let stored = StoredPolicies { policies };
                 if let Ok(json) = serde_json::to_string(&stored) {
                     storage
                         .set_item(&self.storage_key, &json)

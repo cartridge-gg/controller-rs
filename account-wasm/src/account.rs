@@ -1731,50 +1731,6 @@ mod tests {
     }
 
     #[test]
-    fn test_approve_policy_filtered_from_storage() {
-        use crate::types::policy::ApprovalPolicy;
-
-        let policies = vec![
-            Policy::Call(CallPolicy {
-                target: JsFelt(felt!("0x1234")),
-                method: JsFelt(felt!("0x5678")),
-                authorized: Some(true),
-            }),
-            Policy::Approval(ApprovalPolicy {
-                target: JsFelt(felt!("0xabcd")),
-                spender: JsFelt(felt!("0xef01")),
-                amount: JsFelt(felt!("100")),
-            }),
-            Policy::Call(CallPolicy {
-                target: JsFelt(felt!("0x9999")),
-                method: JsFelt(felt!("0xaaaa")),
-                authorized: Some(true),
-            }),
-        ];
-
-        // Filter out approve policies (as storage does)
-        let session_policies: Vec<Policy> = policies
-            .into_iter()
-            .filter(|p| !p.is_approve_policy())
-            .collect();
-
-        // Should only have 2 policies (the regular Call policies)
-        assert_eq!(
-            session_policies.len(),
-            2,
-            "Approve policies should be filtered out"
-        );
-
-        // Verify remaining policies are Call policies
-        for policy in &session_policies {
-            assert!(
-                matches!(policy, Policy::Call(_)),
-                "Only Call policies should remain after filtering"
-            );
-        }
-    }
-
-    #[test]
     fn test_approve_policy_partition() {
         use crate::types::policy::ApprovalPolicy;
 
