@@ -318,7 +318,7 @@ mod tests {
             scope_hash: JsFelt(felt!("0x1234")),
             authorized: Some(true),
         });
-        let _policy4 = Policy::Approval(ApprovalPolicy {
+        let policy4 = Policy::Approval(ApprovalPolicy {
             target: JsFelt(felt!("0x1234")),
             spender: JsFelt(felt!("0x5678")),
             amount: JsFelt(felt!("1000")),
@@ -337,6 +337,9 @@ mod tests {
 
         // Test authorized TypedData policy - should be authorized since it was stored with authorized: true
         assert!(storage.is_authorized(&[policy3.clone()]).unwrap());
+
+        // Test approval policy is not authorized
+        assert!(!storage.is_authorized(&[policy4.clone()]).unwrap());
 
         // Test multiple policies
         assert!(storage.is_authorized(&[policy1, policy3]).unwrap());
