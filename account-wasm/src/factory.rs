@@ -80,7 +80,6 @@ impl ControllerFactory {
         let rpc_url: Url = Url::parse(&rpc_url)?;
         let address_felt: Felt = address.try_into()?;
         let mut controller = Controller::new(
-            app_id.clone(),
             username,
             class_hash_felt,
             rpc_url,
@@ -123,17 +122,17 @@ impl ControllerFactory {
                         &session.session,
                         &session.session_authorization,
                         cartridge_api_url.clone(),
+                        Some(app_id.clone()),
                     )
                     .await;
 
                 if let Err(e) = controller_response {
                     let address = controller.address;
-                    let app_id = controller.app_id.clone();
                     let chain_id = controller.chain_id;
 
                     controller
                         .storage
-                        .remove(&Selectors::session(&address, &app_id, &chain_id))
+                        .remove(&Selectors::session(&address, &chain_id))
                         .map_err(|e| JsControllerError::from(ControllerError::StorageError(e)))?;
 
                     return Err(JsControllerError::from(e).into());
@@ -144,14 +143,14 @@ impl ControllerFactory {
         controller
             .storage
             .set_controller(
-                app_id.as_str(),
                 &controller.chain_id,
                 address_felt,
                 ControllerMetadata::from(&controller),
             )
             .expect("Should store controller");
 
-        let account_with_meta = CartridgeAccountWithMeta::new(controller, cartridge_api_url);
+        let account_with_meta =
+            CartridgeAccountWithMeta::new(controller, app_id, cartridge_api_url);
         let authorized_session: Option<AuthorizedSession> = session_account.map(|s| s.into());
         Ok(LoginResult {
             account: account_with_meta,
@@ -183,7 +182,6 @@ impl ControllerFactory {
             .map_err(|e| ControllerError::ConversionError(e.to_string()))?;
 
         let mut controller = Controller::new(
-            app_id.clone(),
             username,
             *class_hash.as_felt(),
             Url::parse(&rpc_url)?,
@@ -260,14 +258,17 @@ impl ControllerFactory {
         controller
             .storage
             .set_controller(
-                app_id.as_str(),
                 &controller.chain_id,
                 *address.as_felt(),
                 ControllerMetadata::from(&controller),
             )
             .expect("Should store controller");
 
-        Ok(CartridgeAccountWithMeta::new(controller, cartridge_api_url))
+        Ok(CartridgeAccountWithMeta::new(
+            controller,
+            app_id,
+            cartridge_api_url,
+        ))
     }
 }
 

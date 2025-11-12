@@ -21,7 +21,6 @@ pub async fn test_session_revokation() {
 
     let transaction_result = controller
         .revoke_sessions(vec![RevokableSession {
-            app_id: controller.app_id.clone(),
             chain_id: controller.chain_id,
             session_hash: session
                 .session

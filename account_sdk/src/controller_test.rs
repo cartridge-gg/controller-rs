@@ -42,7 +42,6 @@ async fn test_deploy_controller() {
     let address = factory.address(salt);
 
     let controller = Controller::new(
-        "app_id".to_string(),
         username.clone(),
         CONTROLLERS[&Version::LATEST].hash,
         runner.rpc_url.clone(),
@@ -91,7 +90,6 @@ async fn test_controller_not_deployed() {
         .await;
     // Create a controller that is not deployed
     let undeployed_controller = Controller::new(
-        "app_id".to_string(),
         "testuser".to_string(),
         CONTROLLERS[&Version::LATEST].hash,
         runner.rpc_url.clone(),
@@ -133,7 +131,6 @@ async fn test_controller_nonce_mismatch_recovery() {
 
     // Create the second controller with the same credentials and address
     let mut controller2 = Controller::new(
-        "app_id".to_string(),
         username.clone(),
         controller1.class_hash,
         runner.rpc_url.clone(),
@@ -224,7 +221,7 @@ async fn test_controller_storage() {
     std::env::set_var("CARTRIDGE_STORAGE_PATH", storage_path.to_str().unwrap());
 
     // Create a new controller
-    let app_id = "app_id".to_string();
+    let _app_id = "app_id".to_string();
     let username = "test_user".to_string();
     let owner = Signer::new_starknet_random();
 
@@ -238,11 +235,11 @@ async fn test_controller_storage() {
         .await;
 
     // Verify that the controller was stored
-    let storage_file = storage_path.join(format!("@cartridge/{app_id}/active"));
+    let storage_file = storage_path.join("@cartridge/active");
     assert!(storage_file.exists(), "Storage file was not created");
 
     // Initialize a new controller from storage
-    let loaded_controller = Controller::from_storage(app_id).await.unwrap().unwrap();
+    let loaded_controller = Controller::from_storage().await.unwrap().unwrap();
 
     // Verify that the loaded controller matches the original
     assert_eq!(loaded_controller.username, controller.username);

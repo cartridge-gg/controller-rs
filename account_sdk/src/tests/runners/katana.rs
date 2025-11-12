@@ -188,7 +188,6 @@ impl KatanaRunner {
             .unwrap();
 
         Controller::new(
-            "app_id".to_string(),
             username,
             CONTROLLERS[&version].hash,
             self.rpc_url.clone(),

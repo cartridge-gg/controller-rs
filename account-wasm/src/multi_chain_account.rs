@@ -77,6 +77,8 @@ pub struct MultiChainAccount {
     #[allow(dead_code)]
     policy_storage: Rc<WasmMutex<PolicyStorage>>,
     #[allow(dead_code)]
+    app_id: String,
+    #[allow(dead_code)]
     cartridge_api_url: String,
 }
 
@@ -105,7 +107,7 @@ impl MultiChainAccount {
             configs.push(config);
         }
 
-        let multi_controller = MultiChainController::new(app_id.clone(), username.clone(), configs)
+        let multi_controller = MultiChainController::new(username.clone(), configs)
             .await
             .map_err(|e| JsError::new(&e.to_string()))?;
 
@@ -125,6 +127,7 @@ impl MultiChainAccount {
         Ok(Self {
             multi_controller: Rc::new(WasmMutex::new(multi_controller)),
             policy_storage: Rc::new(WasmMutex::new(policy_storage)),
+            app_id,
             cartridge_api_url,
         })
     }
@@ -137,7 +140,7 @@ impl MultiChainAccount {
     ) -> Result<Option<MultiChainAccount>> {
         set_panic_hook();
 
-        let multi_controller = MultiChainController::from_storage(app_id.clone())
+        let multi_controller = MultiChainController::from_storage()
             .await
             .map_err(|e| JsError::new(&e.to_string()))?;
 
@@ -158,6 +161,7 @@ impl MultiChainAccount {
             Ok(Some(Self {
                 multi_controller: Rc::new(WasmMutex::new(multi_controller)),
                 policy_storage: Rc::new(WasmMutex::new(policy_storage)),
+                app_id,
                 cartridge_api_url,
             }))
         } else {
@@ -217,8 +221,11 @@ impl MultiChainAccount {
         drop(multi_controller); // Release the lock
 
         // Create a CartridgeAccount using the existing constructor pattern
-        let account_with_meta =
-            CartridgeAccountWithMeta::new(controller_instance, self.cartridge_api_url.clone());
+        let account_with_meta = CartridgeAccountWithMeta::new(
+            controller_instance,
+            self.app_id.clone(),
+            self.cartridge_api_url.clone(),
+        );
 
         // Return just the account part
         Ok(account_with_meta.into_account())
@@ -256,7 +263,7 @@ impl MultiChainAccount {
     pub async fn meta(&self) -> MultiChainAccountMeta {
         let controller = self.multi_controller.lock().await;
         MultiChainAccountMeta {
-            app_id: controller.app_id.clone(),
+            app_id: self.app_id.clone(),
             username: controller.username.clone(),
             chains: controller
                 .configured_chains()

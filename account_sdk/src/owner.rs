@@ -30,7 +30,6 @@ impl Controller {
 
         let params = vec![
             ("name", urlencoding::encode(&self.username).to_string()),
-            ("appId", urlencoding::encode(&self.app_id).to_string()),
             ("action", "add-signer".to_string()),
         ];
 

@@ -67,6 +67,7 @@ pub struct CartridgeAccount {
     pub(super) controller: WasmMutex<Controller>,
     policy_storage: WasmMutex<PolicyStorage>,
     cartridge_api_url: String,
+    app_id: String,
 }
 
 #[wasm_bindgen]
@@ -96,7 +97,6 @@ impl CartridgeAccount {
         let username = username.to_lowercase();
 
         let controller = Controller::new(
-            app_id,
             username.clone(),
             class_hash.try_into()?,
             rpc_url,
@@ -107,7 +107,11 @@ impl CartridgeAccount {
         .await
         .map_err(|e| JsError::new(&e.to_string()))?;
 
-        Ok(CartridgeAccountWithMeta::new(controller, cartridge_api_url))
+        Ok(CartridgeAccountWithMeta::new(
+            controller,
+            app_id,
+            cartridge_api_url,
+        ))
     }
 
     /// Creates a new `CartridgeAccount` instance with a randomly generated Starknet signer.
@@ -151,7 +155,6 @@ impl CartridgeAccount {
             account_sdk::factory::compute_account_address(class_hash_felt, owner.clone(), salt);
 
         let controller = Controller::new(
-            app_id,
             username.clone(),
             class_hash_felt,
             rpc_url,
@@ -162,7 +165,11 @@ impl CartridgeAccount {
         .await
         .map_err(|e| JsError::new(&e.to_string()))?;
 
-        Ok(CartridgeAccountWithMeta::new(controller, cartridge_api_url))
+        Ok(CartridgeAccountWithMeta::new(
+            controller,
+            app_id,
+            cartridge_api_url,
+        ))
     }
 
     #[wasm_bindgen(js_name = fromStorage)]
@@ -172,11 +179,11 @@ impl CartridgeAccount {
     ) -> Result<Option<CartridgeAccountWithMeta>> {
         set_panic_hook();
 
-        let controller = Controller::from_storage(app_id)
+        let controller = Controller::from_storage()
             .await
             .map_err(|e| JsError::new(&e.to_string()))?;
 
-        Ok(controller.map(|c| CartridgeAccountWithMeta::new(c, cartridge_api_url)))
+        Ok(controller.map(|c| CartridgeAccountWithMeta::new(c, app_id, cartridge_api_url)))
     }
 
     #[wasm_bindgen(js_name = disconnect)]
@@ -239,6 +246,7 @@ impl CartridgeAccount {
                 &session,
                 &authorization,
                 self.cartridge_api_url.clone(),
+                Some(self.app_id.clone()),
             )
             .await?;
 
@@ -408,17 +416,17 @@ impl CartridgeAccount {
                     &account.session,
                     &account.session_authorization,
                     self.cartridge_api_url.clone(),
+                    Some(self.app_id.clone()),
                 )
                 .await;
 
             if let Err(e) = controller_response {
                 let address = controller.address;
-                let app_id = controller.app_id.clone();
                 let chain_id = controller.chain_id;
 
                 controller
                     .storage
-                    .remove(&Selectors::session(&address, &app_id, &chain_id))
+                    .remove(&Selectors::session(&address, &chain_id))
                     .map_err(|e| JsControllerError::from(ControllerError::StorageError(e)))?;
 
                 return Err(JsControllerError::from(e));
@@ -1113,9 +1121,9 @@ pub struct CartridgeAccountMeta {
 }
 
 impl CartridgeAccountMeta {
-    fn new(controller: &Controller) -> Self {
+    fn new(controller: &Controller, app_id: &str) -> Self {
         Self {
-            app_id: controller.app_id.clone(),
+            app_id: app_id.to_string(),
             username: controller.username.clone(),
             address: controller.address.to_hex_string(),
             class_hash: controller.class_hash.to_hex_string(),
@@ -1182,19 +1190,16 @@ pub struct CartridgeAccountWithMeta {
 }
 
 impl CartridgeAccountWithMeta {
-    pub fn new(controller: Controller, cartridge_api_url: String) -> Self {
-        let meta = CartridgeAccountMeta::new(&controller);
-        let policy_storage = PolicyStorage::new(
-            &controller.address,
-            &controller.app_id,
-            &controller.chain_id,
-        );
+    pub fn new(controller: Controller, app_id: String, cartridge_api_url: String) -> Self {
+        let meta = CartridgeAccountMeta::new(&controller, &app_id);
+        let policy_storage = PolicyStorage::new(&controller.address, &app_id, &controller.chain_id);
 
         Self {
             account: CartridgeAccount {
                 controller: WasmMutex::new(controller),
                 policy_storage: WasmMutex::new(policy_storage),
                 cartridge_api_url,
+                app_id,
             },
             meta,
         }

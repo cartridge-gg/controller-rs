@@ -12,6 +12,7 @@ pub struct StoredPolicies {
     policies: Vec<Policy>,
 }
 
+#[derive(Clone)]
 pub struct PolicyStorage {
     storage_key: String,
 }
