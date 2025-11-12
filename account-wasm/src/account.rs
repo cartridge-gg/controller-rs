@@ -65,9 +65,7 @@ async fn ensure_wildcard_session_if_expired(
 #[wasm_bindgen]
 pub struct CartridgeAccount {
     pub(super) controller: WasmMutex<Controller>,
-    policy_storage: WasmMutex<PolicyStorage>,
     cartridge_api_url: String,
-    app_id: String,
 }
 
 #[wasm_bindgen]
@@ -75,7 +73,6 @@ impl CartridgeAccount {
     /// Creates a new `CartridgeAccount` instance.
     ///
     /// # Parameters
-    /// - `app_id`: Application identifier.
     /// - `rpc_url`: The URL of the JSON-RPC endpoint.
     /// - `address`: The blockchain address associated with the account.
     /// - `username`: Username associated with the account.
@@ -83,7 +80,6 @@ impl CartridgeAccount {
     ///
     #[allow(clippy::new_ret_no_self, clippy::too_many_arguments)]
     pub async fn new(
-        app_id: String,
         class_hash: JsFelt,
         rpc_url: String,
         address: JsFelt,
@@ -107,25 +103,19 @@ impl CartridgeAccount {
         .await
         .map_err(|e| JsError::new(&e.to_string()))?;
 
-        Ok(CartridgeAccountWithMeta::new(
-            controller,
-            app_id,
-            cartridge_api_url,
-        ))
+        Ok(CartridgeAccountWithMeta::new(controller, cartridge_api_url))
     }
 
     /// Creates a new `CartridgeAccount` instance with a randomly generated Starknet signer.
     /// The controller address is computed internally based on the generated signer.
     ///
     /// # Parameters
-    /// - `app_id`: Application identifier.
     /// - `rpc_url`: The URL of the JSON-RPC endpoint.
     /// - `username`: Username associated with the account.
     ///
     #[allow(clippy::new_ret_no_self)]
     #[wasm_bindgen(js_name = newHeadless)]
     pub async fn new_headless(
-        app_id: String,
         class_hash: JsFelt,
         rpc_url: String,
         username: String,
@@ -165,16 +155,11 @@ impl CartridgeAccount {
         .await
         .map_err(|e| JsError::new(&e.to_string()))?;
 
-        Ok(CartridgeAccountWithMeta::new(
-            controller,
-            app_id,
-            cartridge_api_url,
-        ))
+        Ok(CartridgeAccountWithMeta::new(controller, cartridge_api_url))
     }
 
     #[wasm_bindgen(js_name = fromStorage)]
     pub async fn from_storage(
-        app_id: String,
         cartridge_api_url: String,
     ) -> Result<Option<CartridgeAccountWithMeta>> {
         set_panic_hook();
@@ -183,7 +168,7 @@ impl CartridgeAccount {
             .await
             .map_err(|e| JsError::new(&e.to_string()))?;
 
-        Ok(controller.map(|c| CartridgeAccountWithMeta::new(c, app_id, cartridge_api_url)))
+        Ok(controller.map(|c| CartridgeAccountWithMeta::new(c, cartridge_api_url)))
     }
 
     #[wasm_bindgen(js_name = disconnect)]
@@ -198,6 +183,7 @@ impl CartridgeAccount {
     #[wasm_bindgen(js_name = registerSession)]
     pub async fn register_session(
         &self,
+        app_id: String,
         policies: Vec<Policy>,
         expires_at: u64,
         public_key: JsFelt,
@@ -246,7 +232,7 @@ impl CartridgeAccount {
                 &session,
                 &authorization,
                 self.cartridge_api_url.clone(),
-                Some(self.app_id.clone()),
+                Some(app_id),
             )
             .await?;
 
@@ -309,6 +295,7 @@ impl CartridgeAccount {
     #[wasm_bindgen(js_name = createSession)]
     pub async fn create_session(
         &self,
+        app_id: String,
         policies: Vec<Policy>,
         expires_at: u64,
         authorize_user_execution: Option<bool>,
@@ -416,7 +403,7 @@ impl CartridgeAccount {
                     &account.session,
                     &account.session_authorization,
                     self.cartridge_api_url.clone(),
-                    Some(self.app_id.clone()),
+                    Some(app_id.clone()),
                 )
                 .await;
 
@@ -454,7 +441,14 @@ impl CartridgeAccount {
             None
         };
 
-        self.policy_storage.lock().await.store(policies)?;
+        // Get address and chain_id before dropping the controller lock
+        let address = controller.address;
+        let chain_id = controller.chain_id;
+        drop(controller);
+
+        // Store policies for this app_id
+        let policy_storage = PolicyStorage::new_with_app_id(&address, &app_id, &chain_id);
+        policy_storage.store(policies)?;
 
         Ok(session)
     }
@@ -462,6 +456,7 @@ impl CartridgeAccount {
     #[wasm_bindgen(js_name = skipSession)]
     pub async fn skip_session(
         &self,
+        app_id: String,
         policies: Vec<Policy>,
     ) -> std::result::Result<(), JsControllerError> {
         set_panic_hook();
@@ -484,10 +479,12 @@ impl CartridgeAccount {
             })
             .collect();
 
-        self.policy_storage
-            .lock()
-            .await
-            .store(unauthorized_policies)?;
+        // Store policies for this app_id
+        let controller = self.controller.lock().await;
+        let policy_storage =
+            PolicyStorage::new_with_app_id(&controller.address, &app_id, &controller.chain_id);
+        drop(controller);
+        policy_storage.store(unauthorized_policies)?;
 
         Ok(())
     }
@@ -714,6 +711,7 @@ impl CartridgeAccount {
     #[wasm_bindgen(js_name = trySessionExecute)]
     pub async fn try_session_execute(
         &self,
+        app_id: String,
         calls: Vec<JsCall>,
         fee_source: Option<JsFeeSource>,
     ) -> std::result::Result<JsValue, JsControllerError> {
@@ -734,6 +732,10 @@ impl CartridgeAccount {
         // Lock controller
         let mut controller = self.controller.lock().await;
 
+        // Create policy storage for this app_id
+        let policy_storage =
+            PolicyStorage::new_with_app_id(&controller.address, &app_id, &controller.chain_id);
+
         // Check session status
         let session_metadata = controller.authorized_session();
 
@@ -742,11 +744,7 @@ impl CartridgeAccount {
             Some(metadata) => {
                 if metadata.session.is_expired() {
                     // Session exists but is expired - check client-side policies to see if they would authorize the calls
-                    let is_authorized = self
-                        .policy_storage
-                        .lock()
-                        .await
-                        .is_authorized(&wasm_policies)?;
+                    let is_authorized = policy_storage.is_authorized(&wasm_policies)?;
 
                     if is_authorized {
                         // The expired session has policies that would authorize these calls
@@ -761,11 +759,7 @@ impl CartridgeAccount {
                     }
                 } else {
                     // Session exists and is not expired - check if policies authorize execution
-                    let is_authorized = self
-                        .policy_storage
-                        .lock()
-                        .await
-                        .is_authorized(&wasm_policies)?;
+                    let is_authorized = policy_storage.is_authorized(&wasm_policies)?;
 
                     if !is_authorized {
                         // Session is valid but policies don't authorize these calls
@@ -839,14 +833,21 @@ impl CartridgeAccount {
     #[wasm_bindgen(js_name = hasRequestedSession)]
     pub async fn has_requested_session(
         &self,
+        app_id: String,
         policies: Vec<Policy>,
     ) -> std::result::Result<bool, JsControllerError> {
-        if !self.policy_storage.lock().await.is_requested(&policies)? {
+        let controller_guard = self.controller.lock().await;
+        let policy_storage = PolicyStorage::new_with_app_id(
+            &controller_guard.address,
+            &app_id,
+            &controller_guard.chain_id,
+        );
+
+        if !policy_storage.is_requested(&policies)? {
             // If not requested locally, we don't need to check the session
             return Ok(false);
         }
 
-        let controller_guard = self.controller.lock().await;
         Ok(controller_guard
             .authorized_session()
             .map(|metadata| !metadata.session.is_expired())
@@ -1017,7 +1018,11 @@ impl CartridgeAccount {
     }
 
     #[wasm_bindgen(js_name = hasAuthorizedPoliciesForCalls)]
-    pub async fn has_authorized_policies_for_calls(&self, calls: Vec<JsCall>) -> Result<bool> {
+    pub async fn has_authorized_policies_for_calls(
+        &self,
+        app_id: String,
+        calls: Vec<JsCall>,
+    ) -> Result<bool> {
         let calls: Vec<Call> = calls
             .into_iter()
             .map(TryFrom::try_from)
@@ -1025,12 +1030,18 @@ impl CartridgeAccount {
 
         let policies: Vec<_> = calls.iter().map(Policy::from_call).collect();
 
+        let controller_guard = self.controller.lock().await;
+        let policy_storage = PolicyStorage::new_with_app_id(
+            &controller_guard.address,
+            &app_id,
+            &controller_guard.chain_id,
+        );
+
         // Check local policy authorization
-        if !self.policy_storage.lock().await.is_authorized(&policies)? {
+        if !policy_storage.is_authorized(&policies)? {
             return Ok(false);
         }
 
-        let controller_guard = self.controller.lock().await;
         Ok(controller_guard
             .authorized_session()
             .map(|metadata| !metadata.session.is_expired())
@@ -1038,16 +1049,26 @@ impl CartridgeAccount {
     }
 
     #[wasm_bindgen(js_name = hasAuthorizedPoliciesForMessage)]
-    pub async fn has_authorized_policies_for_message(&self, typed_data: String) -> Result<bool> {
+    pub async fn has_authorized_policies_for_message(
+        &self,
+        app_id: String,
+        typed_data: String,
+    ) -> Result<bool> {
         let typed_data_obj: TypedData = serde_json::from_str(&typed_data)?;
         let policy = Policy::from_typed_data(&typed_data_obj)?;
 
+        let controller_guard = self.controller.lock().await;
+        let policy_storage = PolicyStorage::new_with_app_id(
+            &controller_guard.address,
+            &app_id,
+            &controller_guard.chain_id,
+        );
+
         // Check local policy authorization
-        if !self.policy_storage.lock().await.is_authorized(&[policy])? {
+        if !policy_storage.is_authorized(&[policy])? {
             return Ok(false);
         }
 
-        let controller_guard = self.controller.lock().await;
         Ok(controller_guard
             .authorized_session()
             .map(|metadata| !metadata.session.is_expired())
@@ -1110,7 +1131,6 @@ impl CartridgeAccount {
 #[wasm_bindgen]
 #[derive(Clone)]
 pub struct CartridgeAccountMeta {
-    app_id: String,
     username: String,
     address: String,
     class_hash: String,
@@ -1121,9 +1141,8 @@ pub struct CartridgeAccountMeta {
 }
 
 impl CartridgeAccountMeta {
-    fn new(controller: &Controller, app_id: &str) -> Self {
+    fn new(controller: &Controller) -> Self {
         Self {
-            app_id: app_id.to_string(),
             username: controller.username.clone(),
             address: controller.address.to_hex_string(),
             class_hash: controller.class_hash.to_hex_string(),
@@ -1137,11 +1156,6 @@ impl CartridgeAccountMeta {
 
 #[wasm_bindgen]
 impl CartridgeAccountMeta {
-    #[wasm_bindgen(js_name = appId)]
-    pub fn app_id(&self) -> String {
-        self.app_id.clone()
-    }
-
     #[wasm_bindgen(js_name = username)]
     pub fn username(&self) -> String {
         self.username.clone()
@@ -1190,16 +1204,13 @@ pub struct CartridgeAccountWithMeta {
 }
 
 impl CartridgeAccountWithMeta {
-    pub fn new(controller: Controller, app_id: String, cartridge_api_url: String) -> Self {
-        let meta = CartridgeAccountMeta::new(&controller, &app_id);
-        let policy_storage = PolicyStorage::new(&controller.address, &app_id, &controller.chain_id);
+    pub fn new(controller: Controller, cartridge_api_url: String) -> Self {
+        let meta = CartridgeAccountMeta::new(&controller);
 
         Self {
             account: CartridgeAccount {
                 controller: WasmMutex::new(controller),
-                policy_storage: WasmMutex::new(policy_storage),
                 cartridge_api_url,
-                app_id,
             },
             meta,
         }

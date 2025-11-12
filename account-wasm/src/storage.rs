@@ -18,12 +18,16 @@ pub struct PolicyStorage {
 }
 
 impl PolicyStorage {
-    pub fn new(address: &Felt, app_id: &str, chain_id: &Felt) -> Self {
+    #[allow(dead_code)]
+    pub fn new(address: &Felt, chain_id: &Felt) -> Self {
+        let storage_key = format!("@cartridge/policies/0x{address:x}/0x{chain_id:x}");
+        Self { storage_key }
+    }
+
+    pub fn new_with_app_id(address: &Felt, app_id: &str, chain_id: &Felt) -> Self {
         let storage_key = format!(
-            "@cartridge/policies/0x{:x}/{}/0x{:x}",
-            address,
+            "@cartridge/policies/0x{address:x}/{}/0x{chain_id:x}",
             urlencoding::encode(app_id),
-            chain_id
         );
         Self { storage_key }
     }
@@ -263,7 +267,7 @@ mod tests {
 
     #[wasm_bindgen_test]
     fn test_policy_storage_is_requested() {
-        let storage = PolicyStorage::new(&Felt::from(1), "test_app", &Felt::from(1));
+        let storage = PolicyStorage::new_with_app_id(&Felt::from(1), "test_app", &Felt::from(1));
 
         // Create some test policies
         let policy1 = Policy::Call(CallPolicy {
@@ -302,7 +306,7 @@ mod tests {
 
     #[wasm_bindgen_test]
     fn test_policy_storage_is_authorized() {
-        let storage = PolicyStorage::new(&Felt::from(1), "test_app", &Felt::from(1));
+        let storage = PolicyStorage::new_with_app_id(&Felt::from(1), "test_app", &Felt::from(1));
 
         // Create some test policies
         let policy1 = Policy::Call(CallPolicy {
@@ -348,7 +352,7 @@ mod tests {
 
     #[wasm_bindgen_test]
     fn test_approve_policy_filtering() {
-        let storage = PolicyStorage::new(&Felt::from(1), "test_app", &Felt::from(1));
+        let storage = PolicyStorage::new_with_app_id(&Felt::from(1), "test_app", &Felt::from(1));
 
         // Create an Approval policy (new type)
         let approval_policy = Policy::Approval(ApprovalPolicy {
