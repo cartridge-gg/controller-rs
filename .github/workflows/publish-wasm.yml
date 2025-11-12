@@ -1,0 +1,82 @@
+name: Publish WASM to NPM
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'account-wasm/**'
+      - 'account_sdk/**'
+      - 'contracts/**'
+      - '.github/workflows/publish-wasm.yml'
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Configure Git
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20.x"
+          registry-url: "https://registry.npmjs.org/"
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - name: Install wasm-pack
+        run: cargo install --locked wasm-pack
+
+      - name: Get short SHA
+        id: sha
+        run: echo "short=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+
+      - name: Get base version
+        id: version
+        run: |
+          cd account-wasm
+          BASE_VERSION=$(node -p "require('./package.json').version.split('-')[0]")
+          echo "base=$BASE_VERSION" >> $GITHUB_OUTPUT
+          echo "full=$BASE_VERSION-${{ steps.sha.outputs.short }}" >> $GITHUB_OUTPUT
+
+      - name: Build WASM Bundles
+        run: |
+          cd account-wasm
+          ./build.sh
+
+      - name: Update package.json version and metadata
+        run: |
+          cd account-wasm
+          npm pkg set version=${{ steps.version.outputs.full }}
+          npm pkg set repository=https://github.com/cartridge-gg/controller-rs
+          npm pkg set license=MIT
+
+      - name: Publish to NPM
+        run: |
+          cd account-wasm
+          npm publish --access public --tag dev
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Create deployment summary
+        run: |
+          echo "## WASM Package Published :rocket:" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Package:** @cartridge/controller-wasm" >> $GITHUB_STEP_SUMMARY
+          echo "**Version:** ${{ steps.version.outputs.full }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Commit:** ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Installation" >> $GITHUB_STEP_SUMMARY
+          echo '```bash' >> $GITHUB_STEP_SUMMARY
+          echo "npm install @cartridge/controller-wasm@${{ steps.version.outputs.full }}" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
