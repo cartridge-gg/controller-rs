@@ -5,10 +5,10 @@ on:
     branches:
       - main
     paths:
-      - 'account-wasm/**'
-      - 'account_sdk/**'
-      - 'contracts/**'
-      - '.github/workflows/publish-wasm.yml'
+      - "account-wasm/**"
+      - "account_sdk/**"
+      - "contracts/**"
+      - ".github/workflows/publish-wasm.yml"
 
 jobs:
   publish:

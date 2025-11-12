@@ -7,12 +7,14 @@
 Automatically publishes the `@cartridge/controller-wasm` package to NPM when changes are merged to `main`.
 
 **Trigger:** Pushes to `main` branch that modify:
+
 - `account-wasm/**`
 - `account_sdk/**`
 - `contracts/**`
 - `.github/workflows/publish-wasm.yml`
 
 **Versioning:** The package is published with a version format of `{base-version}-{short-sha}`, for example:
+
 - Base version in package.json: `0.7.14-alpha.3`
 - Short SHA: `abc1234`
 - Published version: `0.7.14-abc1234`
@@ -20,6 +22,7 @@ Automatically publishes the `@cartridge/controller-wasm` package to NPM when cha
 **NPM Tag:** Published under the `dev` tag, so it won't affect the `latest` tag.
 
 **Installation:**
+
 ```bash
 # Install the latest dev version
 npm install @cartridge/controller-wasm@dev
@@ -29,9 +32,11 @@ npm install @cartridge/controller-wasm@0.7.14-abc1234
 ```
 
 **Requirements:**
+
 - `NPM_TOKEN` secret must be configured in GitHub repository settings with publish access to `@cartridge/controller-wasm`
 
 **Outputs:**
+
 - Publishes to NPM registry
 - Creates a deployment summary with installation instructions
 
