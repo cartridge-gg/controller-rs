@@ -8,7 +8,6 @@ use wasm_bindgen::prelude::*;
 use crate::account::{CartridgeAccount, CartridgeAccountWithMeta};
 use crate::errors::JsControllerError;
 use crate::set_panic_hook;
-use crate::storage::PolicyStorage;
 use crate::sync::WasmMutex;
 use crate::types::owner::Owner;
 use crate::types::JsFelt;
@@ -75,10 +74,6 @@ impl TryFrom<JsChainConfig> for ChainConfig {
 pub struct MultiChainAccount {
     multi_controller: Rc<WasmMutex<MultiChainController>>,
     #[allow(dead_code)]
-    policy_storage: Rc<WasmMutex<PolicyStorage>>,
-    #[allow(dead_code)]
-    app_id: String,
-    #[allow(dead_code)]
     cartridge_api_url: String,
 }
 
@@ -87,7 +82,6 @@ impl MultiChainAccount {
     /// Creates a new MultiChainAccount with multiple chain configurations
     #[wasm_bindgen(js_name = create)]
     pub async fn new(
-        app_id: String,
         username: String,
         chain_configs: Vec<JsChainConfig>,
         cartridge_api_url: String,
@@ -111,33 +105,15 @@ impl MultiChainAccount {
             .await
             .map_err(|e| JsError::new(&e.to_string()))?;
 
-        // Initialize policy storage with the first chain (policy storage will be per-controller)
-        let first_chain_id = multi_controller
-            .configured_chains()
-            .into_iter()
-            .next()
-            .ok_or_else(|| JsError::new("No chains configured"))?;
-        let first_controller = multi_controller
-            .controller_for_chain(first_chain_id)
-            .map_err(|e| JsError::new(&e.to_string()))?;
-
-        let policy_storage =
-            PolicyStorage::new(&first_controller.address, &app_id, &first_chain_id);
-
         Ok(Self {
             multi_controller: Rc::new(WasmMutex::new(multi_controller)),
-            policy_storage: Rc::new(WasmMutex::new(policy_storage)),
-            app_id,
             cartridge_api_url,
         })
     }
 
     /// Loads a MultiChainAccount from storage
     #[wasm_bindgen(js_name = fromStorage)]
-    pub async fn from_storage(
-        app_id: String,
-        cartridge_api_url: String,
-    ) -> Result<Option<MultiChainAccount>> {
+    pub async fn from_storage(cartridge_api_url: String) -> Result<Option<MultiChainAccount>> {
         set_panic_hook();
 
         let multi_controller = MultiChainController::from_storage()
@@ -145,23 +121,8 @@ impl MultiChainAccount {
             .map_err(|e| JsError::new(&e.to_string()))?;
 
         if let Some(multi_controller) = multi_controller {
-            // Initialize policy storage with the first chain
-            let first_chain_id = multi_controller
-                .configured_chains()
-                .into_iter()
-                .next()
-                .ok_or_else(|| JsError::new("No chains configured"))?;
-            let first_controller = multi_controller
-                .controller_for_chain(first_chain_id)
-                .map_err(|e| JsError::new(&e.to_string()))?;
-
-            let policy_storage =
-                PolicyStorage::new(&first_controller.address, &app_id, &first_chain_id);
-
             Ok(Some(Self {
                 multi_controller: Rc::new(WasmMutex::new(multi_controller)),
-                policy_storage: Rc::new(WasmMutex::new(policy_storage)),
-                app_id,
                 cartridge_api_url,
             }))
         } else {
@@ -221,11 +182,8 @@ impl MultiChainAccount {
         drop(multi_controller); // Release the lock
 
         // Create a CartridgeAccount using the existing constructor pattern
-        let account_with_meta = CartridgeAccountWithMeta::new(
-            controller_instance,
-            self.app_id.clone(),
-            self.cartridge_api_url.clone(),
-        );
+        let account_with_meta =
+            CartridgeAccountWithMeta::new(controller_instance, self.cartridge_api_url.clone());
 
         // Return just the account part
         Ok(account_with_meta.into_account())
@@ -235,18 +193,12 @@ impl MultiChainAccount {
 /// Metadata for displaying multi-chain information
 #[wasm_bindgen]
 pub struct MultiChainAccountMeta {
-    app_id: String,
     username: String,
     chains: Vec<JsFelt>,
 }
 
 #[wasm_bindgen]
 impl MultiChainAccountMeta {
-    #[wasm_bindgen(getter)]
-    pub fn app_id(&self) -> String {
-        self.app_id.clone()
-    }
-
     #[wasm_bindgen(getter)]
     pub fn username(&self) -> String {
         self.username.clone()
@@ -263,7 +215,6 @@ impl MultiChainAccount {
     pub async fn meta(&self) -> MultiChainAccountMeta {
         let controller = self.multi_controller.lock().await;
         MultiChainAccountMeta {
-            app_id: self.app_id.clone(),
             username: controller.username.clone(),
             chains: controller
                 .configured_chains()

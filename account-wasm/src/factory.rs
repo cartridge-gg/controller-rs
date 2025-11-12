@@ -30,10 +30,9 @@ impl ControllerFactory {
     #[allow(clippy::new_ret_no_self, clippy::too_many_arguments)]
     #[wasm_bindgen(js_name = fromStorage)]
     pub async fn from_storage(
-        app_id: String,
         cartridge_api_url: String,
     ) -> crate::account::Result<Option<CartridgeAccountWithMeta>> {
-        CartridgeAccount::from_storage(app_id, cartridge_api_url).await
+        CartridgeAccount::from_storage(cartridge_api_url).await
     }
 
     /// Login to an existing controller account.
@@ -65,7 +64,6 @@ impl ControllerFactory {
     #[allow(clippy::new_ret_no_self, clippy::too_many_arguments)]
     #[wasm_bindgen(js_name = login)]
     pub async fn login(
-        app_id: String,
         username: String,
         class_hash: JsFelt,
         rpc_url: String,
@@ -75,6 +73,7 @@ impl ControllerFactory {
         session_expires_at_s: u64,
         is_controller_registered: Option<bool>,
         create_wildcard_session: Option<bool>,
+        app_id: Option<String>,
     ) -> crate::account::Result<LoginResult> {
         let class_hash_felt: Felt = class_hash.try_into()?;
         let rpc_url: Url = Url::parse(&rpc_url)?;
@@ -122,7 +121,7 @@ impl ControllerFactory {
                         &session.session,
                         &session.session_authorization,
                         cartridge_api_url.clone(),
-                        Some(app_id.clone()),
+                        app_id.clone(),
                     )
                     .await;
 
@@ -149,8 +148,7 @@ impl ControllerFactory {
             )
             .expect("Should store controller");
 
-        let account_with_meta =
-            CartridgeAccountWithMeta::new(controller, app_id, cartridge_api_url);
+        let account_with_meta = CartridgeAccountWithMeta::new(controller, cartridge_api_url);
         let authorized_session: Option<AuthorizedSession> = session_account.map(|s| s.into());
         Ok(LoginResult {
             account: account_with_meta,
@@ -162,7 +160,6 @@ impl ControllerFactory {
     #[allow(clippy::new_ret_no_self, clippy::too_many_arguments)]
     #[wasm_bindgen(js_name = apiLogin)]
     pub async fn api_login(
-        app_id: String,
         username: String,
         class_hash: JsFelt,
         rpc_url: String,
@@ -264,11 +261,7 @@ impl ControllerFactory {
             )
             .expect("Should store controller");
 
-        Ok(CartridgeAccountWithMeta::new(
-            controller,
-            app_id,
-            cartridge_api_url,
-        ))
+        Ok(CartridgeAccountWithMeta::new(controller, cartridge_api_url))
     }
 }
 
