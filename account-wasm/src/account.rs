@@ -67,6 +67,7 @@ pub struct CartridgeAccount {
     pub(super) controller: WasmMutex<Controller>,
     policy_storage: WasmMutex<PolicyStorage>,
     cartridge_api_url: String,
+    app_id: String,
 }
 
 #[wasm_bindgen]
@@ -74,6 +75,7 @@ impl CartridgeAccount {
     /// Creates a new `CartridgeAccount` instance.
     ///
     /// # Parameters
+    /// - `app_id`: Application identifier.
     /// - `rpc_url`: The URL of the JSON-RPC endpoint.
     /// - `address`: The blockchain address associated with the account.
     /// - `username`: Username associated with the account.
@@ -81,12 +83,12 @@ impl CartridgeAccount {
     ///
     #[allow(clippy::new_ret_no_self, clippy::too_many_arguments)]
     pub async fn new(
+        app_id: String,
         class_hash: JsFelt,
         rpc_url: String,
         address: JsFelt,
         username: String,
         owner: Owner,
-        app_id: String,
         cartridge_api_url: String,
     ) -> Result<CartridgeAccountWithMeta> {
         set_panic_hook();
@@ -244,7 +246,7 @@ impl CartridgeAccount {
                 &session,
                 &authorization,
                 self.cartridge_api_url.clone(),
-                None,
+                Some(self.app_id.clone()),
             )
             .await?;
 
@@ -307,7 +309,6 @@ impl CartridgeAccount {
     #[wasm_bindgen(js_name = createSession)]
     pub async fn create_session(
         &self,
-        app_id: Option<String>,
         policies: Vec<Policy>,
         expires_at: u64,
         authorize_user_execution: Option<bool>,
@@ -334,15 +335,6 @@ impl CartridgeAccount {
             .partition(|p| p.is_approve_policy());
 
         let mut controller = self.controller.lock().await;
-
-        // Determine which policy storage to use based on whether an app_id was provided
-        let policy_storage = if let Some(ref target_app_id) = app_id {
-            // Create policy storage for the target app_id
-            PolicyStorage::new(&controller.address, target_app_id, &controller.chain_id)
-        } else {
-            // Use the default policy storage from this account instance
-            self.policy_storage.lock().await.clone()
-        };
 
         // Execute approve policies immediately if any exist
         if !approve_policies.is_empty() {
@@ -424,7 +416,7 @@ impl CartridgeAccount {
                     &account.session,
                     &account.session_authorization,
                     self.cartridge_api_url.clone(),
-                    app_id.clone(),
+                    Some(self.app_id.clone()),
                 )
                 .await;
 
@@ -462,7 +454,7 @@ impl CartridgeAccount {
             None
         };
 
-        policy_storage.store(policies)?;
+        self.policy_storage.lock().await.store(policies)?;
 
         Ok(session)
     }
@@ -1207,6 +1199,7 @@ impl CartridgeAccountWithMeta {
                 controller: WasmMutex::new(controller),
                 policy_storage: WasmMutex::new(policy_storage),
                 cartridge_api_url,
+                app_id,
             },
             meta,
         }
