@@ -244,6 +244,7 @@ impl CartridgeAccount {
                 &session,
                 &authorization,
                 self.cartridge_api_url.clone(),
+                None,
             )
             .await?;
 
@@ -306,10 +307,10 @@ impl CartridgeAccount {
     #[wasm_bindgen(js_name = createSession)]
     pub async fn create_session(
         &self,
+        app_id: Option<String>,
         policies: Vec<Policy>,
         expires_at: u64,
         authorize_user_execution: Option<bool>,
-        app_id: Option<String>,
     ) -> std::result::Result<Option<AuthorizedSession>, JsControllerError> {
         set_panic_hook();
 
@@ -423,6 +424,7 @@ impl CartridgeAccount {
                     &account.session,
                     &account.session_authorization,
                     self.cartridge_api_url.clone(),
+                    app_id.clone(),
                 )
                 .await;
 

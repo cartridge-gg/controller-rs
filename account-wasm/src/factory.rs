@@ -122,6 +122,7 @@ impl ControllerFactory {
                         &session.session,
                         &session.session_authorization,
                         cartridge_api_url.clone(),
+                        Some(app_id.clone()),
                     )
                     .await;
 

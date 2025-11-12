@@ -110,11 +110,12 @@ impl Controller {
         session: &Session,
         authorization: &[Felt],
         cartridge_api_url: String,
+        app_id: Option<String>,
     ) -> Result<(), ControllerError> {
         let _ = run_query::<CreateSession>(
             create_session::Variables {
                 username: self.username.clone(),
-                app_id: String::new(), // Empty app_id since it's no longer tracked in account_sdk
+                app_id: app_id.clone().unwrap_or_default(),
                 chain_id: parse_cairo_short_string(&self.chain_id).unwrap(),
                 session: session::create_session::SessionInput {
                     expires_at: session.inner.expires_at,
@@ -123,7 +124,7 @@ impl Controller {
                     session_key_guid: session.inner.session_key_guid,
                     guardian_key_guid: session.inner.guardian_key_guid,
                     authorization: authorization.to_vec(),
-                    app_id: None,
+                    app_id,
                 },
             },
             cartridge_api_url,
