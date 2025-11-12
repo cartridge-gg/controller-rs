@@ -441,11 +441,13 @@ impl CartridgeAccount {
             None
         };
 
-        // Store policies for this app_id
-        let controller = self.controller.lock().await;
-        let policy_storage =
-            PolicyStorage::new_with_app_id(&controller.address, &app_id, &controller.chain_id);
+        // Get address and chain_id before dropping the controller lock
+        let address = controller.address;
+        let chain_id = controller.chain_id;
         drop(controller);
+
+        // Store policies for this app_id
+        let policy_storage = PolicyStorage::new_with_app_id(&address, &app_id, &chain_id);
         policy_storage.store(policies)?;
 
         Ok(session)
