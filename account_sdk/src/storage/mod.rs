@@ -25,9 +25,6 @@ pub mod inmemory;
 pub mod localstorage;
 pub mod selectors;
 
-/// The privileged app ID that can always access the controller in storage
-pub const PRIVILEGED_APP_ID: &str = "https://x.cartridge.gg";
-
 #[cfg(all(test, not(target_arch = "wasm32")))]
 #[path = "storage_test.rs"]
 mod storage_test;
@@ -313,8 +310,8 @@ pub trait StorageBackend: Send + Sync {
         self.set(key, &StorageValue::Session(metadata))
     }
 
-    fn controller(&self, app_id: &str) -> Result<Option<ControllerMetadata>, StorageError> {
-        let active_value = self.get(&selectors::Selectors::active(app_id))?;
+    fn controller(&self) -> Result<Option<ControllerMetadata>, StorageError> {
+        let active_value = self.get(&selectors::Selectors::active())?;
         match active_value {
             Some(StorageValue::Active(metadata)) => {
                 let account_value = self.get(&selectors::Selectors::account(
@@ -335,30 +332,18 @@ pub trait StorageBackend: Send + Sync {
 
     fn set_controller(
         &mut self,
-        app_id: &str,
         chain_id: &Felt,
         address: Felt,
         metadata: ControllerMetadata,
     ) -> Result<(), StorageError> {
-        // Set the active controller for the requested app_id
+        // Set the active controller
         self.set(
-            &selectors::Selectors::active(app_id),
+            &selectors::Selectors::active(),
             &StorageValue::Active(ActiveMetadata {
                 address,
                 chain_id: *chain_id,
             }),
         )?;
-
-        // Also set the active controller for the privileged app ID if this is not already it
-        if app_id != PRIVILEGED_APP_ID {
-            self.set(
-                &selectors::Selectors::active(PRIVILEGED_APP_ID),
-                &StorageValue::Active(ActiveMetadata {
-                    address,
-                    chain_id: *chain_id,
-                }),
-            )?;
-        }
 
         // Store the controller metadata
         self.set(

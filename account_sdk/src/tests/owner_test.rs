@@ -313,7 +313,6 @@ async fn test_change_owner_invalidate_old_sessions() {
     assert!(result.is_err(), "Transaction should have failed");
 
     let mut controller = Controller::new(
-        "app_id".to_string(),
         "username".to_owned(),
         CONTROLLERS[&Version::LATEST].hash,
         runner.rpc_url.clone(),

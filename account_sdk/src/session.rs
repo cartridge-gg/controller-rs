@@ -81,7 +81,7 @@ impl Controller {
         let authorization = self.owner.sign(&hash).await?;
         let authorization = Vec::<SignerSignature>::cairo_serialize(&vec![authorization.clone()]);
         self.storage.set_session(
-            &Selectors::session(&self.address, &self.app_id, &self.chain_id),
+            &Selectors::session(&self.address, &self.chain_id),
             SessionMetadata {
                 session: session.clone(),
                 max_fee: None,
@@ -114,7 +114,7 @@ impl Controller {
         let _ = run_query::<CreateSession>(
             create_session::Variables {
                 username: self.username.clone(),
-                app_id: self.app_id.clone(),
+                app_id: String::new(), // Empty app_id since it's no longer tracked in account_sdk
                 chain_id: parse_cairo_short_string(&self.chain_id).unwrap(),
                 session: session::create_session::SessionInput {
                     expires_at: session.inner.expires_at,
@@ -194,7 +194,7 @@ impl Controller {
         let txn = self.execute(vec![call], max_fee, None).await?;
 
         self.storage.set_session(
-            &Selectors::session(&self.address, &self.app_id, &self.chain_id),
+            &Selectors::session(&self.address, &self.chain_id),
             SessionMetadata {
                 session,
                 max_fee: None,
@@ -222,11 +222,8 @@ impl Controller {
             .await?;
 
         for session in sessions {
-            self.storage.remove(&Selectors::session(
-                &self.address,
-                &session.app_id,
-                &session.chain_id,
-            ))?;
+            self.storage
+                .remove(&Selectors::session(&self.address, &session.chain_id))?;
         }
 
         Ok(txn)
@@ -261,7 +258,7 @@ impl Controller {
     }
 
     pub fn session_key(&self) -> String {
-        Selectors::session(&self.address, &self.app_id, &self.chain_id)
+        Selectors::session(&self.address, &self.chain_id)
     }
 
     pub fn session_account(&self, policies: &[Policy]) -> Option<SessionAccount> {
@@ -421,7 +418,6 @@ fn is_paymaster_not_supported(err: &ControllerError) -> bool {
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 #[allow(non_snake_case)]
 pub struct RevokableSession {
-    pub app_id: String,
     pub chain_id: Felt,
     pub session_hash: Felt,
 }

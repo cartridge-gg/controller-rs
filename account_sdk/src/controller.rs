@@ -45,7 +45,6 @@ pub const DEFAULT_SESSION_EXPIRATION: u64 = 7 * 24 * 60 * 60;
 
 #[derive(Clone)]
 pub struct Controller {
-    pub app_id: String,
     pub address: Felt,
     pub chain_id: Felt,
     pub class_hash: Felt,
@@ -63,7 +62,6 @@ pub struct Controller {
 
 impl Controller {
     pub async fn new(
-        app_id: String,
         username: String,
         class_hash: Felt,
         rpc_url: Url,
@@ -80,7 +78,6 @@ impl Controller {
         let storage = storage.unwrap_or_default();
 
         let mut controller = Self {
-            app_id: app_id.clone(),
             address,
             chain_id,
             class_hash,
@@ -108,12 +105,7 @@ impl Controller {
         // Persist controller metadata immediately to prevent data loss
         controller
             .storage
-            .set_controller(
-                &app_id,
-                &chain_id,
-                address,
-                ControllerMetadata::from(&controller),
-            )
+            .set_controller(&chain_id, address, ControllerMetadata::from(&controller))
             .map_err(ControllerError::StorageError)?;
 
         // Clears the stored session if it's been revoked
@@ -124,7 +116,6 @@ impl Controller {
 
     // This method exists for backward compatibility and persists immediately
     pub async fn new_with_existing_storage(
-        app_id: String,
         username: String,
         class_hash: Felt,
         rpc_url: Url,
@@ -132,11 +123,10 @@ impl Controller {
         address: Felt,
     ) -> Result<Self, ControllerError> {
         // Just call the new method with no storage (will create default and persist)
-        Self::new(app_id, username, class_hash, rpc_url, owner, address, None).await
+        Self::new(username, class_hash, rpc_url, owner, address, None).await
     }
 
     pub async fn new_headless(
-        app_id: String,
         username: String,
         class_hash: Felt,
         rpc_url: Url,
@@ -152,7 +142,6 @@ impl Controller {
         let address = crate::factory::compute_account_address(class_hash, owner.clone(), salt);
 
         let mut controller = Self {
-            app_id: app_id.clone(),
             address,
             chain_id,
             class_hash,
@@ -179,12 +168,7 @@ impl Controller {
 
         controller
             .storage
-            .set_controller(
-                app_id.as_str(),
-                &chain_id,
-                address,
-                ControllerMetadata::from(&controller),
-            )
+            .set_controller(&chain_id, address, ControllerMetadata::from(&controller))
             .expect("Should store controller");
 
         // Clears the stored session if it's been revoked in a fire-and-forget style when the controller is created (with fromStorage for example).
@@ -220,7 +204,7 @@ impl Controller {
                 guardian_key_guid: session.session.inner.guardian_key_guid,
                 metadata_hash: session.session.inner.metadata_hash,
                 authorization: session.session_authorization,
-                app_id: Some(self.app_id.clone()),
+                app_id: None,
             },
         };
 
@@ -233,9 +217,9 @@ impl Controller {
         Ok(register_result)
     }
 
-    pub async fn from_storage(app_id: String) -> Result<Option<Self>, ControllerError> {
+    pub async fn from_storage() -> Result<Option<Self>, ControllerError> {
         let mut storage = Storage::default();
-        let metadata = match storage.controller(&app_id) {
+        let metadata = match storage.controller() {
             Ok(metadata) => metadata,
             Err(StorageError::Serialization(_)) => {
                 storage.clear().ok();
@@ -250,7 +234,6 @@ impl Controller {
             let rpc_url = Url::parse(&m.rpc_url).map_err(ControllerError::from)?;
             Ok(Some(
                 Controller::new(
-                    app_id,
                     m.username,
                     m.class_hash,
                     rpc_url,
@@ -557,7 +540,6 @@ impl Controller {
 
         self.storage
             .set_controller(
-                self.app_id.as_str(),
                 &self.chain_id,
                 self.address,
                 ControllerMetadata::from(&self.clone()),

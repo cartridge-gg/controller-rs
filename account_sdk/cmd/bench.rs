@@ -57,7 +57,6 @@ async fn main() {
     println!("Controller address: {address:#x}");
 
     let mut controller = Controller::new(
-        "app_id".to_string(),
         username,
         CONTROLLERS[&Version::LATEST].hash,
         rpc_url,

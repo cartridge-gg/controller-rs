@@ -27,7 +27,6 @@ pub struct ChainConfig {
 /// Metadata for storing multi-chain configuration
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MultiChainMetadata {
-    pub app_id: String,
     pub username: String,
     /// List of all configured chains with their addresses
     pub chains: Vec<ChainInfo>,
@@ -43,7 +42,6 @@ pub struct ChainInfo {
 /// Manages multiple Controller instances across different chains
 #[derive(Clone)]
 pub struct MultiChainController {
-    pub app_id: String,
     pub username: String,
     controllers: HashMap<Felt, Controller>,
     pub storage: Storage,
@@ -57,7 +55,6 @@ impl MultiChainController {
     /// divergence in tests. Consider using FileSystemBackend for integration tests
     /// that require consistent storage across controllers.
     pub async fn new(
-        app_id: String,
         username: String,
         chain_configs: Vec<ChainConfig>,
     ) -> Result<Self, ControllerError> {
@@ -73,8 +70,7 @@ impl MultiChainController {
         // Create controllers for all provided configurations with shared storage
         for config in chain_configs {
             let controller =
-                Self::create_controller_with_storage(&app_id, &username, config, storage.clone())
-                    .await?;
+                Self::create_controller_with_storage(&username, config, storage.clone()).await?;
 
             // Get chain_id from the controller (which fetched it from RPC)
             let chain_id = controller.chain_id;
@@ -90,7 +86,6 @@ impl MultiChainController {
         }
 
         let mut multi_controller = Self {
-            app_id,
             username,
             controllers,
             storage,
@@ -104,7 +99,6 @@ impl MultiChainController {
 
     /// Creates a new Controller from a ChainConfig with shared storage
     async fn create_controller_with_storage(
-        app_id: &str,
         username: &str,
         config: ChainConfig,
         storage: Storage,
@@ -120,7 +114,6 @@ impl MultiChainController {
         };
 
         Controller::new(
-            app_id.to_string(),
             username.to_string(),
             config.class_hash,
             config.rpc_url,
@@ -133,13 +126,9 @@ impl MultiChainController {
 
     /// Adds a new chain configuration
     pub async fn add_chain(&mut self, config: ChainConfig) -> Result<(), ControllerError> {
-        let controller = Self::create_controller_with_storage(
-            &self.app_id,
-            &self.username,
-            config,
-            self.storage.clone(),
-        )
-        .await?;
+        let controller =
+            Self::create_controller_with_storage(&self.username, config, self.storage.clone())
+                .await?;
 
         // Get chain_id from the controller (which fetched it from RPC)
         let chain_id = controller.chain_id;
@@ -220,7 +209,6 @@ impl MultiChainController {
 
         // Create a new controller with the updated RPC URL and shared storage
         let new_controller = Controller::new(
-            existing_controller.app_id.clone(),
             existing_controller.username.clone(),
             existing_controller.class_hash,
             new_rpc_url,
@@ -271,7 +259,6 @@ impl MultiChainController {
 
         // Prepare multi-chain configuration
         let multi_chain_metadata = MultiChainMetadata {
-            app_id: self.app_id.clone(),
             username: self.username.clone(),
             chains: self
                 .controllers
@@ -287,7 +274,7 @@ impl MultiChainController {
         let config_json = serde_json::to_string(&multi_chain_metadata)
             .map_err(|e| ControllerError::InvalidResponseData(e.to_string()))?;
         operations.push((
-            Selectors::multi_chain_config(&self.app_id),
+            Selectors::multi_chain_config(),
             StorageValue::String(config_json),
         ));
 
@@ -305,7 +292,7 @@ impl MultiChainController {
             let (chain_id, controller) = self.controllers.iter().next().unwrap();
             self.storage
                 .set(
-                    &Selectors::active(&self.app_id),
+                    &Selectors::active(),
                     &StorageValue::Active(crate::storage::ActiveMetadata {
                         address: controller.address,
                         chain_id: *chain_id,
@@ -315,18 +302,18 @@ impl MultiChainController {
         } else {
             // For multi-chain setups, remove active metadata if it exists
             // (it may have been set by individual Controller::new() calls)
-            let _ = self.storage.remove(&Selectors::active(&self.app_id));
+            let _ = self.storage.remove(&Selectors::active());
         }
 
         Ok(())
     }
 
     /// Loads a MultiChainController from storage
-    pub async fn from_storage(app_id: String) -> Result<Option<Self>, ControllerError> {
+    pub async fn from_storage() -> Result<Option<Self>, ControllerError> {
         let storage = Storage::default();
 
         // First, try to load the multi-chain configuration
-        let config_key = Selectors::multi_chain_config(&app_id);
+        let config_key = Selectors::multi_chain_config();
 
         if let Ok(Some(config_value)) = storage.get(&config_key) {
             // Parse the multi-chain configuration
@@ -334,7 +321,7 @@ impl MultiChainController {
                 StorageValue::String(s) => s,
                 _ => {
                     // Fallback to single controller loading if wrong type
-                    return Self::from_storage_single(app_id, storage).await;
+                    return Self::from_storage_single(storage).await;
                 }
             };
 
@@ -356,11 +343,10 @@ impl MultiChainController {
 
                         // Create controller with shared storage
                         match Controller::new(
-                            app_id.clone(),
                             metadata.username.clone(),
                             metadata.class_hash,
                             rpc_url,
-                            metadata.owner.clone().try_into()?,
+                            metadata.owner.try_into()?,
                             metadata.address,
                             Some(storage.clone()),
                         )
@@ -411,29 +397,24 @@ impl MultiChainController {
             }
 
             Ok(Some(Self {
-                app_id: multi_chain_metadata.app_id,
                 username: multi_chain_metadata.username,
                 controllers,
                 storage,
             }))
         } else {
             // Fallback: Try to load as single controller for backward compatibility
-            Self::from_storage_single(app_id, storage).await
+            Self::from_storage_single(storage).await
         }
     }
 
     /// Loads a single controller from storage (backward compatibility)
-    async fn from_storage_single(
-        app_id: String,
-        storage: Storage,
-    ) -> Result<Option<Self>, ControllerError> {
-        match storage.controller(&app_id) {
+    async fn from_storage_single(storage: Storage) -> Result<Option<Self>, ControllerError> {
+        match storage.controller() {
             Ok(Some(metadata)) => {
                 let rpc_url = Url::parse(&metadata.rpc_url)
                     .map_err(|e| ControllerError::InvalidResponseData(e.to_string()))?;
 
                 let controller = Controller::new(
-                    app_id.clone(),
                     metadata.username.clone(),
                     metadata.class_hash,
                     rpc_url,
@@ -448,7 +429,6 @@ impl MultiChainController {
                 controllers.insert(chain_id, controller);
 
                 Ok(Some(Self {
-                    app_id,
                     username: metadata.username,
                     controllers,
                     storage,
@@ -488,12 +468,8 @@ mod tests {
             address: None, // Let it compute the address
         };
 
-        let multi_controller = MultiChainController::new(
-            "test_app".to_string(),
-            "test_user".to_string(),
-            vec![config],
-        )
-        .await;
+        let multi_controller =
+            MultiChainController::new("test_user".to_string(), vec![config]).await;
 
         assert!(
             multi_controller.is_ok(),
@@ -524,13 +500,10 @@ mod tests {
             address: None,
         };
 
-        let mut multi_controller = MultiChainController::new(
-            "test_app".to_string(),
-            "test_user".to_string(),
-            vec![initial_config],
-        )
-        .await
-        .unwrap();
+        let mut multi_controller =
+            MultiChainController::new("test_user".to_string(), vec![initial_config])
+                .await
+                .unwrap();
 
         // Verify initial state
         assert_eq!(multi_controller.configured_chains().len(), 1);
@@ -584,13 +557,9 @@ mod tests {
             address: None,
         };
 
-        let mut multi_controller = MultiChainController::new(
-            "test_app".to_string(),
-            "test_user".to_string(),
-            vec![config],
-        )
-        .await
-        .unwrap();
+        let mut multi_controller = MultiChainController::new("test_user".to_string(), vec![config])
+            .await
+            .unwrap();
 
         let chain_id = multi_controller.configured_chains()[0];
 
@@ -623,13 +592,9 @@ mod tests {
             address: None,
         };
 
-        let multi_controller = MultiChainController::new(
-            "test_app".to_string(),
-            "test_user".to_string(),
-            vec![config],
-        )
-        .await
-        .unwrap();
+        let multi_controller = MultiChainController::new("test_user".to_string(), vec![config])
+            .await
+            .unwrap();
 
         let chain_id = multi_controller.configured_chains()[0];
 
@@ -661,13 +626,9 @@ mod tests {
             address: None,
         };
 
-        let mut multi_controller = MultiChainController::new(
-            "test_app".to_string(),
-            "test_user".to_string(),
-            vec![config],
-        )
-        .await
-        .unwrap();
+        let mut multi_controller = MultiChainController::new("test_user".to_string(), vec![config])
+            .await
+            .unwrap();
 
         let chain_id = multi_controller.configured_chains()[0];
 
@@ -716,13 +677,9 @@ mod tests {
             address: None,
         };
 
-        let mut multi_controller = MultiChainController::new(
-            "test_app".to_string(),
-            "test_user".to_string(),
-            vec![config],
-        )
-        .await
-        .unwrap();
+        let mut multi_controller = MultiChainController::new("test_user".to_string(), vec![config])
+            .await
+            .unwrap();
 
         let chain_id = multi_controller.configured_chains()[0];
 
@@ -763,7 +720,7 @@ mod tests {
         runner.declare_controller(Version::LATEST).await;
 
         let owner = Owner::Signer(Signer::new_starknet_random());
-        let app_id = "test_atomicity".to_string();
+        let _app_id = "test_atomicity".to_string();
         let username = "test_user".to_string();
 
         let config = ChainConfig {
@@ -773,17 +730,16 @@ mod tests {
             address: None,
         };
 
-        let multi_controller =
-            MultiChainController::new(app_id.clone(), username.clone(), vec![config])
-                .await
-                .unwrap();
+        let multi_controller = MultiChainController::new(username.clone(), vec![config])
+            .await
+            .unwrap();
 
         // Get initial storage state
         let initial_chains = multi_controller.configured_chains();
         assert_eq!(initial_chains.len(), 1);
 
         // Verify the multi-chain config is stored
-        let config_key = Selectors::multi_chain_config(&app_id);
+        let config_key = Selectors::multi_chain_config();
         let config_value = multi_controller.storage.get(&config_key).unwrap();
         assert!(
             config_value.is_some(),
@@ -824,7 +780,7 @@ mod tests {
         runner.declare_controller(Version::LATEST).await;
 
         let owner = Owner::Signer(Signer::new_starknet_random());
-        let app_id = "test_backward_compat".to_string();
+        let _app_id = "test_backward_compat".to_string();
         let username = "test_user".to_string();
 
         let config = ChainConfig {
@@ -835,10 +791,9 @@ mod tests {
         };
 
         // Create a multi-controller with a single chain
-        let mut multi_controller =
-            MultiChainController::new(app_id.clone(), username.clone(), vec![config])
-                .await
-                .unwrap();
+        let mut multi_controller = MultiChainController::new(username.clone(), vec![config])
+            .await
+            .unwrap();
 
         let chain_id = multi_controller.configured_chains()[0];
         let controller = multi_controller.controller_for_chain(chain_id).unwrap();
@@ -848,7 +803,7 @@ mod tests {
         multi_controller.update_storage().unwrap();
 
         // Verify that for a single controller, the "active" metadata is set for backward compatibility
-        let active_key = Selectors::active(&app_id);
+        let active_key = Selectors::active();
         let active_value = multi_controller.storage.get(&active_key).unwrap();
 
         match active_value {
@@ -860,7 +815,7 @@ mod tests {
         }
 
         // Verify that controller() method works (backward compatibility)
-        let loaded_metadata = multi_controller.storage.controller(&app_id).unwrap();
+        let loaded_metadata = multi_controller.storage.controller().unwrap();
         assert!(loaded_metadata.is_some());
         let loaded = loaded_metadata.unwrap();
         assert_eq!(loaded.address, address);
@@ -898,7 +853,7 @@ mod tests {
         tokio::time::sleep(std::time::Duration::from_secs(2)).await;
 
         let owner = Owner::Signer(Signer::new_starknet_random());
-        let app_id = "test_multi_no_overwrite".to_string();
+        let _app_id = "test_multi_no_overwrite".to_string();
         let username = "test_user".to_string();
 
         let config1 = ChainConfig {
@@ -917,7 +872,7 @@ mod tests {
 
         // Create multi-controller with two chains
         let mut multi_controller =
-            MultiChainController::new(app_id.clone(), username.clone(), vec![config1, config2])
+            MultiChainController::new(username.clone(), vec![config1, config2])
                 .await
                 .unwrap();
 
@@ -926,7 +881,7 @@ mod tests {
 
         // Verify that for multi-controller setup, the "active" metadata should NOT be set
         // (or if it is set, it should be ignored during loading)
-        let active_key = Selectors::active(&app_id);
+        let active_key = Selectors::active();
         let active_value = multi_controller.storage.get(&active_key).unwrap();
 
         // Active should not be set for multi-chain setups
@@ -950,7 +905,7 @@ mod tests {
         }
 
         // Verify multi-chain config is stored
-        let config_key = Selectors::multi_chain_config(&app_id);
+        let config_key = Selectors::multi_chain_config();
         let config_value = multi_controller.storage.get(&config_key).unwrap();
         assert!(matches!(
             config_value,
@@ -992,7 +947,7 @@ mod tests {
         tokio::time::sleep(std::time::Duration::from_secs(2)).await;
 
         let owner = Owner::Signer(Signer::new_starknet_random());
-        let app_id = "test_persistence".to_string();
+        let _app_id = "test_persistence".to_string();
         let username = "test_user".to_string();
 
         // Create configs for both chains
@@ -1012,7 +967,7 @@ mod tests {
 
         // Create multi-controller with both chains
         let mut multi_controller =
-            MultiChainController::new(app_id.clone(), username.clone(), vec![config1, config2])
+            MultiChainController::new(username.clone(), vec![config1, config2])
                 .await
                 .unwrap();
 
@@ -1024,7 +979,7 @@ mod tests {
         multi_controller.update_storage().unwrap();
 
         // Load from storage
-        let loaded = MultiChainController::from_storage(app_id)
+        let loaded = MultiChainController::from_storage()
             .await
             .unwrap()
             .expect("Should load from storage");

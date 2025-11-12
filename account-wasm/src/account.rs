@@ -74,7 +74,6 @@ impl CartridgeAccount {
     /// Creates a new `CartridgeAccount` instance.
     ///
     /// # Parameters
-    /// - `app_id`: Application identifier.
     /// - `rpc_url`: The URL of the JSON-RPC endpoint.
     /// - `address`: The blockchain address associated with the account.
     /// - `username`: Username associated with the account.
@@ -82,12 +81,12 @@ impl CartridgeAccount {
     ///
     #[allow(clippy::new_ret_no_self, clippy::too_many_arguments)]
     pub async fn new(
-        app_id: String,
         class_hash: JsFelt,
         rpc_url: String,
         address: JsFelt,
         username: String,
         owner: Owner,
+        app_id: String,
         cartridge_api_url: String,
     ) -> Result<CartridgeAccountWithMeta> {
         set_panic_hook();
@@ -96,7 +95,6 @@ impl CartridgeAccount {
         let username = username.to_lowercase();
 
         let controller = Controller::new(
-            app_id,
             username.clone(),
             class_hash.try_into()?,
             rpc_url,
@@ -107,7 +105,11 @@ impl CartridgeAccount {
         .await
         .map_err(|e| JsError::new(&e.to_string()))?;
 
-        Ok(CartridgeAccountWithMeta::new(controller, cartridge_api_url))
+        Ok(CartridgeAccountWithMeta::new(
+            controller,
+            app_id,
+            cartridge_api_url,
+        ))
     }
 
     /// Creates a new `CartridgeAccount` instance with a randomly generated Starknet signer.
@@ -151,7 +153,6 @@ impl CartridgeAccount {
             account_sdk::factory::compute_account_address(class_hash_felt, owner.clone(), salt);
 
         let controller = Controller::new(
-            app_id,
             username.clone(),
             class_hash_felt,
             rpc_url,
@@ -162,7 +163,11 @@ impl CartridgeAccount {
         .await
         .map_err(|e| JsError::new(&e.to_string()))?;
 
-        Ok(CartridgeAccountWithMeta::new(controller, cartridge_api_url))
+        Ok(CartridgeAccountWithMeta::new(
+            controller,
+            app_id,
+            cartridge_api_url,
+        ))
     }
 
     #[wasm_bindgen(js_name = fromStorage)]
@@ -172,11 +177,11 @@ impl CartridgeAccount {
     ) -> Result<Option<CartridgeAccountWithMeta>> {
         set_panic_hook();
 
-        let controller = Controller::from_storage(app_id)
+        let controller = Controller::from_storage()
             .await
             .map_err(|e| JsError::new(&e.to_string()))?;
 
-        Ok(controller.map(|c| CartridgeAccountWithMeta::new(c, cartridge_api_url)))
+        Ok(controller.map(|c| CartridgeAccountWithMeta::new(c, app_id, cartridge_api_url)))
     }
 
     #[wasm_bindgen(js_name = disconnect)]
@@ -304,6 +309,7 @@ impl CartridgeAccount {
         policies: Vec<Policy>,
         expires_at: u64,
         authorize_user_execution: Option<bool>,
+        app_id: Option<String>,
     ) -> std::result::Result<Option<AuthorizedSession>, JsControllerError> {
         set_panic_hook();
 
@@ -327,6 +333,15 @@ impl CartridgeAccount {
             .partition(|p| p.is_approve_policy());
 
         let mut controller = self.controller.lock().await;
+
+        // Determine which policy storage to use based on whether an app_id was provided
+        let policy_storage = if let Some(ref target_app_id) = app_id {
+            // Create policy storage for the target app_id
+            PolicyStorage::new(&controller.address, target_app_id, &controller.chain_id)
+        } else {
+            // Use the default policy storage from this account instance
+            self.policy_storage.lock().await.clone()
+        };
 
         // Execute approve policies immediately if any exist
         if !approve_policies.is_empty() {
@@ -413,12 +428,11 @@ impl CartridgeAccount {
 
             if let Err(e) = controller_response {
                 let address = controller.address;
-                let app_id = controller.app_id.clone();
                 let chain_id = controller.chain_id;
 
                 controller
                     .storage
-                    .remove(&Selectors::session(&address, &app_id, &chain_id))
+                    .remove(&Selectors::session(&address, &chain_id))
                     .map_err(|e| JsControllerError::from(ControllerError::StorageError(e)))?;
 
                 return Err(JsControllerError::from(e));
@@ -446,7 +460,7 @@ impl CartridgeAccount {
             None
         };
 
-        self.policy_storage.lock().await.store(policies)?;
+        policy_storage.store(policies)?;
 
         Ok(session)
     }
@@ -1113,9 +1127,9 @@ pub struct CartridgeAccountMeta {
 }
 
 impl CartridgeAccountMeta {
-    fn new(controller: &Controller) -> Self {
+    fn new(controller: &Controller, app_id: &str) -> Self {
         Self {
-            app_id: controller.app_id.clone(),
+            app_id: app_id.to_string(),
             username: controller.username.clone(),
             address: controller.address.to_hex_string(),
             class_hash: controller.class_hash.to_hex_string(),
@@ -1182,13 +1196,9 @@ pub struct CartridgeAccountWithMeta {
 }
 
 impl CartridgeAccountWithMeta {
-    pub fn new(controller: Controller, cartridge_api_url: String) -> Self {
-        let meta = CartridgeAccountMeta::new(&controller);
-        let policy_storage = PolicyStorage::new(
-            &controller.address,
-            &controller.app_id,
-            &controller.chain_id,
-        );
+    pub fn new(controller: Controller, app_id: String, cartridge_api_url: String) -> Self {
+        let meta = CartridgeAccountMeta::new(&controller, &app_id);
+        let policy_storage = PolicyStorage::new(&controller.address, &app_id, &controller.chain_id);
 
         Self {
             account: CartridgeAccount {
