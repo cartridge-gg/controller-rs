@@ -1,52 +1,62 @@
 # GitHub Actions Workflows
 
-## WASM Publishing
+## Release Workflow
 
-### publish-wasm.yml
+### release.yml
 
-Automatically publishes the `@cartridge/controller-wasm` package to NPM when changes are merged to `main`.
+Handles both dev and stable WASM package releases to NPM.
+
+#### Dev Publishing (Automatic)
 
 **Trigger:** Pushes to `main` branch that modify:
 
 - `account-wasm/**`
 - `account_sdk/**`
 - `contracts/**`
-- `.github/workflows/publish-wasm.yml`
 
-**Versioning:** The package is published with a version format of `{base-version}-{short-sha}`, for example:
+**Versioning:** Uses format `{base-version}-{short-sha}`:
 
 - Base version in package.json: `0.7.14-alpha.3`
 - Short SHA: `abc1234`
 - Published version: `0.7.14-abc1234`
 
-**NPM Tag:** Published under the `dev` tag, so it won't affect the `latest` tag.
+**NPM Tag:** `dev` (doesn't affect `latest`)
 
 **Installation:**
 
 ```bash
-# Install the latest dev version
+# Install latest dev version
 npm install @cartridge/controller-wasm@dev
 
-# Install a specific commit version
+# Install specific commit
 npm install @cartridge/controller-wasm@0.7.14-abc1234
 ```
 
-**Requirements:**
+#### Stable Release (Manual)
 
-- `NPM_TOKEN` secret must be configured in GitHub repository settings with publish access to `@cartridge/controller-wasm`
+**Trigger:** `repository_dispatch` event via `release-dispatch.yml`
+
+**Versioning:** Uses explicit version number from dispatch payload
+
+**NPM Tag:** `latest`
 
 **Outputs:**
 
-- Publishes to NPM registry
-- Creates a deployment summary with installation instructions
+- NPM package publication
+- GitHub release with tarballs
+- Deployment summary
+
+**Requirements:**
+
+- `NPM_TOKEN` secret must be configured in repository settings
 
 ---
 
 ## Other Workflows
 
-### release.yml
+### release-dispatch.yml
 
-Manual release workflow triggered via `repository_dispatch` event. Used for stable releases with explicit version numbers and GitHub releases.
+UI trigger for manual stable releases. Dispatches to the release workflow with specified version number.
 
 ### test.yml
 
