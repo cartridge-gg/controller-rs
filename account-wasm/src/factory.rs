@@ -17,6 +17,7 @@ use wasm_bindgen::prelude::*;
 
 use crate::account::{CartridgeAccount, CartridgeAccountWithMeta};
 use crate::errors::JsControllerError;
+use crate::set_panic_hook;
 use crate::types::owner::Owner;
 use crate::types::session::AuthorizedSession;
 use crate::types::signer::try_find_webauthn_signer_in_signer_signature;
@@ -32,6 +33,8 @@ impl ControllerFactory {
     pub async fn from_storage(
         cartridge_api_url: String,
     ) -> crate::account::Result<Option<CartridgeAccountWithMeta>> {
+        set_panic_hook();
+
         CartridgeAccount::from_storage(cartridge_api_url).await
     }
 
@@ -75,6 +78,8 @@ impl ControllerFactory {
         create_wildcard_session: Option<bool>,
         app_id: Option<String>,
     ) -> crate::account::Result<LoginResult> {
+        set_panic_hook();
+
         let class_hash_felt: Felt = class_hash.try_into()?;
         let rpc_url: Url = Url::parse(&rpc_url)?;
         let address_felt: Felt = address.try_into()?;
@@ -167,6 +172,8 @@ impl ControllerFactory {
         owner: Owner,
         cartridge_api_url: String,
     ) -> crate::account::Result<CartridgeAccountWithMeta> {
+        set_panic_hook();
+
         let query_ret = run_query::<BeginLogin>(
             begin_login::Variables {
                 username: username.clone(),
@@ -275,6 +282,8 @@ pub struct LoginResult {
 impl LoginResult {
     #[wasm_bindgen(js_name = intoValues)]
     pub fn into_values(self) -> web_sys::js_sys::Array {
+        set_panic_hook();
+
         let array = web_sys::js_sys::Array::new();
         array.push(&JsValue::from(self.account));
         if let Some(session) = self.session {

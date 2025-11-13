@@ -17,6 +17,7 @@ use url::Url;
 use wasm_bindgen::prelude::*;
 
 use crate::errors::JsControllerError;
+use crate::set_panic_hook;
 use crate::sync::WasmMutex;
 use crate::types::call::JsCall;
 use crate::types::session::Session;
@@ -35,6 +36,8 @@ impl CartridgeSessionAccount {
         session_authorization: Vec<JsFelt>,
         session: Session,
     ) -> Result<CartridgeSessionAccount, JsControllerError> {
+        set_panic_hook();
+
         let rpc_url = Url::parse(&rpc_url)?;
         let provider = CartridgeJsonRpcProvider::new(rpc_url.clone());
 
@@ -81,6 +84,8 @@ impl CartridgeSessionAccount {
         chain_id: JsFelt,
         session: Session,
     ) -> Result<CartridgeSessionAccount, JsControllerError> {
+        set_panic_hook();
+
         let rpc_url = Url::parse(&rpc_url)?;
         let provider = CartridgeJsonRpcProvider::new(rpc_url.clone());
 
@@ -114,6 +119,8 @@ impl CartridgeSessionAccount {
     }
 
     pub async fn sign(&self, hash: JsFelt, calls: Vec<JsCall>) -> Result<Felts, JsControllerError> {
+        set_panic_hook();
+
         let hash = hash.try_into()?;
         let calls = calls
             .into_iter()
@@ -131,6 +138,8 @@ impl CartridgeSessionAccount {
     }
 
     pub async fn execute(&self, calls: Vec<JsCall>) -> Result<JsValue, JsControllerError> {
+        set_panic_hook();
+
         let calls = calls
             .into_iter()
             .map(TryInto::try_into)
@@ -147,6 +156,8 @@ impl CartridgeSessionAccount {
         &self,
         calls: Vec<JsCall>,
     ) -> Result<JsValue, JsControllerError> {
+        set_panic_hook();
+
         let caller = OutsideExecutionCaller::Any;
         let calls = calls
             .into_iter()

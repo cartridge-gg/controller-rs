@@ -173,6 +173,8 @@ impl CartridgeAccount {
 
     #[wasm_bindgen(js_name = disconnect)]
     pub async fn disconnect(&self) -> std::result::Result<(), JsControllerError> {
+        set_panic_hook();
+
         self.controller
             .lock()
             .await
@@ -189,6 +191,8 @@ impl CartridgeAccount {
         public_key: JsFelt,
         max_fee: Option<JsFeeEstimate>,
     ) -> std::result::Result<JsValue, JsControllerError> {
+        set_panic_hook();
+
         let methods = policies
             .into_iter()
             .map(TryFrom::try_from)
@@ -246,6 +250,8 @@ impl CartridgeAccount {
         expires_at: u64,
         public_key: JsFelt,
     ) -> std::result::Result<JsValue, JsControllerError> {
+        set_panic_hook();
+
         let methods = policies
             .into_iter()
             .map(TryFrom::try_from)
@@ -265,6 +271,8 @@ impl CartridgeAccount {
         &self,
         new_class_hash: JsFelt,
     ) -> std::result::Result<JsCall, JsControllerError> {
+        set_panic_hook();
+
         let felt: Felt = new_class_hash.try_into()?;
         let call = self.controller.lock().await.upgrade(felt);
         Ok(JsCall {
@@ -814,6 +822,8 @@ impl CartridgeAccount {
         policies: Vec<Policy>,
         public_key: Option<JsFelt>,
     ) -> std::result::Result<Option<AuthorizedSession>, JsControllerError> {
+        set_panic_hook();
+
         let policies = policies
             .into_iter()
             .map(TryFrom::try_from)
@@ -836,6 +846,8 @@ impl CartridgeAccount {
         app_id: String,
         policies: Vec<Policy>,
     ) -> std::result::Result<bool, JsControllerError> {
+        set_panic_hook();
+
         let controller_guard = self.controller.lock().await;
         let policy_storage = PolicyStorage::new_with_app_id(
             &controller_guard.address,
@@ -856,6 +868,8 @@ impl CartridgeAccount {
 
     #[wasm_bindgen(js_name = revokeSession)]
     pub async fn revoke_session(&self, session: JsRevokableSession) -> Result<()> {
+        set_panic_hook();
+
         self.revoke_sessions(vec![session]).await
     }
 
@@ -957,6 +971,8 @@ impl CartridgeAccount {
 
     #[wasm_bindgen(js_name = getNonce)]
     pub async fn get_nonce(&self) -> std::result::Result<JsValue, JsControllerError> {
+        set_panic_hook();
+
         let nonce = self
             .controller
             .lock()
@@ -1023,6 +1039,8 @@ impl CartridgeAccount {
         app_id: String,
         calls: Vec<JsCall>,
     ) -> Result<bool> {
+        set_panic_hook();
+
         let calls: Vec<Call> = calls
             .into_iter()
             .map(TryFrom::try_from)
@@ -1054,6 +1072,8 @@ impl CartridgeAccount {
         app_id: String,
         typed_data: String,
     ) -> Result<bool> {
+        set_panic_hook();
+
         let typed_data_obj: TypedData = serde_json::from_str(&typed_data)?;
         let policy = Policy::from_typed_data(&typed_data_obj)?;
 
@@ -1158,36 +1178,43 @@ impl CartridgeAccountMeta {
 impl CartridgeAccountMeta {
     #[wasm_bindgen(js_name = username)]
     pub fn username(&self) -> String {
+        set_panic_hook();
         self.username.clone()
     }
 
     #[wasm_bindgen(js_name = address)]
     pub fn address(&self) -> String {
+        set_panic_hook();
         self.address.clone()
     }
 
     #[wasm_bindgen(js_name = classHash)]
     pub fn class_hash(&self) -> String {
+        set_panic_hook();
         self.class_hash.clone()
     }
 
     #[wasm_bindgen(js_name = rpcUrl)]
     pub fn rpc_url(&self) -> String {
+        set_panic_hook();
         self.rpc_url.clone()
     }
 
     #[wasm_bindgen(js_name = chainId)]
     pub fn chain_id(&self) -> String {
+        set_panic_hook();
         self.chain_id.clone()
     }
 
     #[wasm_bindgen(js_name = owner)]
     pub fn owner(&self) -> Owner {
+        set_panic_hook();
         self.owner.clone()
     }
 
     #[wasm_bindgen(js_name = ownerGuid)]
     pub fn owner_guid(&self) -> JsFelt {
+        set_panic_hook();
         self.owner_guid.into()
     }
 }
@@ -1221,11 +1248,13 @@ impl CartridgeAccountWithMeta {
 impl CartridgeAccountWithMeta {
     #[wasm_bindgen(js_name = meta)]
     pub fn meta(&self) -> CartridgeAccountMeta {
+        set_panic_hook();
         self.meta.clone()
     }
 
     #[wasm_bindgen(js_name = intoAccount)]
     pub fn into_account(self) -> CartridgeAccount {
+        set_panic_hook();
         self.account
     }
 }
@@ -1243,6 +1272,8 @@ impl CartridgeAccountWithMeta {
 /// The computed Starknet contract address as a `JsFelt`.
 #[wasm_bindgen(js_name = computeAccountAddress)]
 pub fn compute_account_address(class_hash: JsFelt, owner: Owner, salt: JsFelt) -> Result<JsFelt> {
+    set_panic_hook();
+
     let class_hash_felt: Felt = class_hash.try_into()?;
     let salt_felt: Felt = salt.try_into()?;
 
