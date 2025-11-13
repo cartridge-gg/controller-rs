@@ -1115,6 +1115,24 @@ impl CartridgeAccount {
             signature: signed.signature.into_iter().map(Into::into).collect(),
         })
     }
+
+    /// Checks if there are stored policies for a given app_id.
+    ///
+    /// # Parameters
+    /// - `app_id`: The application identifier to check for stored policies
+    ///
+    /// # Returns
+    /// `true` if policies exist for the given app_id, `false` otherwise
+    #[wasm_bindgen(js_name = hasPoliciesForAppId)]
+    pub async fn has_policies_for_app_id(&self, app_id: String) -> Result<bool> {
+        set_panic_hook();
+
+        let controller = self.controller.lock().await;
+        let policy_storage =
+            PolicyStorage::new_with_app_id(&controller.address, &app_id, &controller.chain_id);
+
+        Ok(policy_storage.get()?.is_some())
+    }
 }
 
 /// A type for accessing fixed attributes of `CartridgeAccount`.
