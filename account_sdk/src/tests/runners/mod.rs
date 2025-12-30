@@ -5,6 +5,7 @@ use serde::Deserialize;
 use self::waiter::OutputWaiter;
 
 pub mod avnu;
+#[cfg(feature = "avnu-paymaster")]
 pub mod avnu_paymaster;
 pub mod cartridge;
 pub mod katana;
