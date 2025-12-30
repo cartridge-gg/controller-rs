@@ -1,3 +1,7 @@
+//! AVNU Paymaster proxy for testing.
+//!
+//! This module is only available when the `avnu-paymaster` feature is enabled.
+
 use anyhow::Error;
 use cainome::cairo_serde::CairoSerde;
 use hyper::service::{make_service_fn, service_fn};

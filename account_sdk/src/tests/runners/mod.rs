@@ -4,6 +4,7 @@ use serde::Deserialize;
 
 use self::waiter::OutputWaiter;
 
+#[cfg(feature = "avnu-paymaster")]
 pub mod avnu;
 #[cfg(feature = "avnu-paymaster")]
 pub mod avnu_paymaster;

@@ -48,10 +48,12 @@ lazy_static! {
 
 #[derive(Debug)]
 pub struct KatanaRunner {
+    #[cfg_attr(not(feature = "avnu-paymaster"), allow(dead_code))]
     chain_id: Felt,
     testnet: SubprocessRunner,
     client: CartridgeJsonRpcProvider,
     pub rpc_url: Url,
+    #[cfg_attr(not(feature = "avnu-paymaster"), allow(dead_code))]
     katana_url: Url,
     rpc_client: Arc<JsonRpcClient<HttpTransport>>,
     proxy_handle: JoinHandle<()>,
@@ -101,11 +103,13 @@ impl KatanaRunner {
         &self.client
     }
 
+    #[cfg(feature = "avnu-paymaster")]
     pub fn chain_id(&self) -> Felt {
         self.chain_id
     }
 
     /// Get the direct RPC URL to katana (bypassing the Cartridge proxy)
+    #[cfg(feature = "avnu-paymaster")]
     pub fn katana_url(&self) -> &Url {
         &self.katana_url
     }
