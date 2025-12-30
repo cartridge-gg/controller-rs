@@ -11,6 +11,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use async_trait::async_trait;
+use jsonrpsee::server::ServerHandle;
 use paymaster_prices::mock::MockPriceOracle;
 use paymaster_prices::TokenPrice;
 use paymaster_relayer::lock::mock::MockLockLayer;
@@ -20,7 +21,9 @@ use paymaster_rpc::server::PaymasterServer;
 use paymaster_rpc::{Configuration, RPCConfiguration};
 use paymaster_sponsoring::SelfConfiguration;
 use paymaster_starknet::constants::Token;
-use paymaster_starknet::{ChainID, Configuration as StarknetConfiguration, StarknetAccountConfiguration};
+use paymaster_starknet::{
+    ChainID, Configuration as StarknetConfiguration, StarknetAccountConfiguration,
+};
 use starknet::accounts::{Account, ConnectedAccount, ExecutionEncoding, SingleOwnerAccount};
 use starknet::contract::{ContractFactory, UdcSelector};
 use starknet::core::types::contract::SierraClass;
@@ -29,7 +32,6 @@ use starknet::macros::selector;
 use starknet::providers::jsonrpc::HttpTransport;
 use starknet::providers::{JsonRpcClient, Provider};
 use starknet::signers::{LocalWallet, SigningKey};
-use jsonrpsee::server::ServerHandle;
 use url::Url;
 
 use crate::artifacts::{Version, FORWARDER};
@@ -37,8 +39,8 @@ use crate::controller::Controller;
 use crate::provider::CartridgeJsonRpcProvider;
 use crate::signers::Owner;
 
-use super::katana::{KatanaRunner, PREFUNDED};
 use super::find_free_port;
+use super::katana::{KatanaRunner, PREFUNDED};
 
 /// Mock price oracle for testing - returns 1:1 price ratio
 #[derive(Debug, Clone)]
@@ -135,12 +137,8 @@ impl AvnuPaymasterRunner {
         let rpc_client = Arc::new(JsonRpcClient::new(HttpTransport::new(katana_url.clone())));
 
         // Create executor account (prefunded)
-        let executor = single_owner_account(
-            &rpc_client,
-            PREFUNDED.0.clone(),
-            PREFUNDED.1,
-            chain_id,
-        );
+        let executor =
+            single_owner_account(&rpc_client, PREFUNDED.0.clone(), PREFUNDED.1, chain_id);
 
         // Declare and deploy forwarder contract
         let forwarder_address = declare_and_deploy_forwarder(&rpc_client, &executor).await;
@@ -196,7 +194,10 @@ impl AvnuPaymasterRunner {
 
         // Start the paymaster server
         let server = PaymasterServer::new(&configuration);
-        let server_handle = server.start().await.expect("Failed to start paymaster server");
+        let server_handle = server
+            .start()
+            .await
+            .expect("Failed to start paymaster server");
 
         // Wait for server to be ready and relayer balance monitoring to run
         // The RelayerBalanceMonitoring service runs every 60s and sets enabled relayers
@@ -234,7 +235,12 @@ impl AvnuPaymasterRunner {
 
     /// Get an executor account (pre-funded account from Katana)
     pub async fn executor(&self) -> SingleOwnerAccount<&JsonRpcClient<HttpTransport>, LocalWallet> {
-        single_owner_account(&self.rpc_client, PREFUNDED.0.clone(), PREFUNDED.1, self.chain_id())
+        single_owner_account(
+            &self.rpc_client,
+            PREFUNDED.0.clone(),
+            PREFUNDED.1,
+            self.chain_id(),
+        )
     }
 
     /// Fund an address with ETH from the prefunded account
@@ -254,7 +260,9 @@ impl AvnuPaymasterRunner {
         owner: Owner,
         version: Version,
     ) -> Controller {
-        self.katana.deploy_controller(username, owner, version).await
+        self.katana
+            .deploy_controller(username, owner, version)
+            .await
     }
 }
 
@@ -293,11 +301,12 @@ where
 
     // Parse the CASM class
     let casm_class: starknet::core::types::contract::CompiledClass =
-        serde_json::from_str(FORWARDER.casm_content)
-            .expect("Failed to parse forwarder CASM class");
+        serde_json::from_str(FORWARDER.casm_content).expect("Failed to parse forwarder CASM class");
 
     // Compute CASM class hash
-    let casm_class_hash = casm_class.class_hash().expect("Failed to compute CASM hash");
+    let casm_class_hash = casm_class
+        .class_hash()
+        .expect("Failed to compute CASM hash");
 
     // Check if already declared
     let class_hash = FORWARDER.class_hash;

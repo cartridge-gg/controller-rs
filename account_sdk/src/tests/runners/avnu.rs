@@ -351,8 +351,11 @@ pub fn create_avnu_proxy(runner: &KatanaRunner) -> (Url, JoinHandle<()>) {
 
     // Use the direct katana URL (bypassing the Cartridge proxy) since we handle
     // guardian signatures ourselves in the AVNU proxy
-    let proxy =
-        AvnuPaymasterProxy::new(runner.katana_url().clone(), proxy_url.clone(), runner.chain_id());
+    let proxy = AvnuPaymasterProxy::new(
+        runner.katana_url().clone(),
+        proxy_url.clone(),
+        runner.chain_id(),
+    );
 
     let handle = tokio::spawn(async move {
         proxy.run().await;

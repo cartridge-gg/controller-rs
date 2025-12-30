@@ -1,5 +1,5 @@
 //! Tests to verify our AVNU types are compatible with paymaster-rpc types
-//! 
+//!
 //! Note: Due to different starknet-rs versions between controller-rs and paymaster,
 //! we can't directly compare types. Instead, we verify JSON serialization compatibility.
 
