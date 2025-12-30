@@ -20,13 +20,14 @@ use crate::{
         account::FEE_TOKEN_ADDRESS,
         runners::{
             avnu::{build_execute_raw_request, create_avnu_proxy},
+            avnu_paymaster::AvnuPaymasterRunner,
             katana::KatanaRunner,
         },
     },
     transaction_waiter::TransactionWaiter,
 };
 
-/// Test executing a transaction via the AVNU paymaster with owner signer
+/// Test executing a transaction via the AVNU paymaster with owner signer (mock proxy)
 #[tokio::test]
 async fn test_avnu_paymaster_owner_execute() {
     let runner = KatanaRunner::load();
@@ -87,9 +88,9 @@ async fn test_avnu_paymaster_owner_execute() {
         .unwrap();
 
     // Verify the transfer occurred
-    let paymaster = runner.executor().await;
+    let executor = runner.executor().await;
     assert_eq!(
-        Erc20::new(*FEE_TOKEN_ADDRESS, &paymaster)
+        Erc20::new(*FEE_TOKEN_ADDRESS, &executor)
             .balanceOf(&recipient)
             .call()
             .await
@@ -98,7 +99,7 @@ async fn test_avnu_paymaster_owner_execute() {
     );
 }
 
-/// Test executing a transaction via the AVNU paymaster with session signer
+/// Test executing a transaction via the AVNU paymaster with session signer (mock proxy)
 #[tokio::test]
 async fn test_avnu_paymaster_session_execute() {
     let runner = KatanaRunner::load();
@@ -168,9 +169,82 @@ async fn test_avnu_paymaster_session_execute() {
         .unwrap();
 
     // Verify the transfer occurred
-    let paymaster = runner.executor().await;
+    let executor = runner.executor().await;
     assert_eq!(
-        Erc20::new(*FEE_TOKEN_ADDRESS, &paymaster)
+        Erc20::new(*FEE_TOKEN_ADDRESS, &executor)
+            .balanceOf(&recipient)
+            .call()
+            .await
+            .unwrap(),
+        amount
+    );
+}
+
+/// Test executing a transaction via the REAL AVNU paymaster RPC server (in-memory with Katana)
+#[tokio::test]
+async fn test_real_avnu_paymaster_owner_execute() {
+    let runner = AvnuPaymasterRunner::new().await;
+
+    let signer = Signer::new_starknet_random();
+    let controller = runner
+        .deploy_controller(
+            "username".to_owned(),
+            Owner::Signer(signer),
+            Version::LATEST,
+        )
+        .await;
+
+    let recipient = ContractAddress(felt!("0x18301129"));
+    let amount = U256 {
+        low: 0x10_u128,
+        high: 0,
+    };
+
+    // Create the outside execution
+    let outside_execution = OutsideExecutionV3 {
+        caller: OutsideExecutionCaller::Any.into(),
+        execute_after: u64::MIN,
+        execute_before: u64::MAX,
+        calls: vec![Call {
+            to: (*FEE_TOKEN_ADDRESS).into(),
+            selector: selector!("transfer"),
+            calldata: [
+                <ContractAddress as CairoSerde>::cairo_serialize(&recipient),
+                <U256 as CairoSerde>::cairo_serialize(&amount),
+            ]
+            .concat(),
+        }],
+        nonce: (SigningKey::from_random().secret_scalar(), 1),
+    };
+
+    // Sign the outside execution
+    let signed = controller
+        .sign_outside_execution(OutsideExecution::V3(outside_execution))
+        .await
+        .unwrap();
+
+    // Build the AVNU request
+    let request = build_execute_raw_request(signed);
+
+    // Execute via REAL AVNU paymaster server with test API key for sponsored transactions
+    // API key must start with 'paymaster_' per paymaster-sponsoring validation
+    let avnu_provider =
+        AvnuPaymasterProvider::with_api_key(runner.paymaster_url.clone(), "paymaster_test".into());
+    let result = avnu_provider
+        .execute_raw_transaction(request)
+        .await
+        .unwrap();
+
+    // Wait for the transaction
+    TransactionWaiter::new(result.transaction_hash, runner.client())
+        .wait()
+        .await
+        .unwrap();
+
+    // Verify the transfer occurred
+    let executor = runner.executor().await;
+    assert_eq!(
+        Erc20::new(*FEE_TOKEN_ADDRESS, &executor)
             .balanceOf(&recipient)
             .call()
             .await

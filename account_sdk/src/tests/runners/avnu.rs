@@ -317,8 +317,12 @@ fn extract_signature_from_call(call: &Call) -> Vec<Felt> {
         .unwrap_or_default()
 }
 
-/// Build an ExecuteRawRequest from a SignedOutsideExecution
+/// Build an ExecuteRawRequest from a SignedOutsideExecution using sponsored fee mode
 /// Returns the provider type that can be used with AvnuPaymasterProvider
+///
+/// Note: For sponsored mode, the paymaster pays for gas fees and no API key is required
+/// for local testing. For default (non-sponsored) mode, the user must include a fee
+/// transfer in their execute_from_outside calls.
 pub fn build_execute_raw_request(signed: SignedOutsideExecution) -> ExecuteRawRequest {
     // Convert the SignedOutsideExecution to a Call
     let execute_from_outside_call: Call = signed.clone().into();
@@ -333,6 +337,7 @@ pub fn build_execute_raw_request(signed: SignedOutsideExecution) -> ExecuteRawRe
             },
         },
         parameters: ExecutionParameters::V1 {
+            // Use sponsored mode - paymaster pays for gas, no API key needed for local testing
             fee_mode: FeeMode::Sponsored,
             time_bounds: None,
         },

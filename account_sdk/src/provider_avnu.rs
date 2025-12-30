@@ -27,6 +27,7 @@ mod provider_avnu_test;
 pub struct AvnuPaymasterProvider {
     paymaster_url: Url,
     client: Client,
+    api_key: Option<String>,
 }
 
 impl AvnuPaymasterProvider {
@@ -34,6 +35,16 @@ impl AvnuPaymasterProvider {
         Self {
             paymaster_url,
             client: Client::new(),
+            api_key: None,
+        }
+    }
+
+    /// Create a new provider with an API key for sponsored transactions
+    pub fn with_api_key(paymaster_url: Url, api_key: String) -> Self {
+        Self {
+            paymaster_url,
+            client: Client::new(),
+            api_key: Some(api_key),
         }
     }
 
@@ -50,13 +61,17 @@ impl AvnuPaymasterProvider {
             params: request,
         };
 
-        let response = self
+        let mut req = self
             .client
             .post(self.paymaster_url.as_str())
-            .header("Content-Type", "application/json")
-            .json(&rpc_request)
-            .send()
-            .await?;
+            .header("Content-Type", "application/json");
+
+        // Add API key header if present (required for sponsored transactions)
+        if let Some(api_key) = &self.api_key {
+            req = req.header("x-paymaster-api-key", api_key);
+        }
+
+        let response = req.json(&rpc_request).send().await?;
 
         let json_response: Value = response.json().await?;
         let json_rpc_response: JsonRpcResponse<ExecuteRawResponse> =
