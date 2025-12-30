@@ -18,20 +18,20 @@ A Rust implementation of a smart contract account system for Starknet, providing
 
 The project consists of three main components:
 
-| Component | Description |
-|-----------|-------------|
-| `account_sdk/` | Core Rust library for account management, session handling, and Starknet interactions |
-| `account-wasm/` | WebAssembly bindings exposing SDK functionality to JavaScript/TypeScript |
-| `contracts/` | Cairo smart contracts for the controller system |
+| Component       | Description                                                                           |
+| --------------- | ------------------------------------------------------------------------------------- |
+| `account_sdk/`  | Core Rust library for account management, session handling, and Starknet interactions |
+| `account-wasm/` | WebAssembly bindings exposing SDK functionality to JavaScript/TypeScript              |
+| `contracts/`    | Cairo smart contracts for the controller system                                       |
 
 ## Prerequisites
 
-| Tool | Version |
-|------|---------|
-| Rust | 1.92+ |
-| Scarb | 2.9.4 |
-| Node.js | v20.11.1 |
-| Katana | 1.7.0 (for testing) |
+| Tool    | Version             |
+| ------- | ------------------- |
+| Rust    | 1.92+               |
+| Scarb   | 2.9.4               |
+| Node.js | v20.11.1            |
+| Katana  | 1.7.0 (for testing) |
 
 ## Installation
 
