@@ -10,7 +10,7 @@ use crate::{
     signers::{NewOwnerSigner, Owner, Signer},
 };
 
-#[cfg(all(feature = "webauthn", target_arch = "wasm32"))]
+#[cfg(feature = "webauthn")]
 use crate::graphql::owner::add_owner::SignerInput;
 
 impl Controller {
