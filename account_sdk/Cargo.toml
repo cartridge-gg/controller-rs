@@ -59,7 +59,12 @@ rand_core = { version = "0.6", features = ["getrandom"] }
 tempfile = "3.8"
 testcontainers = "0.23"
 paymaster-rpc = { path = "../../paymaster/.worktrees/copenhagen-4cb4/crates/paymaster-rpc" }
+paymaster-starknet = { path = "../../paymaster/.worktrees/copenhagen-4cb4/crates/paymaster-starknet", features = ["testing"] }
+paymaster-prices = { path = "../../paymaster/.worktrees/copenhagen-4cb4/crates/paymaster-prices", features = ["testing"] }
+paymaster-relayer = { path = "../../paymaster/.worktrees/copenhagen-4cb4/crates/paymaster-relayer", features = ["testing"] }
+paymaster-sponsoring = { path = "../../paymaster/.worktrees/copenhagen-4cb4/crates/paymaster-sponsoring", features = ["testing"] }
 tokio = { version = "1", features = ["full"] }
+jsonrpsee = { version = "0.24", features = ["server", "client"] }
 
 [build-dependencies]
 cainome.workspace = true

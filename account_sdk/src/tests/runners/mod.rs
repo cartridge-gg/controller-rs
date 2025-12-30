@@ -5,6 +5,7 @@ use serde::Deserialize;
 use self::waiter::OutputWaiter;
 
 pub mod avnu;
+pub mod avnu_paymaster;
 pub mod cartridge;
 pub mod katana;
 pub mod waiter;
