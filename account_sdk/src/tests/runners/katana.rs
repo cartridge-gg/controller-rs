@@ -52,6 +52,7 @@ pub struct KatanaRunner {
     testnet: SubprocessRunner,
     client: CartridgeJsonRpcProvider,
     pub rpc_url: Url,
+    katana_url: Url,
     rpc_client: Arc<JsonRpcClient<HttpTransport>>,
     proxy_handle: JoinHandle<()>,
 }
@@ -76,7 +77,7 @@ impl KatanaRunner {
 
         let chain_id = cairo_short_string_to_felt(&config.chain_id).expect("Should convert");
         let rpc_client = Arc::new(JsonRpcClient::new(HttpTransport::new(rpc_url.clone())));
-        let proxy = CartridgeProxy::new(rpc_url, proxy_url.clone(), chain_id);
+        let proxy = CartridgeProxy::new(rpc_url.clone(), proxy_url.clone(), chain_id);
         let proxy_handle = tokio::spawn(async move {
             proxy.run().await;
         });
@@ -86,6 +87,7 @@ impl KatanaRunner {
             testnet,
             client,
             rpc_url: proxy_url,
+            katana_url: rpc_url,
             rpc_client,
             proxy_handle,
         }
@@ -97,6 +99,15 @@ impl KatanaRunner {
 
     pub fn client(&self) -> &CartridgeJsonRpcProvider {
         &self.client
+    }
+
+    pub fn chain_id(&self) -> Felt {
+        self.chain_id
+    }
+
+    /// Get the direct RPC URL to katana (bypassing the Cartridge proxy)
+    pub fn katana_url(&self) -> &Url {
+        &self.katana_url
     }
 
     pub async fn executor(&self) -> SingleOwnerAccount<&JsonRpcClient<HttpTransport>, LocalWallet> {

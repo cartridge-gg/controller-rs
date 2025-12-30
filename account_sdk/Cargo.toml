@@ -57,6 +57,7 @@ graphql_client.workspace = true
 hyper = { version = "0.14.27", features = ["server"] }
 rand_core = { version = "0.6", features = ["getrandom"] }
 tempfile = "3.8"
+testcontainers = "0.23"
 
 [build-dependencies]
 cainome.workspace = true
