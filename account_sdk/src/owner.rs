@@ -7,9 +7,11 @@ use crate::{
     controller::Controller,
     errors::ControllerError,
     execute_from_outside::FeeSource,
-    graphql::owner::add_owner::SignerInput,
     signers::{NewOwnerSigner, Owner, Signer},
 };
+
+#[cfg(all(feature = "webauthn", target_arch = "wasm32"))]
+use crate::graphql::owner::add_owner::SignerInput;
 
 impl Controller {
     #[cfg(feature = "webauthn")]
