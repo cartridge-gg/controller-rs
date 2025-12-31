@@ -460,7 +460,7 @@ impl Controller {
             .map_err(ControllerError::CairoSerde)
     }
 
-    pub fn set_delegate_account(&self, delegate_address: Felt) -> ExecutionV3<Self> {
+    pub fn set_delegate_account(&self, delegate_address: Felt) -> ExecutionV3<'_, Self> {
         self.contract()
             .set_delegate_account(&delegate_address.into())
     }
