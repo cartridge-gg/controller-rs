@@ -218,7 +218,12 @@ impl Controller {
     }
 
     pub async fn from_storage() -> Result<Option<Self>, ControllerError> {
-        let mut storage = Storage::default();
+        Self::from_storage_with_backend(Storage::default()).await
+    }
+
+    pub async fn from_storage_with_backend(
+        mut storage: Storage,
+    ) -> Result<Option<Self>, ControllerError> {
         let metadata = match storage.controller() {
             Ok(metadata) => metadata,
             Err(StorageError::Serialization(_)) => {
@@ -239,7 +244,7 @@ impl Controller {
                     rpc_url,
                     m.owner.try_into()?,
                     m.address,
-                    None,
+                    Some(storage),
                 )
                 .await?,
             ))
@@ -460,7 +465,7 @@ impl Controller {
             .map_err(ControllerError::CairoSerde)
     }
 
-    pub fn set_delegate_account(&self, delegate_address: Felt) -> ExecutionV3<Self> {
+    pub fn set_delegate_account(&self, delegate_address: Felt) -> ExecutionV3<'_, Self> {
         self.contract()
             .set_delegate_account(&delegate_address.into())
     }

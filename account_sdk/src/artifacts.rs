@@ -22,7 +22,9 @@ pub struct ContractClass {
     pub casm_hash: Felt,
 }
 
-/// AVNU Forwarder contract for paymaster integration
+unsafe impl Sync for ContractClass {}
+
+/// Forwarder contract class with both sierra and casm content
 #[derive(Clone, Copy, Debug)]
 pub struct ForwarderClass {
     pub content: &'static str,
@@ -30,7 +32,16 @@ pub struct ForwarderClass {
     pub class_hash: Felt,
 }
 
-unsafe impl Sync for ContractClass {}
+unsafe impl Sync for ForwarderClass {}
+
+/// AVNU Forwarder contract for paymaster integration
+pub const FORWARDER: ForwarderClass = ForwarderClass {
+    content: include_str!("../artifacts/classes/forwarder/avnu_Forwarder.contract_class.json"),
+    casm_content: include_str!(
+        "../artifacts/classes/forwarder/avnu_Forwarder.compiled_contract_class.json"
+    ),
+    class_hash: felt!("0x6ef1e3f91ac361a2b84407a032e988799ddb42dda850ab22c20c0e21e4437f1"),
+};
 
 lazy_static! {
     pub static ref CONTROLLERS: HashMap<Version, ContractClass> = {
@@ -118,12 +129,4 @@ lazy_static! {
         Version::V1_0_9,
         Version::LATEST
     ];
-
-    /// AVNU Forwarder contract for paymaster integration
-    pub static ref FORWARDER: ForwarderClass = ForwarderClass {
-        content: include_str!("../artifacts/classes/forwarder/avnu_Forwarder.contract_class.json"),
-        casm_content: include_str!("../artifacts/classes/forwarder/avnu_Forwarder.compiled_contract_class.json"),
-        // Class hash from paymaster-starknet constants
-        class_hash: felt!("0x06ef1e3f91ac361a2b84407a032e988799ddb42dda850ab22c20c0e21e4437f1"),
-    };
 }

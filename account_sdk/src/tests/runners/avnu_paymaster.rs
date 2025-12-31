@@ -223,16 +223,6 @@ impl AvnuPaymasterRunner {
         self.katana.client()
     }
 
-    /// Get the direct Katana URL (bypasses Cartridge proxy)
-    pub fn katana_url(&self) -> &Url {
-        self.katana.katana_url()
-    }
-
-    /// Get the RPC URL that goes through the Cartridge proxy
-    pub fn rpc_url(&self) -> &Url {
-        &self.katana.rpc_url
-    }
-
     /// Get an executor account (pre-funded account from Katana)
     pub async fn executor(&self) -> SingleOwnerAccount<&JsonRpcClient<HttpTransport>, LocalWallet> {
         single_owner_account(
@@ -241,16 +231,6 @@ impl AvnuPaymasterRunner {
             PREFUNDED.1,
             self.chain_id(),
         )
-    }
-
-    /// Fund an address with ETH from the prefunded account
-    pub async fn fund(&self, address: &Felt) {
-        self.katana.fund(address).await;
-    }
-
-    /// Declare the controller contract
-    pub async fn declare_controller(&self, version: Version) {
-        self.katana.declare_controller(version).await;
     }
 
     /// Deploy a controller and return it

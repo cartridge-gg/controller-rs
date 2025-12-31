@@ -213,11 +213,14 @@ async fn test_controller_nonce_mismatch_recovery() {
 async fn test_controller_storage() {
     use crate::controller::Controller;
     use crate::signers::Signer;
+    use crate::storage::filestorage::FileSystemBackend;
     use crate::tests::ensure_txn;
 
     // Setup temporary directory for file storage
     let temp_dir = tempfile::tempdir().unwrap();
     let storage_path = temp_dir.path().to_path_buf();
+    // Note: We must set the env var because deploy_controller -> Controller::new
+    // uses Storage::default() which reads from this env var
     std::env::set_var("CARTRIDGE_STORAGE_PATH", storage_path.to_str().unwrap());
 
     // Create a new controller
@@ -238,8 +241,13 @@ async fn test_controller_storage() {
     let storage_file = storage_path.join("@cartridge/active");
     assert!(storage_file.exists(), "Storage file was not created");
 
-    // Initialize a new controller from storage
-    let loaded_controller = Controller::from_storage().await.unwrap().unwrap();
+    // Initialize a new controller from storage using explicit storage path
+    // to avoid race conditions with other tests that modify CARTRIDGE_STORAGE_PATH
+    let storage = FileSystemBackend::new(storage_path.clone());
+    let loaded_controller = Controller::from_storage_with_backend(storage)
+        .await
+        .unwrap()
+        .unwrap();
 
     // Verify that the loaded controller matches the original
     assert_eq!(loaded_controller.username, controller.username);

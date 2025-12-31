@@ -66,7 +66,7 @@ macro_rules! impl_account {
                 self.sign_hash_and_calls(tx_hash, &calls).await
             }
 
-            fn execute_v3(&self, calls: Vec<starknet::core::types::Call>) -> starknet::accounts::ExecutionV3<Self> {
+            fn execute_v3(&self, calls: Vec<starknet::core::types::Call>) -> starknet::accounts::ExecutionV3<'_, Self> {
                 starknet::accounts::ExecutionV3::new(calls, self)
             }
 
@@ -74,7 +74,7 @@ macro_rules! impl_account {
                 &self,
                 contract_class: std::sync::Arc<starknet::core::types::FlattenedSierraClass>,
                 compiled_class_hash: starknet::core::types::Felt,
-            ) -> starknet::accounts::DeclarationV3<Self> {
+            ) -> starknet::accounts::DeclarationV3<'_, Self> {
                 starknet::accounts::DeclarationV3::new(contract_class, compiled_class_hash, self)
             }
         }
