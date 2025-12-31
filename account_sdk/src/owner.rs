@@ -1,3 +1,4 @@
+#[cfg(all(feature = "webauthn", target_arch = "wasm32"))]
 use serde::{Deserialize, Serialize};
 use starknet::core::{types::InvokeTransactionResult, utils::parse_cairo_short_string};
 use starknet_crypto::Felt;
@@ -6,9 +7,11 @@ use crate::{
     controller::Controller,
     errors::ControllerError,
     execute_from_outside::FeeSource,
-    graphql::owner::add_owner::SignerInput,
     signers::{NewOwnerSigner, Owner, Signer},
 };
+
+#[cfg(feature = "webauthn")]
+use crate::graphql::owner::add_owner::SignerInput;
 
 impl Controller {
     #[cfg(feature = "webauthn")]
@@ -291,6 +294,7 @@ impl Controller {
     }
 }
 
+#[cfg(all(feature = "webauthn", target_arch = "wasm32"))]
 #[derive(Serialize, Deserialize, Debug, Clone)]
 struct WasmMessageEvent {
     target: String,

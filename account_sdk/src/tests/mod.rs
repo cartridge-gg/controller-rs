@@ -12,6 +12,7 @@ use crate::transaction_waiter::{TransactionWaiter, TransactionWaitingError};
 pub(crate) mod account;
 pub(crate) mod runners;
 
+#[cfg(feature = "avnu-paymaster")]
 mod avnu_paymaster_test;
 mod declare_test;
 mod delegate_account_test;

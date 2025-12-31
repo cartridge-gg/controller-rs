@@ -53,11 +53,21 @@ dirs = { version = "5", optional = true }
 # GraphQL client deps
 graphql_client.workspace = true
 
+# AVNU paymaster integration dependencies (optional, requires nightly Rust due to upstream issues)
+# To enable: cargo test --features avnu-paymaster
+paymaster-rpc = { git = "https://github.com/cartridge-gg/paymaster", branch = "copenhagen-4cb4", optional = true }
+paymaster-starknet = { git = "https://github.com/cartridge-gg/paymaster", branch = "copenhagen-4cb4", features = ["testing"], optional = true }
+paymaster-prices = { git = "https://github.com/cartridge-gg/paymaster", branch = "copenhagen-4cb4", features = ["testing"], optional = true }
+paymaster-relayer = { git = "https://github.com/cartridge-gg/paymaster", branch = "copenhagen-4cb4", features = ["testing"], optional = true }
+paymaster-sponsoring = { git = "https://github.com/cartridge-gg/paymaster", branch = "copenhagen-4cb4", features = ["testing"], optional = true }
+jsonrpsee = { version = "0.24", features = ["server", "client"], optional = true }
+
 [dev-dependencies]
 hyper = { version = "0.14.27", features = ["server"] }
 rand_core = { version = "0.6", features = ["getrandom"] }
 tempfile = "3.8"
 testcontainers = "0.23"
+tokio = { version = "1", features = ["full"] }
 
 [build-dependencies]
 cainome.workspace = true
@@ -122,6 +132,14 @@ webauthn = [
     "web-sys/PublicKeyCredentialCreationOptions",
 ]
 filestorage = ["dirs"]
+avnu-paymaster = [
+    "paymaster-rpc",
+    "paymaster-starknet",
+    "paymaster-prices",
+    "paymaster-relayer",
+    "paymaster-sponsoring",
+    "jsonrpsee",
+]
 
 [[bin]]
 name = "bench"

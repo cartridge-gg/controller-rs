@@ -105,7 +105,9 @@ run_rust_lint() {
             else
                 echo "$RUST_FILES" | xargs rustfmt --edition 2021
             fi
-            cargo clippy --all-targets --all-features -- -D warnings
+            # Note: Only check account_sdk since account-wasm has WASM-specific code
+            # Note: avnu-paymaster feature excluded due to upstream dependency issues
+            cargo clippy -p account_sdk --all-targets --features webauthn,filestorage -- -D warnings
         fi
     else
         # Lint all Rust files
@@ -114,7 +116,9 @@ run_rust_lint() {
         else
             cargo fmt --all
         fi
-        cargo clippy --all-targets --all-features -- -D warnings
+        # Note: Only check account_sdk since account-wasm has WASM-specific code
+        # Note: avnu-paymaster feature excluded due to upstream dependency issues
+        cargo clippy -p account_sdk --all-targets --features webauthn,filestorage -- -D warnings
     fi
 }
 
