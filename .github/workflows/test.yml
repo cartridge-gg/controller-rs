@@ -53,8 +53,9 @@ jobs:
       - uses: taiki-e/install-action@cargo-llvm-cov
         if: needs.check-changes.outputs.rust == 'true'
       - run: |
+          # Note: avnu-paymaster feature excluded due to upstream dependency issues
           # Note: Only test account_sdk since account-wasm has WASM-specific dead code
-          cargo llvm-cov -p account_sdk --features webauthn,filestorage,avnu-paymaster --lcov --output-path lcov.info
+          cargo llvm-cov -p account_sdk --features webauthn,filestorage --lcov --output-path lcov.info
         if: needs.check-changes.outputs.rust == 'true'
       - uses: codecov/codecov-action@v3
         if: needs.check-changes.outputs.rust == 'true'
