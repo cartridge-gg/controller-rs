@@ -469,8 +469,7 @@ fn generate_forwarder_artifact() -> String {
 pub const FORWARDER: ForwarderClass = ForwarderClass {{
     content: include_str!("../artifacts/classes/forwarder/avnu_Forwarder.contract_class.json"),
     casm_content: include_str!("../artifacts/classes/forwarder/avnu_Forwarder.compiled_contract_class.json"),
-    class_hash: felt!("{:#x}"),
-}};"#,
-        class_hash
+    class_hash: felt!("{class_hash:#x}"),
+}};"#
     )
 }
