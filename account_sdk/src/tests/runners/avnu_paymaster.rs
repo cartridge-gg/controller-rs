@@ -224,11 +224,13 @@ impl AvnuPaymasterRunner {
     }
 
     /// Get the direct Katana URL (bypasses Cartridge proxy)
+    #[allow(dead_code)]
     pub fn katana_url(&self) -> &Url {
         self.katana.katana_url()
     }
 
     /// Get the RPC URL that goes through the Cartridge proxy
+    #[allow(dead_code)]
     pub fn rpc_url(&self) -> &Url {
         &self.katana.rpc_url
     }
@@ -244,11 +246,13 @@ impl AvnuPaymasterRunner {
     }
 
     /// Fund an address with ETH from the prefunded account
+    #[allow(dead_code)]
     pub async fn fund(&self, address: &Felt) {
         self.katana.fund(address).await;
     }
 
     /// Declare the controller contract
+    #[allow(dead_code)]
     pub async fn declare_controller(&self, version: Version) {
         self.katana.declare_controller(version).await;
     }

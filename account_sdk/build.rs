@@ -142,6 +142,9 @@ fn generate_artifacts() {
         }
     }
 
+    // Generate forwarder artifact if available
+    let forwarder_code = generate_forwarder_artifact();
+
     // Sort to ensure output is deterministic
     versions.sort_by(|a, b| {
         if a == "latest" {
@@ -185,6 +188,18 @@ pub struct ContractClass {{
 
 unsafe impl Sync for ContractClass {{}}
 
+/// Forwarder contract class with both sierra and casm content
+#[derive(Clone, Copy, Debug)]
+pub struct ForwarderClass {{
+    pub content: &'static str,
+    pub casm_content: &'static str,
+    pub class_hash: Felt,
+}}
+
+unsafe impl Sync for ForwarderClass {{}}
+
+{forwarder_code}
+
 lazy_static! {{
     pub static ref CONTROLLERS: HashMap<Version, ContractClass> = {{
         let mut m = HashMap::new();
@@ -199,6 +214,7 @@ lazy_static! {{
     ];
 }}
 "#,
+        forwarder_code = forwarder_code,
         enum_variants = versions
             .iter()
             .map(|v| v.replace('.', "_").to_uppercase().to_string())
@@ -413,4 +429,28 @@ fn generate_erc20_bindings() {
         .expect("Fail to generate bindings for ERC20")
         .write_to_file("./src/abigen/erc_20.rs")
         .unwrap();
+}
+
+fn generate_forwarder_artifact() -> String {
+    let forwarder_sierra_path =
+        PathBuf::from("./artifacts/classes/forwarder/avnu_Forwarder.contract_class.json");
+    let forwarder_casm_path =
+        PathBuf::from("./artifacts/classes/forwarder/avnu_Forwarder.compiled_contract_class.json");
+
+    if !forwarder_sierra_path.exists() || !forwarder_casm_path.exists() {
+        // Forwarder artifacts not available, return empty code
+        return String::new();
+    }
+
+    let class_hash = extract_class_hash(&forwarder_sierra_path);
+
+    format!(
+        r#"/// AVNU Forwarder contract for paymaster integration
+pub const FORWARDER: ForwarderClass = ForwarderClass {{
+    content: include_str!("../artifacts/classes/forwarder/avnu_Forwarder.contract_class.json"),
+    casm_content: include_str!("../artifacts/classes/forwarder/avnu_Forwarder.compiled_contract_class.json"),
+    class_hash: felt!("{:#x}"),
+}};"#,
+        class_hash
+    )
 }
