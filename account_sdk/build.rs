@@ -13,6 +13,15 @@ fn main() {
             println!("cargo:rerun-if-changed={}", path.display());
         }
     }
+    // Track forwarder artifacts in subdirectory
+    if let Ok(entries) = fs::read_dir("./artifacts/classes/forwarder") {
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if path.is_file() && path.extension().unwrap_or_default() == "json" {
+                println!("cargo:rerun-if-changed={}", path.display());
+            }
+        }
+    }
     println!("cargo:rerun-if-changed=./artifacts/metadata.json");
 
     let controller_path = PathBuf::from("src/abigen/controller.rs");
@@ -27,6 +36,17 @@ fn main() {
             .map(|entry| entry.path())
             .filter(|path| path.is_file() && path.extension().unwrap_or_default() == "json")
             .collect();
+
+        // Include forwarder artifacts in hash calculation
+        if let Ok(entries) = fs::read_dir("./artifacts/classes/forwarder") {
+            for entry in entries.flatten() {
+                let path = entry.path();
+                if path.is_file() && path.extension().unwrap_or_default() == "json" {
+                    paths.push(path);
+                }
+            }
+        }
+
         paths.sort(); // Ensure deterministic order
 
         for path in paths {

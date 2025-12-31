@@ -73,7 +73,11 @@ async fn test_sponsored_owner_execute() {
 
     let signer = Signer::new_starknet_random();
     let controller = runner
-        .deploy_controller("username".to_owned(), Owner::Signer(signer), Version::LATEST)
+        .deploy_controller(
+            "username".to_owned(),
+            Owner::Signer(signer),
+            Version::LATEST,
+        )
         .await;
 
     let recipient = ContractAddress(felt!("0x18301129"));
@@ -152,7 +156,11 @@ async fn test_sponsored_session_execute() {
 
     let signer = Signer::new_starknet_random();
     let mut controller = runner
-        .deploy_controller("username".to_owned(), Owner::Signer(signer), Version::LATEST)
+        .deploy_controller(
+            "username".to_owned(),
+            Owner::Signer(signer),
+            Version::LATEST,
+        )
         .await;
 
     let recipient = ContractAddress(felt!("0x18301130"));
