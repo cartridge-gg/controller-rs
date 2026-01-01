@@ -214,22 +214,25 @@ async fn test_controller_storage() {
     use crate::controller::Controller;
     use crate::signers::Signer;
     use crate::storage::filestorage::FileSystemBackend;
+    use crate::storage::Storage;
     use crate::tests::ensure_txn;
 
     // Setup temporary directory for file storage
     let temp_dir = tempfile::tempdir().unwrap();
     let storage_path = temp_dir.path().to_path_buf();
-    // Note: We must set the env var because deploy_controller -> Controller::new
-    // uses Storage::default() which reads from this env var
-    std::env::set_var("CARTRIDGE_STORAGE_PATH", storage_path.to_str().unwrap());
+
+    // Create explicit storage backend to avoid race conditions with other tests
+    // that modify CARTRIDGE_STORAGE_PATH environment variable
+    let storage: Storage = FileSystemBackend::new(storage_path.clone());
 
     // Create a new controller
     let _app_id = "app_id".to_string();
     let username = "test_user".to_string();
     let owner = Signer::new_starknet_random();
 
+    // Deploy the controller contract first
     let runner = KatanaRunner::load();
-    let controller = runner
+    let deployed = runner
         .deploy_controller(
             username.clone(),
             Owner::Signer(owner.clone()),
@@ -237,13 +240,25 @@ async fn test_controller_storage() {
         )
         .await;
 
+    // Create a new controller instance with explicit storage
+    // This ensures storage writes go to our temp directory, not wherever
+    // CARTRIDGE_STORAGE_PATH might be pointing due to other parallel tests
+    let controller = Controller::new(
+        username.clone(),
+        deployed.class_hash,
+        deployed.rpc_url.clone(),
+        Owner::Signer(owner.clone()),
+        deployed.address,
+        Some(storage.clone()),
+    )
+    .await
+    .unwrap();
+
     // Verify that the controller was stored
     let storage_file = storage_path.join("@cartridge/active");
     assert!(storage_file.exists(), "Storage file was not created");
 
     // Initialize a new controller from storage using explicit storage path
-    // to avoid race conditions with other tests that modify CARTRIDGE_STORAGE_PATH
-    let storage = FileSystemBackend::new(storage_path.clone());
     let loaded_controller = Controller::from_storage_with_backend(storage)
         .await
         .unwrap()

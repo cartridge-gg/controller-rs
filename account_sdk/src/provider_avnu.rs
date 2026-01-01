@@ -1,6 +1,5 @@
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
 use serde_with::serde_as;
 use starknet::core::serde::unsigned_field_element::UfeHex;
 use starknet::core::types::{Call, Felt};
@@ -73,9 +72,7 @@ impl AvnuPaymasterProvider {
 
         let response = req.json(&rpc_request).send().await?;
 
-        let json_response: Value = response.json().await?;
-        let json_rpc_response: JsonRpcResponse<ExecuteRawResponse> =
-            serde_json::from_value(json_response)?;
+        let json_rpc_response: JsonRpcResponse<ExecuteRawResponse> = response.json().await?;
 
         match json_rpc_response {
             JsonRpcResponse::Success { result, .. } => Ok(result),
