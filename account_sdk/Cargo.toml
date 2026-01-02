@@ -62,12 +62,17 @@ paymaster-relayer = { git = "https://github.com/cartridge-gg/paymaster", branch 
 paymaster-sponsoring = { git = "https://github.com/cartridge-gg/paymaster", branch = "copenhagen-4cb4", features = ["testing"], optional = true }
 jsonrpsee = { version = "0.24", features = ["server", "client"], optional = true }
 
+# Test infrastructure dependencies (used by tests and avnu-paymaster benchmarks)
+hyper = { version = "0.14.27", features = ["server"], optional = true }
+
 # VRF proof generation - pinned to match vrf/Scarb.lock and vrf/server/Cargo.lock
 stark-vrf = { git = "https://github.com/dojoengine/stark-vrf", rev = "96d6d2a88b1ef46c4a285d0ccc334237205edae3", optional = true }
 starknet-ff = { version = "0.3", optional = true }
 
 [dev-dependencies]
+criterion = { version = "0.5", features = ["async_tokio"] }
 hyper = { version = "0.14.27", features = ["server"] }
+rand = "0.8"
 rand_core = { version = "0.6", features = ["getrandom"] }
 tempfile = "3.8"
 testcontainers = "0.23"
@@ -143,6 +148,7 @@ avnu-paymaster = [
     "paymaster-relayer",
     "paymaster-sponsoring",
     "jsonrpsee",
+    "hyper",
 ]
 vrf = [
     "stark-vrf",
@@ -154,6 +160,11 @@ vrf = [
 name = "bench"
 path = "cmd/bench.rs"
 required-features = ["bench"]
+
+[[bench]]
+name = "paymaster_gas"
+harness = false
+required-features = ["avnu-paymaster"]
 
 
 [package.metadata.wasm-pack.profile.release]

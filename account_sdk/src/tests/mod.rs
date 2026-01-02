@@ -9,8 +9,8 @@ use thiserror::Error;
 
 use crate::transaction_waiter::{TransactionWaiter, TransactionWaitingError};
 
-pub(crate) mod account;
-pub(crate) mod runners;
+pub mod account;
+pub mod runners;
 #[cfg(feature = "vrf")]
 pub(crate) mod vrf_types;
 
