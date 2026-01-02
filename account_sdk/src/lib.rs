@@ -23,7 +23,7 @@ pub mod typed_data;
 pub mod upgrade;
 
 #[cfg(not(target_arch = "wasm32"))]
-#[cfg(test)]
+#[cfg(any(test, feature = "avnu-paymaster"))]
 pub mod tests;
 
 /// Recursively searches through a ContractExecutionError to find a message that contains the specified string.

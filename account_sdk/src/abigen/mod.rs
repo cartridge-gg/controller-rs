@@ -7,5 +7,5 @@ pub mod controller;
 #[allow(non_snake_case)]
 #[allow(clippy)]
 #[rustfmt::skip]
-#[cfg(test)]
+#[cfg(any(test, feature = "avnu-paymaster"))]
 pub mod erc_20;
