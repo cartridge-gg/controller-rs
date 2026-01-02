@@ -26,6 +26,8 @@ fn main() {
 
     let controller_path = PathBuf::from("src/abigen/controller.rs");
     let erc20_path = PathBuf::from("src/abigen/erc_20.rs");
+    let vrf_account_path = PathBuf::from("src/abigen/vrf_account.rs");
+    let vrf_consumer_path = PathBuf::from("src/abigen/vrf_consumer.rs");
     let artifacts_path = PathBuf::from("src/artifacts.rs");
 
     let artifacts_hash = {
@@ -81,6 +83,8 @@ fn main() {
 
     let need_controller = !controller_path.exists() || artifacts_changed;
     let need_erc20 = !erc20_path.exists() || artifacts_changed;
+    let need_vrf_account = !vrf_account_path.exists() || artifacts_changed;
+    let need_vrf_consumer = !vrf_consumer_path.exists() || artifacts_changed;
     let need_artifacts = !artifacts_path.exists() || artifacts_changed;
 
     if artifacts_changed && stored_hash.is_some() {
@@ -99,6 +103,18 @@ fn main() {
         println!("ERC20 bindings generated in {:?}", now.elapsed());
     }
 
+    if need_vrf_account {
+        let now = Instant::now();
+        generate_vrf_account_bindings();
+        println!("VRF account bindings generated in {:?}", now.elapsed());
+    }
+
+    if need_vrf_consumer {
+        let now = Instant::now();
+        generate_vrf_consumer_bindings();
+        println!("VRF consumer bindings generated in {:?}", now.elapsed());
+    }
+
     if need_artifacts {
         let now = Instant::now();
         generate_artifacts();
@@ -106,7 +122,7 @@ fn main() {
     }
 
     // Only format if we generated something
-    if need_controller || need_erc20 || need_artifacts {
+    if need_controller || need_erc20 || need_vrf_account || need_vrf_consumer || need_artifacts {
         println!("Formatting generated files...");
         Command::new("cargo")
             .args([
@@ -114,6 +130,8 @@ fn main() {
                 "--",
                 "src/abigen/controller.rs",
                 "src/abigen/erc_20.rs",
+                "src/abigen/vrf_account.rs",
+                "src/abigen/vrf_consumer.rs",
                 "src/artifacts.rs",
             ])
             .status()
@@ -448,6 +466,84 @@ fn generate_erc20_bindings() {
         .generate()
         .expect("Fail to generate bindings for ERC20")
         .write_to_file("./src/abigen/erc_20.rs")
+        .unwrap();
+}
+
+fn generate_vrf_account_bindings() {
+    let vrf_account_path =
+        PathBuf::from("./artifacts/classes/vrf/cartridge_vrf_VrfAccount.contract_class.json");
+    if !vrf_account_path.exists() {
+        println!("VRF account artifact not found, skipping VRF bindings generation");
+        return;
+    }
+
+    let abigen = Abigen::new("VrfAccount", vrf_account_path.to_str().unwrap())
+        .with_execution_version(ExecutionVersion::V3)
+        .with_types_aliases(HashMap::from([
+            (
+                String::from(
+                    "cartridge_vrf::vrf_account::vrf_account_component::VrfAccountComponent::Event",
+                ),
+                String::from("VrfAccountComponentEvent"),
+            ),
+            (
+                String::from("openzeppelin_introspection::src5::SRC5Component::Event"),
+                String::from("SRC5ComponentEvent"),
+            ),
+            (
+                String::from("openzeppelin_account::extensions::src9::SRC9Component::Event"),
+                String::from("SRC9ComponentEvent"),
+            ),
+            (
+                String::from("openzeppelin_upgrades::upgradeable::UpgradeableComponent::Event"),
+                String::from("UpgradeableComponentEvent"),
+            ),
+        ]))
+        .with_derives(vec![
+            String::from("Clone"),
+            String::from("serde::Serialize"),
+            String::from("serde::Deserialize"),
+            String::from("PartialEq"),
+            String::from("Debug"),
+        ])
+        .with_contract_derives(vec![String::from("Clone"), String::from("Debug")]);
+
+    abigen
+        .generate()
+        .expect("Fail to generate bindings for VrfAccount")
+        .write_to_file("./src/abigen/vrf_account.rs")
+        .unwrap();
+}
+
+fn generate_vrf_consumer_bindings() {
+    let vrf_consumer_path =
+        PathBuf::from("./artifacts/classes/vrf/cartridge_vrf_VrfConsumer.contract_class.json");
+    if !vrf_consumer_path.exists() {
+        println!("VRF consumer artifact not found, skipping VRF consumer bindings generation");
+        return;
+    }
+
+    let abigen = Abigen::new("VrfConsumer", vrf_consumer_path.to_str().unwrap())
+        .with_execution_version(ExecutionVersion::V3)
+        .with_types_aliases(HashMap::from([(
+            String::from(
+                "cartridge_vrf::vrf_consumer::vrf_consumer_component::VrfConsumerComponent::Event",
+            ),
+            String::from("VrfConsumerComponentEvent"),
+        )]))
+        .with_derives(vec![
+            String::from("Clone"),
+            String::from("serde::Serialize"),
+            String::from("serde::Deserialize"),
+            String::from("PartialEq"),
+            String::from("Debug"),
+        ])
+        .with_contract_derives(vec![String::from("Clone"), String::from("Debug")]);
+
+    abigen
+        .generate()
+        .expect("Fail to generate bindings for VrfConsumer")
+        .write_to_file("./src/abigen/vrf_consumer.rs")
         .unwrap();
 }
 

@@ -1,0 +1,4 @@
+[submodule "vrf"]
+	path = vrf
+	url = https://github.com/cartridge-gg/vrf.git
+	branch = vrf_account

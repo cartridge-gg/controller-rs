@@ -233,6 +233,12 @@ impl AvnuPaymasterRunner {
         )
     }
 
+    /// Get the direct RPC URL to Katana (bypassing the Cartridge proxy)
+    #[cfg(feature = "vrf")]
+    pub fn katana_url(&self) -> Url {
+        self.katana.katana_url().clone()
+    }
+
     /// Deploy a controller and return it
     pub async fn deploy_controller(
         &self,
