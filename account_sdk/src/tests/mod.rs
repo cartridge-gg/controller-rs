@@ -11,9 +11,13 @@ use crate::transaction_waiter::{TransactionWaiter, TransactionWaitingError};
 
 pub mod account;
 pub mod runners;
+#[cfg(feature = "vrf")]
+pub(crate) mod vrf_types;
 
 #[cfg(feature = "avnu-paymaster")]
 mod avnu_paymaster_test;
+#[cfg(feature = "vrf")]
+mod vrf_test;
 mod declare_test;
 mod delegate_account_test;
 mod external_owners_test;

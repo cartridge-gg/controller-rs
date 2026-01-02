@@ -8,6 +8,8 @@ use self::waiter::OutputWaiter;
 pub mod avnu_paymaster;
 pub mod cartridge;
 pub mod katana;
+#[cfg(feature = "vrf")]
+pub mod vrf;
 pub mod waiter;
 
 #[derive(Debug)]
