@@ -10,6 +10,7 @@ use std::time::Duration;
 use cainome::cairo_serde::{CairoSerde, ContractAddress, U256};
 use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion};
 use starknet::{
+    accounts::ConnectedAccount,
     core::types::{Felt, TransactionReceipt, TransactionReceiptWithBlockInfo},
     macros::{felt, selector},
     signers::SigningKey,
@@ -23,6 +24,7 @@ use account_sdk::{
         session::policy::Policy,
     },
     artifacts::Version,
+    provider::CartridgeProvider,
     provider_avnu::{
         AvnuPaymasterProvider, ExecuteRawRequest, ExecuteRawTransactionParams, ExecutionParameters,
         FeeMode, RawInvokeParams,
@@ -275,7 +277,7 @@ async fn execute_cartridge_session(runner: &KatanaRunner) -> GasMetrics {
     };
 
     // Create a session with transfer policy
-    controller
+    let session_account = controller
         .create_session(
             vec![Policy::new_call(*FEE_TOKEN_ADDRESS, selector!("transfer"))],
             u64::MAX,
@@ -283,18 +285,37 @@ async fn execute_cartridge_session(runner: &KatanaRunner) -> GasMetrics {
         .await
         .unwrap();
 
-    let calls = vec![starknet::core::types::Call {
-        to: *FEE_TOKEN_ADDRESS,
-        selector: selector!("transfer"),
-        calldata: [
-            <ContractAddress as CairoSerde>::cairo_serialize(&recipient),
-            <U256 as CairoSerde>::cairo_serialize(&transfer_amount),
-        ]
-        .concat(),
-    }];
+    let outside_execution = OutsideExecutionV3 {
+        caller: OutsideExecutionCaller::Any.into(),
+        execute_after: u64::MIN,
+        execute_before: u64::MAX,
+        calls: vec![account_sdk::abigen::controller::Call {
+            to: (*FEE_TOKEN_ADDRESS).into(),
+            selector: selector!("transfer"),
+            calldata: [
+                <ContractAddress as CairoSerde>::cairo_serialize(&recipient),
+                <U256 as CairoSerde>::cairo_serialize(&transfer_amount),
+            ]
+            .concat(),
+        }],
+        nonce: (SigningKey::from_random().secret_scalar(), 1),
+    };
 
+    // Sign with session account (not owner) to properly benchmark session signing
+    let signed = session_account
+        .sign_outside_execution(OutsideExecution::V3(outside_execution.clone()))
+        .await
+        .unwrap();
+
+    // Submit via Cartridge paymaster provider
     let tx = controller
-        .execute_from_outside_v3(calls, None)
+        .provider()
+        .add_execute_outside_transaction(
+            OutsideExecution::V3(outside_execution),
+            controller.address,
+            signed.signature,
+            None,
+        )
         .await
         .unwrap();
 
