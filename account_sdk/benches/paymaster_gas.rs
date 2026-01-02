@@ -66,7 +66,10 @@ fn extract_gas_metrics(receipt: &TransactionReceiptWithBlockInfo, tx_hash: Felt)
         TransactionReceipt::DeployAccount(r) => felt_to_u128(r.actual_fee.amount),
     };
 
-    GasMetrics { actual_fee, tx_hash }
+    GasMetrics {
+        actual_fee,
+        tx_hash,
+    }
 }
 
 /// Convert Felt to u128 for easier comparison
@@ -95,6 +98,30 @@ fn build_sponsored_request(
         },
         parameters: ExecutionParameters::V1 {
             fee_mode: FeeMode::Sponsored,
+            time_bounds: None,
+        },
+    }
+}
+
+/// Helper to build an ExecuteRawRequest with self-funded (default) fee mode for Avnu
+fn build_self_funded_request(
+    signed: account_sdk::account::outside_execution::SignedOutsideExecution,
+    gas_token: Felt,
+    max_gas_token_amount: Felt,
+) -> ExecuteRawRequest {
+    let execute_from_outside_call: starknet::core::types::Call = signed.clone().into();
+
+    ExecuteRawRequest {
+        transaction: ExecuteRawTransactionParams::RawInvoke {
+            invoke: RawInvokeParams {
+                user_address: signed.contract_address,
+                execute_from_outside_call,
+                gas_token: Some(gas_token),
+                max_gas_token_amount: Some(max_gas_token_amount),
+            },
+        },
+        parameters: ExecutionParameters::V1 {
+            fee_mode: FeeMode::Default { gas_token },
             time_bounds: None,
         },
     }
@@ -139,6 +166,169 @@ async fn execute_avnu_owner(runner: &AvnuPaymasterRunner) -> GasMetrics {
         .unwrap();
 
     let request = build_sponsored_request(signed);
+
+    let avnu_provider =
+        AvnuPaymasterProvider::with_api_key(runner.paymaster_url.clone(), "paymaster_test".into());
+    let result = avnu_provider
+        .execute_raw_transaction(request)
+        .await
+        .unwrap();
+
+    let receipt = TransactionWaiter::new(result.transaction_hash, runner.client())
+        .wait()
+        .await
+        .unwrap();
+
+    extract_gas_metrics(&receipt, result.transaction_hash)
+}
+
+/// Execute a transfer via Avnu paymaster with owner signer (self-funded)
+async fn execute_avnu_self_owner(runner: &AvnuPaymasterRunner) -> GasMetrics {
+    let signer = Signer::new_starknet_random();
+    let controller = runner
+        .deploy_controller(
+            format!("avnu_self_owner_{}", rand::random::<u32>()),
+            Owner::Signer(signer),
+            Version::LATEST,
+        )
+        .await;
+
+    let recipient = ContractAddress(felt!("0x1234567892"));
+    let transfer_amount = U256 {
+        low: 0x10_u128,
+        high: 0,
+    };
+
+    // For self-funded mode, include gas fee transfer to forwarder
+    let gas_fee_amount = U256 {
+        low: 1_000_000_000_000_000_000_u128, // 1 STRK (1e18)
+        high: 0,
+    };
+
+    let outside_execution = OutsideExecutionV3 {
+        caller: OutsideExecutionCaller::Any.into(),
+        execute_after: u64::MIN,
+        execute_before: u64::MAX,
+        calls: vec![
+            // First: Transfer gas fees to forwarder
+            account_sdk::abigen::controller::Call {
+                to: (*FEE_TOKEN_ADDRESS).into(),
+                selector: selector!("transfer"),
+                calldata: [
+                    <ContractAddress as CairoSerde>::cairo_serialize(&ContractAddress(
+                        runner.forwarder_address,
+                    )),
+                    <U256 as CairoSerde>::cairo_serialize(&gas_fee_amount),
+                ]
+                .concat(),
+            },
+            // Second: The actual user transfer
+            account_sdk::abigen::controller::Call {
+                to: (*FEE_TOKEN_ADDRESS).into(),
+                selector: selector!("transfer"),
+                calldata: [
+                    <ContractAddress as CairoSerde>::cairo_serialize(&recipient),
+                    <U256 as CairoSerde>::cairo_serialize(&transfer_amount),
+                ]
+                .concat(),
+            },
+        ],
+        nonce: (SigningKey::from_random().secret_scalar(), 1),
+    };
+
+    let signed = controller
+        .sign_outside_execution(OutsideExecution::V3(outside_execution))
+        .await
+        .unwrap();
+
+    let max_gas_token_amount = Felt::from(1_000_000_000_000_000_000_u128); // 1e18
+    let request = build_self_funded_request(signed, *FEE_TOKEN_ADDRESS, max_gas_token_amount);
+
+    let avnu_provider =
+        AvnuPaymasterProvider::with_api_key(runner.paymaster_url.clone(), "paymaster_test".into());
+    let result = avnu_provider
+        .execute_raw_transaction(request)
+        .await
+        .unwrap();
+
+    let receipt = TransactionWaiter::new(result.transaction_hash, runner.client())
+        .wait()
+        .await
+        .unwrap();
+
+    extract_gas_metrics(&receipt, result.transaction_hash)
+}
+
+/// Execute a transfer via Avnu paymaster with session signer (self-funded)
+async fn execute_avnu_self_session(runner: &AvnuPaymasterRunner) -> GasMetrics {
+    let signer = Signer::new_starknet_random();
+    let mut controller = runner
+        .deploy_controller(
+            format!("avnu_self_session_{}", rand::random::<u32>()),
+            Owner::Signer(signer),
+            Version::LATEST,
+        )
+        .await;
+
+    let recipient = ContractAddress(felt!("0x1234567893"));
+    let transfer_amount = U256 {
+        low: 0x5_u128,
+        high: 0,
+    };
+
+    // For self-funded mode, include gas fee transfer to forwarder
+    let gas_fee_amount = U256 {
+        low: 1_000_000_000_000_000_000_u128, // 1 STRK (1e18)
+        high: 0,
+    };
+
+    // Create a session with transfer policy
+    let session_account = controller
+        .create_session(
+            vec![Policy::new_call(*FEE_TOKEN_ADDRESS, selector!("transfer"))],
+            u64::MAX,
+        )
+        .await
+        .unwrap();
+
+    let outside_execution = OutsideExecutionV3 {
+        caller: OutsideExecutionCaller::Any.into(),
+        execute_after: u64::MIN,
+        execute_before: u64::MAX,
+        calls: vec![
+            // First: Transfer gas fees to forwarder
+            account_sdk::abigen::controller::Call {
+                to: (*FEE_TOKEN_ADDRESS).into(),
+                selector: selector!("transfer"),
+                calldata: [
+                    <ContractAddress as CairoSerde>::cairo_serialize(&ContractAddress(
+                        runner.forwarder_address,
+                    )),
+                    <U256 as CairoSerde>::cairo_serialize(&gas_fee_amount),
+                ]
+                .concat(),
+            },
+            // Second: The actual user transfer
+            account_sdk::abigen::controller::Call {
+                to: (*FEE_TOKEN_ADDRESS).into(),
+                selector: selector!("transfer"),
+                calldata: [
+                    <ContractAddress as CairoSerde>::cairo_serialize(&recipient),
+                    <U256 as CairoSerde>::cairo_serialize(&transfer_amount),
+                ]
+                .concat(),
+            },
+        ],
+        nonce: (SigningKey::from_random().secret_scalar(), 1),
+    };
+
+    let signed = session_account
+        .sign_outside_execution(OutsideExecution::V3(outside_execution))
+        .await
+        .unwrap();
+
+    let max_gas_token_amount = Felt::from(1_000_000_000_000_000_000_u128); // 1e18
+    let request = build_self_funded_request(signed, *FEE_TOKEN_ADDRESS, max_gas_token_amount);
 
     let avnu_provider =
         AvnuPaymasterProvider::with_api_key(runner.paymaster_url.clone(), "paymaster_test".into());
@@ -353,20 +543,38 @@ fn paymaster_gas_benchmark(c: &mut Criterion) {
     group.sample_size(10);
     group.measurement_time(Duration::from_secs(60));
 
-    // Benchmark Avnu paymaster with owner signer
-    group.bench_function(BenchmarkId::new("avnu", "owner"), |b| {
+    // Benchmark VRF sponsored with owner signer
+    group.bench_function(BenchmarkId::new("vrf_sponsored", "owner"), |b| {
         b.to_async(&rt).iter(|| async {
             let metrics = execute_avnu_owner(&avnu_runner).await;
-            println!("  Avnu owner: {}", metrics);
+            println!("  VRF sponsored owner: {}", metrics);
             metrics.actual_fee
         });
     });
 
-    // Benchmark Avnu paymaster with session signer
-    group.bench_function(BenchmarkId::new("avnu", "session"), |b| {
+    // Benchmark VRF sponsored with session signer
+    group.bench_function(BenchmarkId::new("vrf_sponsored", "session"), |b| {
         b.to_async(&rt).iter(|| async {
             let metrics = execute_avnu_session(&avnu_runner).await;
-            println!("  Avnu session: {}", metrics);
+            println!("  VRF sponsored session: {}", metrics);
+            metrics.actual_fee
+        });
+    });
+
+    // Benchmark VRF self-funded with owner signer
+    group.bench_function(BenchmarkId::new("vrf_self", "owner"), |b| {
+        b.to_async(&rt).iter(|| async {
+            let metrics = execute_avnu_self_owner(&avnu_runner).await;
+            println!("  VRF self owner: {}", metrics);
+            metrics.actual_fee
+        });
+    });
+
+    // Benchmark VRF self-funded with session signer
+    group.bench_function(BenchmarkId::new("vrf_self", "session"), |b| {
+        b.to_async(&rt).iter(|| async {
+            let metrics = execute_avnu_self_session(&avnu_runner).await;
+            println!("  VRF self session: {}", metrics);
             metrics.actual_fee
         });
     });
