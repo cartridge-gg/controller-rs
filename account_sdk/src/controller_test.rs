@@ -12,8 +12,11 @@ use crate::{
 };
 use cainome::cairo_serde::{ContractAddress, U256};
 use starknet::{
-    accounts::AccountFactory, core::utils::cairo_short_string_to_felt, macros::felt,
-    providers::Provider, signers::SigningKey,
+    accounts::AccountFactory,
+    core::{types::Felt, utils::cairo_short_string_to_felt},
+    macros::felt,
+    providers::Provider,
+    signers::SigningKey,
 };
 
 #[tokio::test]
@@ -206,6 +209,60 @@ async fn test_controller_nonce_mismatch_recovery() {
         "Controller did not recover from nonce mismatch: {:?}",
         tx2_result.err()
     );
+}
+
+#[tokio::test]
+async fn test_controller_nonce_persistence() {
+    let runner = KatanaRunner::load();
+    let owner = Signer::new_starknet_random();
+    let mut controller = runner
+        .deploy_controller(
+            "nonce_test".to_string(),
+            Owner::Signer(owner.clone()),
+            Version::LATEST,
+        )
+        .await;
+
+    // After deployment via UDC, the nonce should be 0
+    let nonce = controller.get_nonce().await.unwrap();
+    assert_eq!(nonce, Felt::ZERO);
+
+    let erc20 = Erc20::new(*FEE_TOKEN_ADDRESS, &controller);
+    let recipient = ContractAddress(felt!("0x18301129"));
+    let amount = U256 { low: 1, high: 0 };
+    let tx = erc20.transfer_getcall(&recipient, &amount);
+
+    let max_fee = controller
+        .estimate_invoke_fee(vec![tx.clone()])
+        .await
+        .unwrap();
+
+    // First transaction: nonce 0 -> 1
+    controller
+        .execute(vec![tx.clone()], Some(max_fee.clone()), None)
+        .await
+        .unwrap();
+    assert_eq!(controller.nonce, Felt::ONE);
+
+    // Simulate a fresh controller instance by resetting its cached nonce to 0
+    // But on-chain nonce is now 1.
+    controller.nonce = Felt::ZERO;
+
+    // Second transaction: should fetch nonce (which is 1) and update self.nonce to 2
+    // Before the fix, this would have updated self.nonce to 0 + 1 = 1,
+    // and the NEXT transaction would have used nonce 1 and failed.
+    controller
+        .execute(vec![tx.clone()], Some(max_fee.clone()), None)
+        .await
+        .unwrap();
+    assert_eq!(controller.nonce, felt!("0x2"));
+
+    // Third transaction: should use cached nonce 2 and update self.nonce to 3
+    controller
+        .execute(vec![tx.clone()], Some(max_fee), None)
+        .await
+        .unwrap();
+    assert_eq!(controller.nonce, felt!("0x3"));
 }
 
 #[cfg(feature = "filestorage")]

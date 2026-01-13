@@ -372,6 +372,8 @@ impl Controller {
 
         loop {
             let nonce = self.get_nonce().await?;
+            self.nonce = nonce;
+
             let result = self
                 .execute_v3(calls.clone())
                 .nonce(nonce)
@@ -387,7 +389,7 @@ impl Controller {
             match result {
                 Ok(tx_result) => {
                     // Update nonce
-                    self.nonce += Felt::ONE;
+                    self.nonce = nonce + Felt::ONE;
 
                     // Update is_registered to true after successful execution with a session
                     if let Some(metadata) =
