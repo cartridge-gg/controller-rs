@@ -210,7 +210,17 @@ async fn execute_avnu_self_owner(runner: &AvnuPaymasterRunner) -> GasMetrics {
         execute_after: u64::MIN,
         execute_before: u64::MAX,
         calls: vec![
-            // First: Transfer gas fees to forwarder
+            // First: The actual user transfer
+            account_sdk::abigen::controller::Call {
+                to: (*FEE_TOKEN_ADDRESS).into(),
+                selector: selector!("transfer"),
+                calldata: [
+                    <ContractAddress as CairoSerde>::cairo_serialize(&recipient),
+                    <U256 as CairoSerde>::cairo_serialize(&transfer_amount),
+                ]
+                .concat(),
+            },
+            // Second: Transfer gas fees to forwarder (must be last for paymaster parsing)
             account_sdk::abigen::controller::Call {
                 to: (*FEE_TOKEN_ADDRESS).into(),
                 selector: selector!("transfer"),
@@ -219,16 +229,6 @@ async fn execute_avnu_self_owner(runner: &AvnuPaymasterRunner) -> GasMetrics {
                         runner.forwarder_address,
                     )),
                     <U256 as CairoSerde>::cairo_serialize(&gas_fee_amount),
-                ]
-                .concat(),
-            },
-            // Second: The actual user transfer
-            account_sdk::abigen::controller::Call {
-                to: (*FEE_TOKEN_ADDRESS).into(),
-                selector: selector!("transfer"),
-                calldata: [
-                    <ContractAddress as CairoSerde>::cairo_serialize(&recipient),
-                    <U256 as CairoSerde>::cairo_serialize(&transfer_amount),
                 ]
                 .concat(),
             },
@@ -295,7 +295,17 @@ async fn execute_avnu_self_session(runner: &AvnuPaymasterRunner) -> GasMetrics {
         execute_after: u64::MIN,
         execute_before: u64::MAX,
         calls: vec![
-            // First: Transfer gas fees to forwarder
+            // First: The actual user transfer
+            account_sdk::abigen::controller::Call {
+                to: (*FEE_TOKEN_ADDRESS).into(),
+                selector: selector!("transfer"),
+                calldata: [
+                    <ContractAddress as CairoSerde>::cairo_serialize(&recipient),
+                    <U256 as CairoSerde>::cairo_serialize(&transfer_amount),
+                ]
+                .concat(),
+            },
+            // Second: Transfer gas fees to forwarder (must be last for paymaster parsing)
             account_sdk::abigen::controller::Call {
                 to: (*FEE_TOKEN_ADDRESS).into(),
                 selector: selector!("transfer"),
@@ -304,16 +314,6 @@ async fn execute_avnu_self_session(runner: &AvnuPaymasterRunner) -> GasMetrics {
                         runner.forwarder_address,
                     )),
                     <U256 as CairoSerde>::cairo_serialize(&gas_fee_amount),
-                ]
-                .concat(),
-            },
-            // Second: The actual user transfer
-            account_sdk::abigen::controller::Call {
-                to: (*FEE_TOKEN_ADDRESS).into(),
-                selector: selector!("transfer"),
-                calldata: [
-                    <ContractAddress as CairoSerde>::cairo_serialize(&recipient),
-                    <U256 as CairoSerde>::cairo_serialize(&transfer_amount),
                 ]
                 .concat(),
             },

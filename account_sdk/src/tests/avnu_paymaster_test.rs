@@ -300,14 +300,24 @@ async fn test_self_funded_owner_execute() {
         .unwrap();
 
     // Create the outside execution with:
-    // 1. Transfer gas fees to the forwarder
-    // 2. The actual user transfer
+    // 1. The actual user transfer
+    // 2. Transfer gas fees to the forwarder (must be last for paymaster parsing)
     let outside_execution = OutsideExecutionV3 {
         caller: OutsideExecutionCaller::Any.into(),
         execute_after: u64::MIN,
         execute_before: u64::MAX,
         calls: vec![
-            // First: Transfer gas fees to forwarder (required for self-funded mode)
+            // First: The actual user transfer
+            crate::abigen::controller::Call {
+                to: (*FEE_TOKEN_ADDRESS).into(),
+                selector: selector!("transfer"),
+                calldata: [
+                    <ContractAddress as CairoSerde>::cairo_serialize(&recipient),
+                    <U256 as CairoSerde>::cairo_serialize(&transfer_amount),
+                ]
+                .concat(),
+            },
+            // Second: Transfer gas fees to forwarder (required for self-funded mode)
             crate::abigen::controller::Call {
                 to: (*FEE_TOKEN_ADDRESS).into(),
                 selector: selector!("transfer"),
@@ -316,16 +326,6 @@ async fn test_self_funded_owner_execute() {
                         runner.forwarder_address,
                     )),
                     <U256 as CairoSerde>::cairo_serialize(&gas_fee_amount),
-                ]
-                .concat(),
-            },
-            // Second: The actual user transfer
-            crate::abigen::controller::Call {
-                to: (*FEE_TOKEN_ADDRESS).into(),
-                selector: selector!("transfer"),
-                calldata: [
-                    <ContractAddress as CairoSerde>::cairo_serialize(&recipient),
-                    <U256 as CairoSerde>::cairo_serialize(&transfer_amount),
                 ]
                 .concat(),
             },
@@ -415,14 +415,24 @@ async fn test_self_funded_session_execute() {
         .unwrap();
 
     // Create the outside execution with:
-    // 1. Transfer gas fees to the forwarder
-    // 2. The actual user transfer
+    // 1. The actual user transfer
+    // 2. Transfer gas fees to the forwarder (must be last for paymaster parsing)
     let outside_execution = OutsideExecutionV3 {
         caller: OutsideExecutionCaller::Any.into(),
         execute_after: u64::MIN,
         execute_before: u64::MAX,
         calls: vec![
-            // First: Transfer gas fees to forwarder (required for self-funded mode)
+            // First: The actual user transfer
+            crate::abigen::controller::Call {
+                to: (*FEE_TOKEN_ADDRESS).into(),
+                selector: selector!("transfer"),
+                calldata: [
+                    <ContractAddress as CairoSerde>::cairo_serialize(&recipient),
+                    <U256 as CairoSerde>::cairo_serialize(&transfer_amount),
+                ]
+                .concat(),
+            },
+            // Second: Transfer gas fees to forwarder (required for self-funded mode)
             crate::abigen::controller::Call {
                 to: (*FEE_TOKEN_ADDRESS).into(),
                 selector: selector!("transfer"),
@@ -431,16 +441,6 @@ async fn test_self_funded_session_execute() {
                         runner.forwarder_address,
                     )),
                     <U256 as CairoSerde>::cairo_serialize(&gas_fee_amount),
-                ]
-                .concat(),
-            },
-            // Second: The actual user transfer
-            crate::abigen::controller::Call {
-                to: (*FEE_TOKEN_ADDRESS).into(),
-                selector: selector!("transfer"),
-                calldata: [
-                    <ContractAddress as CairoSerde>::cairo_serialize(&recipient),
-                    <U256 as CairoSerde>::cairo_serialize(&transfer_amount),
                 ]
                 .concat(),
             },

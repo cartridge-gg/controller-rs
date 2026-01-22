@@ -387,23 +387,23 @@ async fn test_vrf_self_funded_execute() {
         execute_after: 0,
         execute_before: u64::MAX,
         calls: vec![
-            // First: Transfer gas fees to forwarder
-            VrfCall {
-                to: ContractAddress(*FEE_TOKEN_ADDRESS),
-                selector: selector!("transfer"),
-                calldata: transfer_calldata,
-            },
-            // Second: submit_random to inject the VRF proof
+            // First: submit_random to inject the VRF proof
             VrfCall {
                 to: ContractAddress(runner.vrf_account_address),
                 selector: selector!("submit_random"),
                 calldata: submit_random_calldata,
             },
-            // Third: execute_from_outside_v2 on Player Account
+            // Second: execute_from_outside_v2 on Player Account
             VrfCall {
                 to: ContractAddress(runner.player_account_address),
                 selector: selector!("execute_from_outside_v2"),
                 calldata: execute_player_calldata,
+            },
+            // Third: Transfer gas fees to forwarder (must be last for paymaster parsing)
+            VrfCall {
+                to: ContractAddress(*FEE_TOKEN_ADDRESS),
+                selector: selector!("transfer"),
+                calldata: transfer_calldata,
             },
         ],
     };
