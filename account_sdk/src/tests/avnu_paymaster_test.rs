@@ -35,7 +35,7 @@ use crate::{
     artifacts::Version,
     provider_avnu::{
         AvnuPaymasterProvider, ExecuteRawRequest, ExecuteRawTransactionParams, ExecutionParameters,
-        FeeMode, RawInvokeParams,
+        DirectInvokeParams, FeeMode, TipPriority,
     },
     signers::{Owner, Signer},
     tests::{account::FEE_TOKEN_ADDRESS, runners::avnu_paymaster::AvnuPaymasterRunner},
@@ -49,16 +49,16 @@ fn build_sponsored_request(
     let execute_from_outside_call: Call = signed.clone().into();
 
     ExecuteRawRequest {
-        transaction: ExecuteRawTransactionParams::RawInvoke {
-            invoke: RawInvokeParams {
+        transaction: ExecuteRawTransactionParams::DirectInvoke {
+            invoke: DirectInvokeParams {
                 user_address: signed.contract_address,
                 execute_from_outside_call,
-                gas_token: None,
-                max_gas_token_amount: None,
             },
         },
         parameters: ExecutionParameters::V1 {
-            fee_mode: FeeMode::Sponsored,
+            fee_mode: FeeMode::Sponsored {
+                tip: TipPriority::Normal,
+            },
             time_bounds: None,
         },
     }
@@ -68,21 +68,21 @@ fn build_sponsored_request(
 fn build_self_funded_request(
     signed: crate::account::outside_execution::SignedOutsideExecution,
     gas_token: Felt,
-    max_gas_token_amount: Felt,
 ) -> ExecuteRawRequest {
     let execute_from_outside_call: Call = signed.clone().into();
 
     ExecuteRawRequest {
-        transaction: ExecuteRawTransactionParams::RawInvoke {
-            invoke: RawInvokeParams {
+        transaction: ExecuteRawTransactionParams::DirectInvoke {
+            invoke: DirectInvokeParams {
                 user_address: signed.contract_address,
                 execute_from_outside_call,
-                gas_token: Some(gas_token),
-                max_gas_token_amount: Some(max_gas_token_amount),
             },
         },
         parameters: ExecutionParameters::V1 {
-            fee_mode: FeeMode::Default { gas_token },
+            fee_mode: FeeMode::Default {
+                gas_token,
+                tip: TipPriority::Normal,
+            },
             time_bounds: None,
         },
     }
@@ -287,7 +287,7 @@ async fn test_self_funded_owner_execute() {
     // For self-funded mode, the user's inner calls must include a transfer to the forwarder.
     // The forwarder will then forward the gas fee to the gas_fees_recipient and return any excess.
     let gas_fee_amount = U256 {
-        low: 1_000_000_000_000_000_000_u128, // 1 STRK (1e18) - must match max_gas_token_amount
+        low: 1_000_000_000_000_000_000_u128, // 1 STRK (1e18)
         high: 0,
     };
 
@@ -339,9 +339,8 @@ async fn test_self_funded_owner_execute() {
         .await
         .unwrap();
 
-    // Build self-funded request with max gas token amount (required for self-funded mode)
-    let max_gas_token_amount = Felt::from(1_000_000_000_000_000_000_u128); // 1e18
-    let request = build_self_funded_request(signed, *FEE_TOKEN_ADDRESS, max_gas_token_amount);
+    // Build self-funded request
+    let request = build_self_funded_request(signed, *FEE_TOKEN_ADDRESS);
 
     // Execute via AVNU paymaster (API key still required for authentication)
     let avnu_provider =
@@ -394,7 +393,7 @@ async fn test_self_funded_session_execute() {
 
     // For self-funded mode, the user's inner calls must include a transfer to the forwarder
     let gas_fee_amount = U256 {
-        low: 1_000_000_000_000_000_000_u128, // 1 STRK (1e18) - must match max_gas_token_amount
+        low: 1_000_000_000_000_000_000_u128, // 1 STRK (1e18)
         high: 0,
     };
 
@@ -455,9 +454,8 @@ async fn test_self_funded_session_execute() {
         .await
         .unwrap();
 
-    // Build self-funded request with max gas token amount (required for self-funded mode)
-    let max_gas_token_amount = Felt::from(1_000_000_000_000_000_000_u128); // 1e18
-    let request = build_self_funded_request(signed, *FEE_TOKEN_ADDRESS, max_gas_token_amount);
+    // Build self-funded request
+    let request = build_self_funded_request(signed, *FEE_TOKEN_ADDRESS);
 
     // Execute via AVNU paymaster (API key still required for authentication)
     let avnu_provider =

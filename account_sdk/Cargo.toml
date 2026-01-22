@@ -55,11 +55,11 @@ graphql_client.workspace = true
 
 # AVNU paymaster integration dependencies (optional, requires nightly Rust due to upstream issues)
 # To enable: cargo test --features avnu-paymaster
-paymaster-rpc = { git = "https://github.com/cartridge-gg/paymaster", branch = "copenhagen-4cb4", optional = true }
-paymaster-starknet = { git = "https://github.com/cartridge-gg/paymaster", branch = "copenhagen-4cb4", features = ["testing"], optional = true }
-paymaster-prices = { git = "https://github.com/cartridge-gg/paymaster", branch = "copenhagen-4cb4", features = ["testing"], optional = true }
-paymaster-relayer = { git = "https://github.com/cartridge-gg/paymaster", branch = "copenhagen-4cb4", features = ["testing"], optional = true }
-paymaster-sponsoring = { git = "https://github.com/cartridge-gg/paymaster", branch = "copenhagen-4cb4", features = ["testing"], optional = true }
+paymaster-rpc = { git = "https://github.com/cartridge-gg/paymaster", rev = "892f266a7521899b15021e5456c7f0fdc189e1ae", optional = true }
+paymaster-starknet = { git = "https://github.com/cartridge-gg/paymaster", rev = "892f266a7521899b15021e5456c7f0fdc189e1ae", features = ["testing"], optional = true }
+paymaster-prices = { git = "https://github.com/cartridge-gg/paymaster", rev = "892f266a7521899b15021e5456c7f0fdc189e1ae", features = ["testing"], optional = true }
+paymaster-relayer = { git = "https://github.com/cartridge-gg/paymaster", rev = "892f266a7521899b15021e5456c7f0fdc189e1ae", features = ["testing"], optional = true }
+paymaster-sponsoring = { git = "https://github.com/cartridge-gg/paymaster", rev = "892f266a7521899b15021e5456c7f0fdc189e1ae", features = ["testing"], optional = true }
 jsonrpsee = { version = "0.24", features = ["server", "client"], optional = true }
 
 # Test infrastructure dependencies (used by tests and avnu-paymaster benchmarks)

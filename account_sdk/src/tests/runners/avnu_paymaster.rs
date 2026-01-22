@@ -183,7 +183,7 @@ impl AvnuPaymasterRunner {
                 timeout: 30,
                 fallbacks: vec![],
             },
-            price: paymaster_prices::Configuration::Mock(Arc::new(MockPriceOracleImpl)),
+            price: paymaster_prices::PriceConfiguration::mock::<MockPriceOracleImpl>(),
             // Use self-sponsoring with a test API key for local testing
             // API key must start with 'paymaster_' per paymaster-sponsoring validation
             sponsoring: paymaster_sponsoring::Configuration::SelfSponsoring(SelfConfiguration {
