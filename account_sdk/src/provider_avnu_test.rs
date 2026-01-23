@@ -8,28 +8,27 @@ use starknet::core::types::Felt;
 
 use crate::provider_avnu::{
     ExecuteRawRequest, ExecuteRawResponse, ExecuteRawTransactionParams, ExecutionParameters,
-    FeeMode, RawInvokeParams,
+    DirectInvokeParams, FeeMode, TipPriority,
 };
 
 /// Test that our ExecuteRawRequest serializes to the expected JSON format
 #[test]
 fn test_execute_raw_request_json_format() {
     let request = ExecuteRawRequest {
-        transaction: ExecuteRawTransactionParams::RawInvoke {
-            invoke: RawInvokeParams {
+        transaction: ExecuteRawTransactionParams::DirectInvoke {
+            invoke: DirectInvokeParams {
                 user_address: Felt::from(0x123u64),
                 execute_from_outside_call: starknet::core::types::Call {
                     to: Felt::from(0x456u64),
                     selector: Felt::from(0x789u64),
                     calldata: vec![Felt::from(0x1u64), Felt::from(0x2u64)],
                 },
-                gas_token: Some(Felt::from(0xabcu64)),
-                max_gas_token_amount: Some(Felt::from(0xdefu64)),
             },
         },
         parameters: ExecutionParameters::V1 {
             fee_mode: FeeMode::Default {
                 gas_token: Felt::from(0xabcu64),
+                tip: TipPriority::Normal,
             },
             time_bounds: None,
         },
@@ -38,31 +37,32 @@ fn test_execute_raw_request_json_format() {
     let json = serde_json::to_value(&request).unwrap();
 
     // Verify the structure matches what paymaster-rpc expects
-    assert_eq!(json["transaction"]["type"], "raw_invoke");
+    assert_eq!(json["transaction"]["type"], "invoke");
     assert!(json["transaction"]["invoke"]["user_address"].is_string());
     assert!(json["transaction"]["invoke"]["execute_from_outside_call"]["to"].is_string());
     assert_eq!(json["parameters"]["version"], "0x1");
     assert_eq!(json["parameters"]["fee_mode"]["mode"], "default");
+    assert_eq!(json["parameters"]["fee_mode"]["tip"], "normal");
 }
 
 /// Test sponsored fee mode JSON format
 #[test]
 fn test_sponsored_fee_mode_json_format() {
     let request = ExecuteRawRequest {
-        transaction: ExecuteRawTransactionParams::RawInvoke {
-            invoke: RawInvokeParams {
+        transaction: ExecuteRawTransactionParams::DirectInvoke {
+            invoke: DirectInvokeParams {
                 user_address: Felt::from(0x123u64),
                 execute_from_outside_call: starknet::core::types::Call {
                     to: Felt::from(0x456u64),
                     selector: Felt::from(0x789u64),
                     calldata: vec![],
                 },
-                gas_token: None,
-                max_gas_token_amount: None,
             },
         },
         parameters: ExecutionParameters::V1 {
-            fee_mode: FeeMode::Sponsored,
+            fee_mode: FeeMode::Sponsored {
+                tip: TipPriority::Normal,
+            },
             time_bounds: None,
         },
     };
@@ -70,6 +70,7 @@ fn test_sponsored_fee_mode_json_format() {
     let json = serde_json::to_value(&request).unwrap();
 
     assert_eq!(json["parameters"]["fee_mode"]["mode"], "sponsored");
+    assert_eq!(json["parameters"]["fee_mode"]["tip"], "normal");
 }
 
 /// Test that we can deserialize a response in paymaster-rpc JSON format
@@ -91,20 +92,20 @@ fn test_response_deserialization() {
 #[test]
 fn test_request_roundtrip() {
     let request = ExecuteRawRequest {
-        transaction: ExecuteRawTransactionParams::RawInvoke {
-            invoke: RawInvokeParams {
+        transaction: ExecuteRawTransactionParams::DirectInvoke {
+            invoke: DirectInvokeParams {
                 user_address: Felt::from(0x123u64),
                 execute_from_outside_call: starknet::core::types::Call {
                     to: Felt::from(0x456u64),
                     selector: Felt::from(0x789u64),
                     calldata: vec![Felt::ONE, Felt::TWO],
                 },
-                gas_token: None,
-                max_gas_token_amount: None,
             },
         },
         parameters: ExecutionParameters::V1 {
-            fee_mode: FeeMode::Sponsored,
+            fee_mode: FeeMode::Sponsored {
+                tip: TipPriority::Normal,
+            },
             time_bounds: None,
         },
     };
@@ -115,8 +116,8 @@ fn test_request_roundtrip() {
     // Verify key fields match
     match (&request.transaction, &deserialized.transaction) {
         (
-            ExecuteRawTransactionParams::RawInvoke { invoke: req },
-            ExecuteRawTransactionParams::RawInvoke { invoke: des },
+            ExecuteRawTransactionParams::DirectInvoke { invoke: req },
+            ExecuteRawTransactionParams::DirectInvoke { invoke: des },
         ) => {
             assert_eq!(req.user_address, des.user_address);
             assert_eq!(

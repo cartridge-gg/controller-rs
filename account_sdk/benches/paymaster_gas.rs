@@ -27,7 +27,7 @@ use account_sdk::{
     provider::CartridgeProvider,
     provider_avnu::{
         AvnuPaymasterProvider, ExecuteRawRequest, ExecuteRawTransactionParams, ExecutionParameters,
-        FeeMode, RawInvokeParams,
+        DirectInvokeParams, FeeMode, TipPriority,
     },
     signers::{Owner, Signer},
     tests::{
@@ -88,16 +88,16 @@ fn build_sponsored_request(
     let execute_from_outside_call: starknet::core::types::Call = signed.clone().into();
 
     ExecuteRawRequest {
-        transaction: ExecuteRawTransactionParams::RawInvoke {
-            invoke: RawInvokeParams {
+        transaction: ExecuteRawTransactionParams::DirectInvoke {
+            invoke: DirectInvokeParams {
                 user_address: signed.contract_address,
                 execute_from_outside_call,
-                gas_token: None,
-                max_gas_token_amount: None,
             },
         },
         parameters: ExecutionParameters::V1 {
-            fee_mode: FeeMode::Sponsored,
+            fee_mode: FeeMode::Sponsored {
+                tip: TipPriority::Normal,
+            },
             time_bounds: None,
         },
     }
@@ -107,21 +107,21 @@ fn build_sponsored_request(
 fn build_self_funded_request(
     signed: account_sdk::account::outside_execution::SignedOutsideExecution,
     gas_token: Felt,
-    max_gas_token_amount: Felt,
 ) -> ExecuteRawRequest {
     let execute_from_outside_call: starknet::core::types::Call = signed.clone().into();
 
     ExecuteRawRequest {
-        transaction: ExecuteRawTransactionParams::RawInvoke {
-            invoke: RawInvokeParams {
+        transaction: ExecuteRawTransactionParams::DirectInvoke {
+            invoke: DirectInvokeParams {
                 user_address: signed.contract_address,
                 execute_from_outside_call,
-                gas_token: Some(gas_token),
-                max_gas_token_amount: Some(max_gas_token_amount),
             },
         },
         parameters: ExecutionParameters::V1 {
-            fee_mode: FeeMode::Default { gas_token },
+            fee_mode: FeeMode::Default {
+                gas_token,
+                tip: TipPriority::Normal,
+            },
             time_bounds: None,
         },
     }
@@ -210,7 +210,17 @@ async fn execute_avnu_self_owner(runner: &AvnuPaymasterRunner) -> GasMetrics {
         execute_after: u64::MIN,
         execute_before: u64::MAX,
         calls: vec![
-            // First: Transfer gas fees to forwarder
+            // First: The actual user transfer
+            account_sdk::abigen::controller::Call {
+                to: (*FEE_TOKEN_ADDRESS).into(),
+                selector: selector!("transfer"),
+                calldata: [
+                    <ContractAddress as CairoSerde>::cairo_serialize(&recipient),
+                    <U256 as CairoSerde>::cairo_serialize(&transfer_amount),
+                ]
+                .concat(),
+            },
+            // Second: Transfer gas fees to forwarder (must be last for paymaster parsing)
             account_sdk::abigen::controller::Call {
                 to: (*FEE_TOKEN_ADDRESS).into(),
                 selector: selector!("transfer"),
@@ -219,16 +229,6 @@ async fn execute_avnu_self_owner(runner: &AvnuPaymasterRunner) -> GasMetrics {
                         runner.forwarder_address,
                     )),
                     <U256 as CairoSerde>::cairo_serialize(&gas_fee_amount),
-                ]
-                .concat(),
-            },
-            // Second: The actual user transfer
-            account_sdk::abigen::controller::Call {
-                to: (*FEE_TOKEN_ADDRESS).into(),
-                selector: selector!("transfer"),
-                calldata: [
-                    <ContractAddress as CairoSerde>::cairo_serialize(&recipient),
-                    <U256 as CairoSerde>::cairo_serialize(&transfer_amount),
                 ]
                 .concat(),
             },
@@ -241,8 +241,7 @@ async fn execute_avnu_self_owner(runner: &AvnuPaymasterRunner) -> GasMetrics {
         .await
         .unwrap();
 
-    let max_gas_token_amount = Felt::from(1_000_000_000_000_000_000_u128); // 1e18
-    let request = build_self_funded_request(signed, *FEE_TOKEN_ADDRESS, max_gas_token_amount);
+    let request = build_self_funded_request(signed, *FEE_TOKEN_ADDRESS);
 
     let avnu_provider =
         AvnuPaymasterProvider::with_api_key(runner.paymaster_url.clone(), "paymaster_test".into());
@@ -296,7 +295,17 @@ async fn execute_avnu_self_session(runner: &AvnuPaymasterRunner) -> GasMetrics {
         execute_after: u64::MIN,
         execute_before: u64::MAX,
         calls: vec![
-            // First: Transfer gas fees to forwarder
+            // First: The actual user transfer
+            account_sdk::abigen::controller::Call {
+                to: (*FEE_TOKEN_ADDRESS).into(),
+                selector: selector!("transfer"),
+                calldata: [
+                    <ContractAddress as CairoSerde>::cairo_serialize(&recipient),
+                    <U256 as CairoSerde>::cairo_serialize(&transfer_amount),
+                ]
+                .concat(),
+            },
+            // Second: Transfer gas fees to forwarder (must be last for paymaster parsing)
             account_sdk::abigen::controller::Call {
                 to: (*FEE_TOKEN_ADDRESS).into(),
                 selector: selector!("transfer"),
@@ -305,16 +314,6 @@ async fn execute_avnu_self_session(runner: &AvnuPaymasterRunner) -> GasMetrics {
                         runner.forwarder_address,
                     )),
                     <U256 as CairoSerde>::cairo_serialize(&gas_fee_amount),
-                ]
-                .concat(),
-            },
-            // Second: The actual user transfer
-            account_sdk::abigen::controller::Call {
-                to: (*FEE_TOKEN_ADDRESS).into(),
-                selector: selector!("transfer"),
-                calldata: [
-                    <ContractAddress as CairoSerde>::cairo_serialize(&recipient),
-                    <U256 as CairoSerde>::cairo_serialize(&transfer_amount),
                 ]
                 .concat(),
             },
@@ -327,8 +326,7 @@ async fn execute_avnu_self_session(runner: &AvnuPaymasterRunner) -> GasMetrics {
         .await
         .unwrap();
 
-    let max_gas_token_amount = Felt::from(1_000_000_000_000_000_000_u128); // 1e18
-    let request = build_self_funded_request(signed, *FEE_TOKEN_ADDRESS, max_gas_token_amount);
+    let request = build_self_funded_request(signed, *FEE_TOKEN_ADDRESS);
 
     let avnu_provider =
         AvnuPaymasterProvider::with_api_key(runner.paymaster_url.clone(), "paymaster_test".into());

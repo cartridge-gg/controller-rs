@@ -58,13 +58,21 @@ impl MultiChainController {
         username: String,
         chain_configs: Vec<ChainConfig>,
     ) -> Result<Self, ControllerError> {
+        Self::new_with_storage(username, chain_configs, Storage::default()).await
+    }
+
+    /// Creates a new MultiChainController with an explicit storage backend.
+    pub async fn new_with_storage(
+        username: String,
+        chain_configs: Vec<ChainConfig>,
+        storage: Storage,
+    ) -> Result<Self, ControllerError> {
         if chain_configs.is_empty() {
             return Err(ControllerError::InvalidResponseData(
                 "At least one chain configuration is required".to_string(),
             ));
         }
 
-        let storage = Storage::default();
         let mut controllers = HashMap::new();
 
         // Create controllers for all provided configurations with shared storage
@@ -310,8 +318,13 @@ impl MultiChainController {
 
     /// Loads a MultiChainController from storage
     pub async fn from_storage() -> Result<Option<Self>, ControllerError> {
-        let storage = Storage::default();
+        Self::from_storage_with_backend(Storage::default()).await
+    }
 
+    /// Loads a MultiChainController from a provided storage backend.
+    pub async fn from_storage_with_backend(
+        storage: Storage,
+    ) -> Result<Option<Self>, ControllerError> {
         // First, try to load the multi-chain configuration
         let config_key = Selectors::multi_chain_config();
 
@@ -447,6 +460,8 @@ mod tests {
     use crate::signers::{Owner, Signer};
     use crate::tests::runners::find_free_port;
     use crate::tests::runners::katana::KatanaRunner;
+    #[cfg(feature = "filestorage")]
+    use crate::storage::filestorage::FileSystemBackend;
     use starknet::core::types::Call;
     use starknet::macros::short_string;
     use std::process::{Command, Stdio};
@@ -713,7 +728,7 @@ mod tests {
         // Setup temporary directory for file storage
         let temp_dir = tempdir().unwrap();
         let storage_path = temp_dir.path().to_path_buf();
-        std::env::set_var("CARTRIDGE_STORAGE_PATH", storage_path.to_str().unwrap());
+        let storage: Storage = FileSystemBackend::new(storage_path.clone());
 
         // Start a Katana instance
         let runner = KatanaRunner::load();
@@ -730,9 +745,10 @@ mod tests {
             address: None,
         };
 
-        let multi_controller = MultiChainController::new(username.clone(), vec![config])
-            .await
-            .unwrap();
+        let multi_controller =
+            MultiChainController::new_with_storage(username.clone(), vec![config], storage)
+                .await
+                .unwrap();
 
         // Get initial storage state
         let initial_chains = multi_controller.configured_chains();
@@ -773,7 +789,7 @@ mod tests {
         // Setup temporary directory for file storage
         let temp_dir = tempdir().unwrap();
         let storage_path = temp_dir.path().to_path_buf();
-        std::env::set_var("CARTRIDGE_STORAGE_PATH", storage_path.to_str().unwrap());
+        let storage: Storage = FileSystemBackend::new(storage_path.clone());
 
         // Start a Katana instance
         let runner = KatanaRunner::load();
@@ -791,9 +807,10 @@ mod tests {
         };
 
         // Create a multi-controller with a single chain
-        let mut multi_controller = MultiChainController::new(username.clone(), vec![config])
-            .await
-            .unwrap();
+        let mut multi_controller =
+            MultiChainController::new_with_storage(username.clone(), vec![config], storage)
+                .await
+                .unwrap();
 
         let chain_id = multi_controller.configured_chains()[0];
         let controller = multi_controller.controller_for_chain(chain_id).unwrap();
@@ -834,7 +851,7 @@ mod tests {
         // Setup temporary directory for file storage
         let temp_dir = tempdir().unwrap();
         let storage_path = temp_dir.path().to_path_buf();
-        std::env::set_var("CARTRIDGE_STORAGE_PATH", storage_path.to_str().unwrap());
+        let storage: Storage = FileSystemBackend::new(storage_path.clone());
 
         // Start two Katana instances
         let runner1 = KatanaRunner::load();
@@ -872,7 +889,7 @@ mod tests {
 
         // Create multi-controller with two chains
         let mut multi_controller =
-            MultiChainController::new(username.clone(), vec![config1, config2])
+            MultiChainController::new_with_storage(username.clone(), vec![config1, config2], storage)
                 .await
                 .unwrap();
 
@@ -926,7 +943,7 @@ mod tests {
         // Setup temporary directory for file storage
         let temp_dir = tempdir().unwrap();
         let storage_path = temp_dir.path().to_path_buf();
-        std::env::set_var("CARTRIDGE_STORAGE_PATH", storage_path.to_str().unwrap());
+        let storage: Storage = FileSystemBackend::new(storage_path.clone());
 
         // Start two Katana instances
         let runner1 = KatanaRunner::load();
@@ -967,7 +984,7 @@ mod tests {
 
         // Create multi-controller with both chains
         let mut multi_controller =
-            MultiChainController::new(username.clone(), vec![config1, config2])
+            MultiChainController::new_with_storage(username.clone(), vec![config1, config2], storage.clone())
                 .await
                 .unwrap();
 
@@ -979,7 +996,7 @@ mod tests {
         multi_controller.update_storage().unwrap();
 
         // Load from storage
-        let loaded = MultiChainController::from_storage()
+        let loaded = MultiChainController::from_storage_with_backend(storage)
             .await
             .unwrap()
             .expect("Should load from storage");

@@ -35,7 +35,7 @@ const ANY_CALLER: Felt = short_string!("ANY_CALLER");
 use crate::{
     provider_avnu::{
         AvnuPaymasterProvider, ExecuteRawRequest, ExecuteRawTransactionParams, ExecutionParameters,
-        FeeMode, RawInvokeParams,
+        DirectInvokeParams, FeeMode, TipPriority,
     },
     tests::{
         account::FEE_TOKEN_ADDRESS,
@@ -51,16 +51,16 @@ fn build_vrf_sponsored_request(
     execute_from_outside_call: Call,
 ) -> ExecuteRawRequest {
     ExecuteRawRequest {
-        transaction: ExecuteRawTransactionParams::RawInvoke {
-            invoke: RawInvokeParams {
+        transaction: ExecuteRawTransactionParams::DirectInvoke {
+            invoke: DirectInvokeParams {
                 user_address,
                 execute_from_outside_call,
-                gas_token: None,
-                max_gas_token_amount: None,
             },
         },
         parameters: ExecutionParameters::V1 {
-            fee_mode: FeeMode::Sponsored,
+            fee_mode: FeeMode::Sponsored {
+                tip: TipPriority::Normal,
+            },
             time_bounds: None,
         },
     }
@@ -71,19 +71,19 @@ fn build_vrf_self_funded_request(
     user_address: Felt,
     execute_from_outside_call: Call,
     gas_token: Felt,
-    max_gas_token_amount: Felt,
 ) -> ExecuteRawRequest {
     ExecuteRawRequest {
-        transaction: ExecuteRawTransactionParams::RawInvoke {
-            invoke: RawInvokeParams {
+        transaction: ExecuteRawTransactionParams::DirectInvoke {
+            invoke: DirectInvokeParams {
                 user_address,
                 execute_from_outside_call,
-                gas_token: Some(gas_token),
-                max_gas_token_amount: Some(max_gas_token_amount),
             },
         },
         parameters: ExecutionParameters::V1 {
-            fee_mode: FeeMode::Default { gas_token },
+            fee_mode: FeeMode::Default {
+                gas_token,
+                tip: TipPriority::Normal,
+            },
             time_bounds: None,
         },
     }
@@ -387,23 +387,23 @@ async fn test_vrf_self_funded_execute() {
         execute_after: 0,
         execute_before: u64::MAX,
         calls: vec![
-            // First: Transfer gas fees to forwarder
-            VrfCall {
-                to: ContractAddress(*FEE_TOKEN_ADDRESS),
-                selector: selector!("transfer"),
-                calldata: transfer_calldata,
-            },
-            // Second: submit_random to inject the VRF proof
+            // First: submit_random to inject the VRF proof
             VrfCall {
                 to: ContractAddress(runner.vrf_account_address),
                 selector: selector!("submit_random"),
                 calldata: submit_random_calldata,
             },
-            // Third: execute_from_outside_v2 on Player Account
+            // Second: execute_from_outside_v2 on Player Account
             VrfCall {
                 to: ContractAddress(runner.player_account_address),
                 selector: selector!("execute_from_outside_v2"),
                 calldata: execute_player_calldata,
+            },
+            // Third: Transfer gas fees to forwarder (must be last for paymaster parsing)
+            VrfCall {
+                to: ContractAddress(*FEE_TOKEN_ADDRESS),
+                selector: selector!("transfer"),
+                calldata: transfer_calldata,
             },
         ],
     };

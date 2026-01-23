@@ -47,16 +47,25 @@ impl AvnuPaymasterProvider {
         }
     }
 
-    /// Execute a raw transaction through the AVNU paymaster.
+    /// Execute a direct transaction through the AVNU paymaster.
     /// This is the version-agnostic endpoint that accepts a pre-built execute_from_outside call.
     pub async fn execute_raw_transaction(
+        &self,
+        request: ExecuteRawRequest,
+    ) -> Result<ExecuteRawResponse, ExecuteFromOutsideError> {
+        self.execute_direct_transaction(request).await
+    }
+
+    /// Execute a direct transaction through the AVNU paymaster.
+    /// This maps to the `paymaster_executeDirectTransaction` JSON-RPC method.
+    pub async fn execute_direct_transaction(
         &self,
         request: ExecuteRawRequest,
     ) -> Result<ExecuteRawResponse, ExecuteFromOutsideError> {
         let rpc_request = AvnuJsonRpcRequest {
             id: 1,
             jsonrpc: "2.0",
-            method: "paymaster_executeRawTransaction",
+            method: "paymaster_executeDirectTransaction",
             params: request,
         };
 
@@ -81,33 +90,28 @@ impl AvnuPaymasterProvider {
     }
 }
 
-/// Request for paymaster_executeRawTransaction
+/// Request for paymaster_executeDirectTransaction
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ExecuteRawRequest {
     pub transaction: ExecuteRawTransactionParams,
     pub parameters: ExecutionParameters,
 }
 
-/// Transaction parameters for raw execute
+/// Transaction parameters for direct execute
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum ExecuteRawTransactionParams {
-    RawInvoke { invoke: RawInvokeParams },
+    #[serde(rename = "invoke")]
+    DirectInvoke { invoke: DirectInvokeParams },
 }
 
-/// Parameters for a raw invoke transaction
+/// Parameters for a direct invoke transaction
 #[serde_as]
 #[derive(Debug, Serialize, Deserialize)]
-pub struct RawInvokeParams {
+pub struct DirectInvokeParams {
     #[serde_as(as = "UfeHex")]
     pub user_address: Felt,
     pub execute_from_outside_call: Call,
-    #[serde_as(as = "Option<UfeHex>")]
-    #[serde(default)]
-    pub gas_token: Option<Felt>,
-    #[serde_as(as = "Option<UfeHex>")]
-    #[serde(default)]
-    pub max_gas_token_amount: Option<Felt>,
 }
 
 /// Execution parameters
@@ -130,8 +134,24 @@ pub enum FeeMode {
     Default {
         #[serde_as(as = "UfeHex")]
         gas_token: Felt,
+        #[serde(default)]
+        tip: TipPriority,
     },
-    Sponsored,
+    Sponsored {
+        #[serde(default)]
+        tip: TipPriority,
+    },
+}
+
+/// Priority to apply when estimating transaction tips.
+#[derive(Debug, Serialize, Deserialize, Copy, Clone, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum TipPriority {
+    Slow,
+    #[default]
+    Normal,
+    Fast,
+    Custom(u64),
 }
 
 /// Time bounds for the transaction
@@ -141,7 +161,7 @@ pub struct TimeBounds {
     pub execute_before: u64,
 }
 
-/// Response from paymaster_executeRawTransaction
+/// Response from paymaster_executeDirectTransaction
 #[serde_as]
 #[derive(Debug, Deserialize, Serialize)]
 pub struct ExecuteRawResponse {
