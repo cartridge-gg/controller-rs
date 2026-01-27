@@ -34,8 +34,8 @@ const ANY_CALLER: Felt = short_string!("ANY_CALLER");
 
 use crate::{
     provider_avnu::{
-        AvnuPaymasterProvider, ExecuteRawRequest, ExecuteRawTransactionParams, ExecutionParameters,
-        DirectInvokeParams, FeeMode, TipPriority,
+        AvnuPaymasterProvider, DirectInvokeParams, ExecuteRawRequest, ExecuteRawTransactionParams,
+        ExecutionParameters, FeeMode, TipPriority,
     },
     tests::{
         account::FEE_TOKEN_ADDRESS,
@@ -90,7 +90,7 @@ fn build_vrf_self_funded_request(
 }
 
 /// Compute the VRF seed from source and transaction info
-/// 
+///
 /// The seed is computed in `vrf_provider_component.cairo:get_seed`:
 /// - For Source::Nonce(addr): poseidon_hash([nonce, addr, caller, chain_id])
 /// - For Source::Salt(salt): poseidon_hash([salt, caller, chain_id])
@@ -106,9 +106,7 @@ fn compute_seed(source: &Source, consumer_address: Felt, chain_id: Felt, nonce: 
             // consumer_address = the VRF Consumer contract that calls consume_random
             poseidon_hash_many(&[nonce, addr.0, consumer_address, chain_id])
         }
-        Source::Salt(salt) => {
-            poseidon_hash_many(&[*salt, consumer_address, chain_id])
-        }
+        Source::Salt(salt) => poseidon_hash_many(&[*salt, consumer_address, chain_id]),
     }
 }
 
@@ -135,7 +133,7 @@ async fn test_vrf_sponsored_execute() {
 
     // === Step 1: Build the INNER outside execution (Player Account's calls) ===
     // The player account will execute: request_random + dice
-    
+
     // Prepare the VRF source - using Nonce with the player account address
     // (the player is the one calling request_random)
     let source = Source::Nonce(ContractAddress(runner.player_account_address));
@@ -175,7 +173,10 @@ async fn test_vrf_sponsored_execute() {
     let inner_signature = runner.sign_player_outside_execution(&inner_outside_execution);
 
     println!("=== Inner Outside Execution (Player) ===");
-    println!("Player Account Address: {:?}", runner.player_account_address);
+    println!(
+        "Player Account Address: {:?}",
+        runner.player_account_address
+    );
     println!("Inner calls: request_random + dice");
     println!("Inner nonce: {:?}", inner_outside_execution.nonce);
 
@@ -192,19 +193,16 @@ async fn test_vrf_sponsored_execute() {
 
     // Generate VRF proof
     let proof = runner.generate_proof(seed);
-    
+
     println!("=== VRF Seed and Proof ===");
     println!("Seed: {:?}", seed);
     println!("Proof gamma: ({:?}, {:?})", proof.gamma.x, proof.gamma.y);
 
     // === Step 3: Build the OUTER outside execution (VRF Account's calls) ===
-    
+
     // submit_random(seed: felt252, proof: Proof)
-    let submit_random_calldata = [
-        vec![seed],
-        <Proof as CairoSerde>::cairo_serialize(&proof),
-    ]
-    .concat();
+    let submit_random_calldata =
+        [vec![seed], <Proof as CairoSerde>::cairo_serialize(&proof)].concat();
 
     // Build execute_from_outside_v2 call to Player Account
     // Calldata: [outside_execution..., signature_len, signature...]
@@ -257,34 +255,39 @@ async fn test_vrf_sponsored_execute() {
     };
 
     // === Step 5: Execute via AVNU paymaster ===
-    let request =
-        build_vrf_sponsored_request(runner.vrf_account_address, execute_from_outside_call.clone());
+    let request = build_vrf_sponsored_request(
+        runner.vrf_account_address,
+        execute_from_outside_call.clone(),
+    );
 
     let avnu_provider =
         AvnuPaymasterProvider::with_api_key(runner.paymaster_url(), "paymaster_test".into());
-    
+
     println!("=== Executing via Paymaster ===");
     println!("VRF Consumer Address: {:?}", runner.vrf_consumer_address);
     println!("Chain ID: {:?}", runner.chain_id());
-    
+
     // Verify contract state before execution
     let contract_vrf_pk = runner.get_contract_vrf_public_key().await;
     println!("Contract VRF public key: {:?}", contract_vrf_pk);
-    assert_eq!(contract_vrf_pk, runner.vrf_public_key, "VRF public keys should match!");
+    assert_eq!(
+        contract_vrf_pk, runner.vrf_public_key,
+        "VRF public keys should match!"
+    );
 
     // Execute directly (without paymaster for now - paymaster has issues with local setup)
     // Once the direct execution works, paymaster integration can be added
     use starknet::accounts::Account;
     let executor = runner.avnu.executor().await;
-    
+
     let direct_result = executor
         .execute_v3(vec![execute_from_outside_call.clone()])
         .send()
         .await;
-    
+
     println!("Direct execute result: {:?}", direct_result);
     let direct_result = direct_result.expect("Direct execution should succeed");
-    
+
     // Wait for the transaction
     let receipt = TransactionWaiter::new(direct_result.transaction_hash, runner.client())
         .wait()
@@ -294,11 +297,18 @@ async fn test_vrf_sponsored_execute() {
 
     // Verify the dice roll occurred - value should have changed
     let final_dice = runner.get_dice_value().await;
-    
+
     // Dice value should be between 1 and 6
-    assert!(final_dice >= 1 && final_dice <= 6, "Dice value should be 1-6, got {}", final_dice);
-    
-    println!("SUCCESS! Initial dice: {}, Final dice: {}", initial_dice, final_dice);
+    assert!(
+        final_dice >= 1 && final_dice <= 6,
+        "Dice value should be 1-6, got {}",
+        final_dice
+    );
+
+    println!(
+        "SUCCESS! Initial dice: {}, Final dice: {}",
+        initial_dice, final_dice
+    );
 }
 
 /// Test executing a VRF transaction with self-funded gas fees.
@@ -369,11 +379,8 @@ async fn test_vrf_self_funded_execute() {
     ]
     .concat();
 
-    let submit_random_calldata = [
-        vec![seed],
-        <Proof as CairoSerde>::cairo_serialize(&proof),
-    ]
-    .concat();
+    let submit_random_calldata =
+        [vec![seed], <Proof as CairoSerde>::cairo_serialize(&proof)].concat();
 
     let inner_execution_calldata =
         <OutsideExecution as CairoSerde>::cairo_serialize(&inner_outside_execution);
@@ -426,15 +433,15 @@ async fn test_vrf_self_funded_execute() {
     // === Step 5: Execute directly (without paymaster for now) ===
     use starknet::accounts::Account;
     let executor = runner.avnu.executor().await;
-    
+
     let direct_result = executor
         .execute_v3(vec![execute_from_outside_call])
         .send()
         .await;
-    
+
     println!("Direct execute result: {:?}", direct_result);
     let direct_result = direct_result.expect("Direct execution should succeed");
-    
+
     // Wait for the transaction
     let receipt = TransactionWaiter::new(direct_result.transaction_hash, runner.client())
         .wait()
@@ -443,7 +450,14 @@ async fn test_vrf_self_funded_execute() {
 
     // Verify the dice roll occurred
     let final_dice = runner.get_dice_value().await;
-    
-    assert!(final_dice >= 1 && final_dice <= 6, "Dice value should be 1-6, got {}", final_dice);
-    println!("Self-funded VRF test - SUCCESS! Initial dice: {}, Final dice: {}", initial_dice, final_dice);
+
+    assert!(
+        final_dice >= 1 && final_dice <= 6,
+        "Dice value should be 1-6, got {}",
+        final_dice
+    );
+    println!(
+        "Self-funded VRF test - SUCCESS! Initial dice: {}, Final dice: {}",
+        initial_dice, final_dice
+    );
 }

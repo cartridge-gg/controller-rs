@@ -26,8 +26,8 @@ use account_sdk::{
     artifacts::Version,
     provider::CartridgeProvider,
     provider_avnu::{
-        AvnuPaymasterProvider, ExecuteRawRequest, ExecuteRawTransactionParams, ExecutionParameters,
-        DirectInvokeParams, FeeMode, TipPriority,
+        AvnuPaymasterProvider, DirectInvokeParams, ExecuteRawRequest, ExecuteRawTransactionParams,
+        ExecutionParameters, FeeMode, TipPriority,
     },
     signers::{Owner, Signer},
     tests::{

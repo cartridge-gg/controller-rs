@@ -34,8 +34,8 @@ use crate::{
     },
     artifacts::Version,
     provider_avnu::{
-        AvnuPaymasterProvider, ExecuteRawRequest, ExecuteRawTransactionParams, ExecutionParameters,
-        DirectInvokeParams, FeeMode, TipPriority,
+        AvnuPaymasterProvider, DirectInvokeParams, ExecuteRawRequest, ExecuteRawTransactionParams,
+        ExecutionParameters, FeeMode, TipPriority,
     },
     signers::{Owner, Signer},
     tests::{account::FEE_TOKEN_ADDRESS, runners::avnu_paymaster::AvnuPaymasterRunner},

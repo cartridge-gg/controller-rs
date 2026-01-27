@@ -16,8 +16,6 @@ pub(crate) mod vrf_types;
 
 #[cfg(feature = "avnu-paymaster")]
 mod avnu_paymaster_test;
-#[cfg(feature = "vrf")]
-mod vrf_test;
 mod declare_test;
 mod delegate_account_test;
 mod external_owners_test;
@@ -25,6 +23,8 @@ mod outside_execution_test;
 mod owner_test;
 mod session_off_chain_sig_test;
 mod session_test;
+#[cfg(feature = "vrf")]
+mod vrf_test;
 
 #[derive(Error, Debug)]
 pub enum EnsureTxnError<S> {

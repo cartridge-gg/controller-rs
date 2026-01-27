@@ -37,7 +37,7 @@ fn compute_proof(mut nodes: Vec<Felt>, index: usize, proof: &mut Vec<Felt>) {
     }
 
     // If odd number of nodes, add a null virtual leaf
-    if nodes.len() % 2 != 0 {
+    if !nodes.len().is_multiple_of(2) {
         nodes.push(Felt::ZERO);
     }
 
@@ -46,7 +46,7 @@ fn compute_proof(mut nodes: Vec<Felt>, index: usize, proof: &mut Vec<Felt>) {
 
     // Find neighbor node
     let index_parent = index / 2;
-    if index % 2 == 0 {
+    if index.is_multiple_of(2) {
         proof.push(nodes[index + 1]);
     } else {
         proof.push(nodes[index - 1]);

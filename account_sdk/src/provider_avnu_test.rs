@@ -7,8 +7,8 @@ use serde_json::json;
 use starknet::core::types::Felt;
 
 use crate::provider_avnu::{
-    ExecuteRawRequest, ExecuteRawResponse, ExecuteRawTransactionParams, ExecutionParameters,
-    DirectInvokeParams, FeeMode, TipPriority,
+    DirectInvokeParams, ExecuteRawRequest, ExecuteRawResponse, ExecuteRawTransactionParams,
+    ExecutionParameters, FeeMode, TipPriority,
 };
 
 /// Test that our ExecuteRawRequest serializes to the expected JSON format

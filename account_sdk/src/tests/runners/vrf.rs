@@ -111,12 +111,17 @@ impl VrfRunner {
             single_owner_account(&rpc_client, PREFUNDED.0.clone(), PREFUNDED.1, chain_id);
 
         // Declare VRF Account class (used for both VRF provider and game player)
-        let vrf_account_class_hash =
-            declare_vrf_account_class(&rpc_client, &executor).await;
+        let vrf_account_class_hash = declare_vrf_account_class(&rpc_client, &executor).await;
 
         // Deploy VRF Account (provides randomness)
-        let vrf_account_address =
-            deploy_vrf_account(&rpc_client, &executor, vrf_account_class_hash, account_public_key, Felt::from(0x54321u64)).await;
+        let vrf_account_address = deploy_vrf_account(
+            &rpc_client,
+            &executor,
+            vrf_account_class_hash,
+            account_public_key,
+            Felt::from(0x54321u64),
+        )
+        .await;
 
         // Fund the VRF Account so it can execute transactions
         fund_account(&rpc_client, &executor, vrf_account_address).await;
@@ -134,8 +139,14 @@ impl VrfRunner {
         // Deploy Game Player Account (requests randomness and plays the game)
         // This is also a VRF Account but without VRF public key set - it only uses
         // the execute_from_outside_v2 functionality
-        let player_account_address =
-            deploy_vrf_account(&rpc_client, &executor, vrf_account_class_hash, player_public_key, Felt::from(0x67890u64)).await;
+        let player_account_address = deploy_vrf_account(
+            &rpc_client,
+            &executor,
+            vrf_account_class_hash,
+            player_public_key,
+            Felt::from(0x67890u64),
+        )
+        .await;
 
         // Fund the Game Player Account
         fund_account(&rpc_client, &executor, player_account_address).await;
@@ -222,9 +233,7 @@ impl VrfRunner {
     }
 
     /// Get a pre-funded executor account
-    pub async fn executor(
-        &self,
-    ) -> SingleOwnerAccount<&JsonRpcClient<HttpTransport>, LocalWallet> {
+    pub async fn executor(&self) -> SingleOwnerAccount<&JsonRpcClient<HttpTransport>, LocalWallet> {
         self.avnu.executor().await
     }
 
@@ -446,8 +455,7 @@ where
     let unique = false;
     let constructor_calldata: Vec<Felt> = vec![account_public_key];
 
-    let contract_factory =
-        ContractFactory::new_with_udc(class_hash, executor, UdcSelector::Legacy);
+    let contract_factory = ContractFactory::new_with_udc(class_hash, executor, UdcSelector::Legacy);
     let deployment = contract_factory.deploy_v3(constructor_calldata.clone(), salt, unique);
     let deployed_address = deployment.deployed_address();
 
@@ -506,8 +514,7 @@ where
     let unique = false;
     let constructor_calldata: Vec<Felt> = vec![vrf_provider_address];
 
-    let contract_factory =
-        ContractFactory::new_with_udc(class_hash, executor, UdcSelector::Legacy);
+    let contract_factory = ContractFactory::new_with_udc(class_hash, executor, UdcSelector::Legacy);
     let deployment = contract_factory.deploy_v3(constructor_calldata.clone(), salt, unique);
     let deployed_address = deployment.deployed_address();
 
@@ -657,8 +664,12 @@ mod tests {
         // lauch vrf-server : cargo run -r -- -s 420
         // pubkey.x =0x66da5d53168d591c55d4c05f3681663ac51bcdccd5ca09e366b71b0c40ccff4
         // pubkey.y =0x6d3eb29920bf55195e5ec76f69e247c0942c7ef85f6640896c058ec75ca2232
-        let expected_x = Felt::from_hex("0x66da5d53168d591c55d4c05f3681663ac51bcdccd5ca09e366b71b0c40ccff4").unwrap();
-        let expected_y = Felt::from_hex("0x6d3eb29920bf55195e5ec76f69e247c0942c7ef85f6640896c058ec75ca2232").unwrap();
+        let expected_x =
+            Felt::from_hex("0x66da5d53168d591c55d4c05f3681663ac51bcdccd5ca09e366b71b0c40ccff4")
+                .unwrap();
+        let expected_y =
+            Felt::from_hex("0x6d3eb29920bf55195e5ec76f69e247c0942c7ef85f6640896c058ec75ca2232")
+                .unwrap();
 
         let vrf_secret_key: u64 = 420;
         let vrf_public_key = compute_vrf_public_key(vrf_secret_key);
