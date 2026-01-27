@@ -458,10 +458,10 @@ mod tests {
     use super::*;
     use crate::artifacts::{Version, CONTROLLERS};
     use crate::signers::{Owner, Signer};
-    use crate::tests::runners::find_free_port;
-    use crate::tests::runners::katana::KatanaRunner;
     #[cfg(feature = "filestorage")]
     use crate::storage::filestorage::FileSystemBackend;
+    use crate::tests::runners::find_free_port;
+    use crate::tests::runners::katana::KatanaRunner;
     use starknet::core::types::Call;
     use starknet::macros::short_string;
     use std::process::{Command, Stdio};
@@ -888,10 +888,13 @@ mod tests {
         };
 
         // Create multi-controller with two chains
-        let mut multi_controller =
-            MultiChainController::new_with_storage(username.clone(), vec![config1, config2], storage)
-                .await
-                .unwrap();
+        let mut multi_controller = MultiChainController::new_with_storage(
+            username.clone(),
+            vec![config1, config2],
+            storage,
+        )
+        .await
+        .unwrap();
 
         // Force storage update
         multi_controller.update_storage().unwrap();
@@ -983,10 +986,13 @@ mod tests {
         };
 
         // Create multi-controller with both chains
-        let mut multi_controller =
-            MultiChainController::new_with_storage(username.clone(), vec![config1, config2], storage.clone())
-                .await
-                .unwrap();
+        let mut multi_controller = MultiChainController::new_with_storage(
+            username.clone(),
+            vec![config1, config2],
+            storage.clone(),
+        )
+        .await
+        .unwrap();
 
         // Store the current state
         let configured_chains = multi_controller.configured_chains();
