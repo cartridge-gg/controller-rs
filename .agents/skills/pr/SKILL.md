@@ -1,3 +1,10 @@
+---
+name: pr
+description: Prepare and publish a pull request with a concise summary based on the diff and linked issues.
+metadata:
+  short-description: Create or update a PR
+---
+
 # PR Workflow
 
 ## Purpose
