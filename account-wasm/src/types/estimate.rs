@@ -36,6 +36,48 @@ pub struct JsFeeEstimate {
     pub overall_fee: u128,
 }
 
+#[serde_as]
+#[derive(Tsify, Serialize, Deserialize, Debug, Clone, Default)]
+#[tsify(into_wasm_abi, from_wasm_abi)]
+pub struct JsFeeEstimateLike {
+    pub l1_gas_consumed: Option<u64>,
+    pub l1_gas_price: Option<u128>,
+    pub l2_gas_consumed: Option<u64>,
+    pub l2_gas_price: Option<u128>,
+    pub l1_data_gas_consumed: Option<u64>,
+    pub l1_data_gas_price: Option<u128>,
+    pub overall_fee: Option<u128>,
+}
+
+fn is_partial_paymaster_fields(
+    l1_gas_consumed: Option<u64>,
+    l1_gas_price: Option<u128>,
+    l2_gas_consumed: Option<u64>,
+    l2_gas_price: Option<u128>,
+    l1_data_gas_consumed: Option<u64>,
+    l1_data_gas_price: Option<u128>,
+) -> bool {
+    l1_gas_consumed.unwrap_or(0) == 0
+        && l1_gas_price.unwrap_or(0) == 0
+        && l2_gas_consumed.unwrap_or(0) == 0
+        && l2_gas_price.unwrap_or(0) == 0
+        && l1_data_gas_consumed.unwrap_or(0) == 0
+        && l1_data_gas_price.unwrap_or(0) == 0
+}
+
+/// Returns true when the estimate is missing all per-layer gas details or they are all zeroed.
+#[wasm_bindgen(js_name = isPartialPaymaster)]
+pub fn is_partial_paymaster(estimate: JsFeeEstimateLike) -> bool {
+    is_partial_paymaster_fields(
+        estimate.l1_gas_consumed,
+        estimate.l1_gas_price,
+        estimate.l2_gas_consumed,
+        estimate.l2_gas_price,
+        estimate.l1_data_gas_consumed,
+        estimate.l1_data_gas_price,
+    )
+}
+
 impl From<JsFeeEstimate> for FeeEstimate {
     fn from(estimate: JsFeeEstimate) -> Self {
         Self {
@@ -130,5 +172,50 @@ mod tests {
 
         assert_eq!(JsPriceUnit::from(PriceUnit::Wei), JsPriceUnit::Wei);
         assert_eq!(JsPriceUnit::from(PriceUnit::Fri), JsPriceUnit::Fri);
+    }
+
+    #[test]
+    fn test_is_partial_paymaster_all_zero() {
+        let estimate = JsFeeEstimateLike {
+            l1_gas_consumed: Some(0),
+            l1_gas_price: Some(0),
+            l2_gas_consumed: Some(0),
+            l2_gas_price: Some(0),
+            l1_data_gas_consumed: Some(0),
+            l1_data_gas_price: Some(0),
+            overall_fee: Some(123),
+        };
+
+        assert!(is_partial_paymaster(estimate));
+    }
+
+    #[test]
+    fn test_is_partial_paymaster_any_non_zero() {
+        let estimate = JsFeeEstimateLike {
+            l1_gas_consumed: Some(0),
+            l1_gas_price: Some(0),
+            l2_gas_consumed: Some(0),
+            l2_gas_price: Some(1),
+            l1_data_gas_consumed: Some(0),
+            l1_data_gas_price: Some(0),
+            overall_fee: Some(123),
+        };
+
+        assert!(!is_partial_paymaster(estimate));
+    }
+
+    #[test]
+    fn test_is_partial_paymaster_missing_fields_treated_as_zero() {
+        let estimate = JsFeeEstimateLike {
+            l1_gas_consumed: None,
+            l1_gas_price: None,
+            l2_gas_consumed: None,
+            l2_gas_price: None,
+            l1_data_gas_consumed: None,
+            l1_data_gas_price: None,
+            overall_fee: Some(123),
+        };
+
+        assert!(is_partial_paymaster(estimate));
     }
 }
