@@ -1,3 +1,10 @@
+---
+name: commit
+description: Create a clean, conventional commit by inspecting changes, staging safely, and ensuring checks pass.
+metadata:
+  short-description: Make a conventional commit
+---
+
 # Smart Git Commit
 
 ## Purpose
