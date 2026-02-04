@@ -12,7 +12,6 @@ on:
       - "contracts/**"
 
 jobs:
-  # Dev publish job - runs on push to main with short SHA versioning
   publish-dev:
     if: github.event_name == 'push'
     runs-on: ubuntu-latest
@@ -40,6 +39,11 @@ jobs:
       - name: Install wasm-pack
         run: cargo install --locked wasm-pack
 
+      - name: Install wasm-opt
+        run: npm install -g wasm-opt
+
+      - uses: bazelbuild/setup-bazelisk@v3
+
       - name: Get short SHA
         id: sha
         run: echo "short=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
@@ -53,9 +57,7 @@ jobs:
           echo "full=$BASE_VERSION-${{ steps.sha.outputs.short }}" >> $GITHUB_OUTPUT
 
       - name: Build WASM Bundles
-        run: |
-          cd account-wasm
-          ./build.sh
+        run: bazelisk run --config=ci //account-wasm:build_wasm
 
       - name: Update package.json version and metadata
         run: |
@@ -84,7 +86,6 @@ jobs:
           echo "npm install @cartridge/controller-wasm@${{ steps.version.outputs.full }}" >> $GITHUB_STEP_SUMMARY
           echo '```' >> $GITHUB_STEP_SUMMARY
 
-  # Stable release job - runs on repository_dispatch with explicit version
   release:
     if: github.event_name == 'repository_dispatch'
     runs-on: ubuntu-latest
@@ -110,10 +111,13 @@ jobs:
       - name: Install wasm-pack
         run: cargo install --locked wasm-pack
 
+      - name: Install wasm-opt
+        run: npm install -g wasm-opt
+
+      - uses: bazelbuild/setup-bazelisk@v3
+
       - name: Build WASM Bundles
-        run: |
-          cd account-wasm
-          ./build.sh
+        run: bazelisk run --config=ci //account-wasm:build_wasm
 
       - name: Update package.json version and metadata
         run: |
@@ -131,10 +135,7 @@ jobs:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
       - name: Create tarballs for release
-        run: |
-          cd account-wasm
-          tar -czf pkg-controller.tar.gz pkg-controller
-          tar -czf pkg-session.tar.gz    pkg-session
+        run: bazelisk run --config=ci //account-wasm:package_wasm
 
       - name: Create GitHub Release
         if: ${{ !github.event.client_payload.dry_run }}

@@ -1,0 +1,16 @@
+package(default_visibility = ["//visibility:public"])
+
+sh_binary(
+    name = "build",
+    srcs = ["//scripts/bazel:rust_build.sh"],
+)
+
+sh_binary(
+    name = "tests",
+    srcs = ["//scripts/bazel:rust_test.sh"],
+)
+
+sh_binary(
+    name = "coverage",
+    srcs = ["//scripts/bazel:rust_coverage.sh"],
+)

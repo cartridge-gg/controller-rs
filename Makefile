@@ -22,19 +22,19 @@ setup-pre-commit:
 	./bin/setup-pre-commit
 
 lint:
-	./bin/lint
+	bazelisk run //:lint_fix
 
 lint-rust:
-	./bin/rust-lint
+	bazelisk run //:lint_fix -- --rust
 
 lint-cairo:
-	./bin/cairo-lint
+	bazelisk run //:lint_fix -- --cairo
 
 lint-prettier:
-	./bin/prettier-lint
+	bazelisk run //:lint_fix -- --prettier
 
 lint-check:
-	./bin/lint --check-only
+	bazelisk test //:lint
 
 clean:
 	rm -rf ./target
