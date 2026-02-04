@@ -22,7 +22,7 @@ while [[ $# -gt 0 ]]; do
  done
 
 if [ "$CHECK_ONLY" = true ]; then
-    exec bazelisk test //:rust_lint
+    exec bazelisk run //:rust_lint
 fi
 
 exec bazelisk run //:lint_fix -- --rust

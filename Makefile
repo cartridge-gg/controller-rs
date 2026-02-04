@@ -34,7 +34,7 @@ lint-prettier:
 	bazelisk run //:lint_fix -- --prettier
 
 lint-check:
-	bazelisk test //:lint
+	bazelisk run //:lint
 
 clean:
 	rm -rf ./target

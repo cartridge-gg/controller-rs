@@ -50,7 +50,7 @@ while [[ $# -gt 0 ]]; do
 
 if [ "$CHECK_ONLY" = true ]; then
     if [ ${#SELECTED[@]} -eq 0 ]; then
-        exec bazelisk test //:lint
+        exec bazelisk run //:lint
     fi
 
     TARGETS=()
@@ -68,7 +68,7 @@ if [ "$CHECK_ONLY" = true ]; then
         esac
     done
 
-    exec bazelisk test "${TARGETS[@]}"
+    exec bazelisk run "${TARGETS[@]}"
 fi
 
 ARGS=()

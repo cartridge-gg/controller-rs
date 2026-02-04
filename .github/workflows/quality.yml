@@ -93,4 +93,4 @@ jobs:
         run: npm install -g prettier
 
       - name: Run all linting checks
-        run: bazelisk test --config=ci //:lint
+        run: bazelisk run --config=ci //:lint
