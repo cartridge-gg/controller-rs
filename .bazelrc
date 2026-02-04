@@ -1,0 +1,7 @@
+common --experimental_convenience_symlinks=normal
+
+build:ci --color=yes --curses=no --show_timestamps
+
+test:ci --test_output=errors --flaky_test_attempts=3
+
+coverage:ci --combined_report=lcov

@@ -1,0 +1,4 @@
+module(
+    name = "controller_rs",
+    version = "0.0.0",
+)
