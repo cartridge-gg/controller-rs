@@ -11,6 +11,15 @@ Scarb.lock
 # Artifacts
 artifacts/
 
+# Agent tooling (canonical in .agents/, symlinked into .claude/ and .cursor/)
+.agents/
+.claude/
+.cursor/
+AGENTS.md
+AGENT.md
+CLAUDE.legacy.md
+AGENT.legacy.md
+
 # User instructions (should not be auto-formatted)
 CLAUDE.md
 
