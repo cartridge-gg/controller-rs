@@ -338,11 +338,10 @@ impl Controller {
 
         #[cfg(not(target_arch = "wasm32"))]
         {
-            let _ = std::thread::spawn(move || {
-                if let Err(e) =
-                    futures::executor::block_on(controller_clone.clear_session_if_revoked())
-                {
-                    println!("Error clearing session if revoked: {e}");
+            // Use tokio::task::spawn to ensure we're in a tokio runtime context
+            tokio::task::spawn(async move {
+                if let Err(e) = controller_clone.clear_session_if_revoked().await {
+                    eprintln!("Error clearing session if revoked: {e}");
                 }
             });
         }
