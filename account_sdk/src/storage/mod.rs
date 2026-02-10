@@ -374,17 +374,15 @@ struct StoredChainInfo {
     address: Felt,
 }
 
-/// Clears only the storage entries associated with a specific controller.
+/// Clears only the storage entries associated with a specific address.
 ///
-/// This is intentionally scoped to the given `(address, chain_id)` so multiple controllers
-/// can coexist in the same storage backend.
+/// This is intentionally scoped to the given `address` so multiple controllers (addresses)
+/// can coexist in the same storage backend, while disconnect clears all chains for the address.
 pub(crate) fn clear_controller_storage(
     storage: &mut impl StorageBackend,
     address: &Felt,
-    chain_id: &Felt,
 ) -> Result<(), StorageError> {
     let mut first_err: Option<StorageError> = None;
-    let mut active_missing_or_removed = false;
 
     let mut record = |res: Result<(), StorageError>| {
         if let Err(e) = res {
@@ -394,35 +392,44 @@ pub(crate) fn clear_controller_storage(
         }
     };
 
-    record(storage.remove(&selectors::Selectors::session(address, chain_id)));
-    record(storage.remove(&selectors::Selectors::deployment(address, chain_id)));
-    record(storage.remove(&selectors::Selectors::account(address, chain_id)));
+    // Remove all chain-scoped keys for this address by prefix (across all chain_ids).
+    match storage.keys() {
+        Ok(keys) => {
+            let account_prefix = format!("@cartridge/account/0x{address:x}/");
+            let session_prefix = format!("@cartridge/session/0x{address:x}/");
+            let deployment_prefix = format!("@cartridge/deployment/0x{address:x}/");
+            let admin_prefix = format!("@cartridge/admin/0x{address:x}/");
 
-    // Remove "active" only if it points to this controller.
-    match storage.get(&selectors::Selectors::active()) {
-        Ok(Some(StorageValue::Active(active)))
-            if &active.address == address && &active.chain_id == chain_id =>
-        {
-            record(storage.remove(&selectors::Selectors::active()));
-            active_missing_or_removed = true;
+            for key in keys {
+                if key.starts_with(&account_prefix)
+                    || key.starts_with(&session_prefix)
+                    || key.starts_with(&deployment_prefix)
+                    || key.starts_with(&admin_prefix)
+                {
+                    record(storage.remove(&key));
+                }
+            }
         }
-        Ok(None) => {
-            active_missing_or_removed = true;
+        Err(e) => record(Err(e)),
+    }
+
+    // Remove "active" only if it points to this address.
+    match storage.get(&selectors::Selectors::active()) {
+        Ok(Some(StorageValue::Active(active))) if &active.address == address => {
+            record(storage.remove(&selectors::Selectors::active()));
         }
         Ok(_) => {}
         Err(e) => record(Err(e)),
     }
 
-    // If a multi-chain config exists, remove just this controller entry from it.
+    // If a multi-chain config exists, remove just this address from it.
     // This keeps other controllers intact and avoids noisy load warnings.
     let config_key = selectors::Selectors::multi_chain_config();
     match storage.get(&config_key) {
         Ok(Some(StorageValue::String(config_json))) => {
             if let Ok(mut config) = serde_json::from_str::<StoredMultiChainMetadata>(&config_json) {
                 let before = config.chains.len();
-                config
-                    .chains
-                    .retain(|c| !(c.address == *address && c.chain_id == *chain_id));
+                config.chains.retain(|c| c.address != *address);
 
                 if config.chains.len() != before {
                     if config.chains.is_empty() {
@@ -434,19 +441,6 @@ pub(crate) fn clear_controller_storage(
                             ),
                             Err(e) => record(Err(StorageError::Serialization(e))),
                         }
-                    }
-
-                    // If only one controller remains in the multi-chain config, set it as active
-                    // for backward-compat with `Controller::from_storage()`.
-                    if config.chains.len() == 1 && active_missing_or_removed {
-                        let remaining = &config.chains[0];
-                        record(storage.set(
-                            &selectors::Selectors::active(),
-                            &StorageValue::Active(ActiveMetadata {
-                                address: remaining.address,
-                                chain_id: remaining.chain_id,
-                            }),
-                        ));
                     }
                 }
             }

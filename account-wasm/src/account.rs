@@ -176,9 +176,9 @@ impl CartridgeAccount {
         set_panic_hook();
 
         // Policies are stored in localStorage outside of `account_sdk`'s StorageBackend abstraction.
-        // Clear only this controller's policies to support multiple controllers in the same origin.
+        // Clear only this address's policies (across all chains) to support multiple controllers.
         let mut controller = self.controller.lock().await;
-        let _ = PolicyStorage::clear_for_controller(&controller.address, &controller.chain_id);
+        let _ = PolicyStorage::clear_for_address(&controller.address);
 
         controller.disconnect().map_err(JsControllerError::from)
     }

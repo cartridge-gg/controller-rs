@@ -48,8 +48,9 @@ mod tests {
 
         let address_a = felt!("0x111");
         let chain_a = felt!("0x1");
+        let chain_a2 = felt!("0x2");
         let address_b = felt!("0x222");
-        let chain_b = felt!("0x2");
+        let chain_b = felt!("0x3");
 
         storage
             .set(
@@ -67,6 +68,25 @@ mod tests {
             .set(
                 &Selectors::deployment(&address_a, &chain_a),
                 &StorageValue::String("deployment_a".to_string()),
+            )
+            .unwrap();
+
+        storage
+            .set(
+                &Selectors::account(&address_a, &chain_a2),
+                &StorageValue::String("account_a2".to_string()),
+            )
+            .unwrap();
+        storage
+            .set(
+                &Selectors::session(&address_a, &chain_a2),
+                &StorageValue::String("session_a2".to_string()),
+            )
+            .unwrap();
+        storage
+            .set(
+                &Selectors::deployment(&address_a, &chain_a2),
+                &StorageValue::String("deployment_a2".to_string()),
             )
             .unwrap();
 
@@ -100,12 +120,16 @@ mod tests {
             )
             .unwrap();
 
-        // Multi-chain config includes both A and B.
+        // Multi-chain config includes both chains for A plus B.
         let cfg = MultiChainMetadata {
             username: "test_user".to_string(),
             chains: vec![
                 ChainInfo {
                     chain_id: chain_a,
+                    address: address_a,
+                },
+                ChainInfo {
+                    chain_id: chain_a2,
                     address: address_a,
                 },
                 ChainInfo {
@@ -122,9 +146,9 @@ mod tests {
             )
             .unwrap();
 
-        clear_controller_storage(&mut storage, &address_a, &chain_a).unwrap();
+        clear_controller_storage(&mut storage, &address_a).unwrap();
 
-        // A's entries are removed.
+        // A's entries are removed across all chains.
         assert!(storage
             .get(&Selectors::account(&address_a, &chain_a))
             .unwrap()
@@ -135,6 +159,18 @@ mod tests {
             .is_none());
         assert!(storage
             .get(&Selectors::deployment(&address_a, &chain_a))
+            .unwrap()
+            .is_none());
+        assert!(storage
+            .get(&Selectors::account(&address_a, &chain_a2))
+            .unwrap()
+            .is_none());
+        assert!(storage
+            .get(&Selectors::session(&address_a, &chain_a2))
+            .unwrap()
+            .is_none());
+        assert!(storage
+            .get(&Selectors::deployment(&address_a, &chain_a2))
             .unwrap()
             .is_none());
 
@@ -152,14 +188,8 @@ mod tests {
             .unwrap()
             .is_some());
 
-        // Active now points at the remaining controller B.
-        match storage.get(&Selectors::active()).unwrap() {
-            Some(StorageValue::Active(active)) => {
-                assert_eq!(active.address, address_b);
-                assert_eq!(active.chain_id, chain_b);
-            }
-            other => panic!("unexpected active storage value: {other:?}"),
-        }
+        // Active is removed because it pointed at A.
+        assert!(storage.get(&Selectors::active()).unwrap().is_none());
 
         // Multi-chain config no longer includes A.
         match storage.get(&Selectors::multi_chain_config()).unwrap() {
@@ -179,13 +209,20 @@ mod tests {
 
         let address_a = felt!("0x111");
         let chain_a = felt!("0x1");
+        let chain_a2 = felt!("0x2");
         let address_b = felt!("0x222");
-        let chain_b = felt!("0x2");
+        let chain_b = felt!("0x3");
 
         storage
             .set(
                 &Selectors::account(&address_a, &chain_a),
                 &StorageValue::String("account_a".to_string()),
+            )
+            .unwrap();
+        storage
+            .set(
+                &Selectors::account(&address_a, &chain_a2),
+                &StorageValue::String("account_a2".to_string()),
             )
             .unwrap();
         storage
@@ -206,7 +243,17 @@ mod tests {
             )
             .unwrap();
 
-        clear_controller_storage(&mut storage, &address_a, &chain_a).unwrap();
+        clear_controller_storage(&mut storage, &address_a).unwrap();
+
+        // A's entries are removed across all chains.
+        assert!(storage
+            .get(&Selectors::account(&address_a, &chain_a))
+            .unwrap()
+            .is_none());
+        assert!(storage
+            .get(&Selectors::account(&address_a, &chain_a2))
+            .unwrap()
+            .is_none());
 
         match storage.get(&Selectors::active()).unwrap() {
             Some(StorageValue::Active(active)) => {

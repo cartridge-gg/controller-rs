@@ -258,7 +258,7 @@ impl Controller {
     }
 
     pub fn disconnect(&mut self) -> Result<(), ControllerError> {
-        crate::storage::clear_controller_storage(&mut self.storage, &self.address, &self.chain_id)
+        crate::storage::clear_controller_storage(&mut self.storage, &self.address)
             .map_err(ControllerError::from)
     }
 
