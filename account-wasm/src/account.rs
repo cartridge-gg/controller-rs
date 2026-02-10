@@ -175,11 +175,12 @@ impl CartridgeAccount {
     pub async fn disconnect(&self) -> std::result::Result<(), JsControllerError> {
         set_panic_hook();
 
-        self.controller
-            .lock()
-            .await
-            .disconnect()
-            .map_err(JsControllerError::from)
+        // Policies are stored in localStorage outside of `account_sdk`'s StorageBackend abstraction.
+        // Clear only this address's policies (across all chains) to support multiple controllers.
+        let mut controller = self.controller.lock().await;
+        let _ = PolicyStorage::clear_for_address(&controller.address);
+
+        controller.disconnect().map_err(JsControllerError::from)
     }
 
     #[wasm_bindgen(js_name = registerSession)]

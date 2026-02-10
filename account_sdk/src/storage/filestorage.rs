@@ -83,36 +83,66 @@ impl StorageBackend for FileSystemBackend {
     }
 
     fn clear(&mut self) -> Result<(), StorageError> {
-        if self.base_path.exists() {
-            fs::remove_dir_all(&self.base_path).map_err(|e| {
-                StorageError::OperationFailed(format!("Failed to remove directory: {e}"))
-            })?;
+        // Clear only Cartridge's namespace within the storage directory.
+        // All keys used by this SDK are stored under "@cartridge/...".
+        let cartridge_root = self.base_path.join("@cartridge");
+        if cartridge_root.exists() {
+            if cartridge_root.is_file() {
+                fs::remove_file(&cartridge_root).map_err(|e| {
+                    StorageError::OperationFailed(format!("Failed to remove file: {e}"))
+                })?;
+            } else {
+                fs::remove_dir_all(&cartridge_root).map_err(|e| {
+                    StorageError::OperationFailed(format!("Failed to remove directory: {e}"))
+                })?;
+            }
         }
+
+        // Ensure the base path exists after clearing.
         self.ensure_path_exists(self.base_path.clone())?;
         Ok(())
     }
 
     fn keys(&self) -> Result<Vec<String>, StorageError> {
-        let mut keys = Vec::new();
-        if self.base_path.exists() {
-            for entry in fs::read_dir(&self.base_path).map_err(|e| {
+        fn visit_dir(
+            base: &PathBuf,
+            dir: &PathBuf,
+            keys: &mut Vec<String>,
+        ) -> Result<(), StorageError> {
+            for entry in fs::read_dir(dir).map_err(|e| {
                 StorageError::OperationFailed(format!("Failed to read directory: {e}"))
             })? {
                 let entry = entry.map_err(|e| {
                     StorageError::OperationFailed(format!("Failed to read directory entry: {e}"))
                 })?;
-                if entry
-                    .file_type()
-                    .map_err(|e| {
-                        StorageError::OperationFailed(format!("Failed to get file type: {e}"))
-                    })?
-                    .is_file()
-                {
-                    if let Some(file_name) = entry.file_name().to_str() {
-                        keys.push(file_name.to_string());
+                let path = entry.path();
+                let ty = entry.file_type().map_err(|e| {
+                    StorageError::OperationFailed(format!("Failed to get file type: {e}"))
+                })?;
+
+                if ty.is_dir() {
+                    visit_dir(base, &path, keys)?;
+                    continue;
+                }
+
+                if ty.is_file() {
+                    let rel = path.strip_prefix(base).map_err(|e| {
+                        StorageError::OperationFailed(format!(
+                            "Failed to strip base path prefix: {e}"
+                        ))
+                    })?;
+                    if let Some(rel_str) = rel.to_str() {
+                        // Normalize separators to match how keys are constructed (using '/').
+                        keys.push(rel_str.replace(std::path::MAIN_SEPARATOR, "/"));
                     }
                 }
             }
+            Ok(())
+        }
+
+        let mut keys = Vec::new();
+        if self.base_path.exists() {
+            visit_dir(&self.base_path, &self.base_path, &mut keys)?;
         }
         Ok(keys)
     }

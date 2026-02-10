@@ -7,6 +7,8 @@ use crate::types::policy::Policy;
 
 type Result<T> = std::result::Result<T, JsError>;
 
+const POLICY_STORAGE_PREFIX: &str = "@cartridge/policies/";
+
 #[derive(Serialize, Deserialize)]
 pub struct StoredPolicies {
     policies: Vec<Policy>,
@@ -41,6 +43,103 @@ impl PolicyStorage {
                     storage
                         .set_item(&self.storage_key, &json)
                         .map_err(|_| JsError::new("Failed to store policies"))?;
+                }
+            }
+        }
+        Ok(())
+    }
+
+    /// Clears all policy entries from `window.localStorage` (all addresses/app_ids/chains).
+    pub fn clear_all() -> Result<()> {
+        if let Some(window) = window() {
+            if let Ok(Some(storage)) = window.local_storage() {
+                let length = storage
+                    .length()
+                    .map_err(|_| JsError::new("Failed to get localStorage length"))?;
+
+                // Collect keys first; removing while iterating by index can skip entries.
+                let mut keys = Vec::new();
+                for i in 0..length {
+                    if let Ok(Some(key)) = storage.key(i) {
+                        keys.push(key);
+                    }
+                }
+
+                for key in keys {
+                    if key.starts_with(POLICY_STORAGE_PREFIX) {
+                        storage.remove_item(&key).map_err(|_| {
+                            JsError::new("Failed to remove policy from localStorage")
+                        })?;
+                    }
+                }
+            }
+        }
+        Ok(())
+    }
+
+    /// Clears policy entries from `window.localStorage` for a specific address (all chains/app_ids).
+    ///
+    /// Policies are stored under:
+    /// - `@cartridge/policies/0x{address}/0x{chain_id}`
+    /// - `@cartridge/policies/0x{address}/{app_id}/0x{chain_id}`
+    pub fn clear_for_address(address: &Felt) -> Result<()> {
+        if let Some(window) = window() {
+            if let Ok(Some(storage)) = window.local_storage() {
+                let length = storage
+                    .length()
+                    .map_err(|_| JsError::new("Failed to get localStorage length"))?;
+
+                let prefix = format!("{POLICY_STORAGE_PREFIX}0x{address:x}/");
+
+                // Collect keys first; removing while iterating by index can skip entries.
+                let mut keys = Vec::new();
+                for i in 0..length {
+                    if let Ok(Some(key)) = storage.key(i) {
+                        keys.push(key);
+                    }
+                }
+
+                for key in keys {
+                    if key.starts_with(&prefix) {
+                        storage.remove_item(&key).map_err(|_| {
+                            JsError::new("Failed to remove policy from localStorage")
+                        })?;
+                    }
+                }
+            }
+        }
+        Ok(())
+    }
+
+    /// Clears policy entries from `window.localStorage` for a specific controller `(address, chain_id)`.
+    ///
+    /// Policies are stored under:
+    /// - `@cartridge/policies/0x{address}/0x{chain_id}`
+    /// - `@cartridge/policies/0x{address}/{app_id}/0x{chain_id}`
+    pub fn clear_for_controller(address: &Felt, chain_id: &Felt) -> Result<()> {
+        if let Some(window) = window() {
+            if let Ok(Some(storage)) = window.local_storage() {
+                let length = storage
+                    .length()
+                    .map_err(|_| JsError::new("Failed to get localStorage length"))?;
+
+                let prefix = format!("{POLICY_STORAGE_PREFIX}0x{address:x}/");
+                let suffix = format!("/0x{chain_id:x}");
+
+                // Collect keys first; removing while iterating by index can skip entries.
+                let mut keys = Vec::new();
+                for i in 0..length {
+                    if let Ok(Some(key)) = storage.key(i) {
+                        keys.push(key);
+                    }
+                }
+
+                for key in keys {
+                    if key.starts_with(&prefix) && key.ends_with(&suffix) {
+                        storage.remove_item(&key).map_err(|_| {
+                            JsError::new("Failed to remove policy from localStorage")
+                        })?;
+                    }
                 }
             }
         }
