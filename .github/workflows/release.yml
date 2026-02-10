@@ -58,11 +58,10 @@ jobs:
           cd account-wasm
           ./build.sh
 
-      - name: Update package.json version and metadata
+      - name: Update package.json version
         run: |
           cd account-wasm
           npm pkg set version=${{ steps.version.outputs.full }}
-          npm pkg set repository=https://github.com/cartridge-gg/controller-rs
 
       - name: Publish to NPM
         run: |
@@ -116,11 +115,10 @@ jobs:
           cd account-wasm
           ./build.sh
 
-      - name: Update package.json version and metadata
+      - name: Update package.json version
         run: |
           cd account-wasm
           npm pkg set version=${{ github.event.client_payload.version }}
-          npm pkg set repository=https://github.com/cartridge-gg/controller-rs
 
       - name: Publish to NPM
         if: ${{ !github.event.client_payload.dry_run }}
