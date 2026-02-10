@@ -2,6 +2,11 @@
   "name": "@cartridge/controller-wasm",
   "version": "0.7.14-alpha.3",
   "description": "Wasm bindings for Cartridge Controller and Session Account",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/cartridge-gg/controller-rs"
+  },
+  "license": "MIT",
   "type": "module",
   "main": "./pkg-controller/account_wasm.js",
   "module": "./pkg-controller/account_wasm.js",
