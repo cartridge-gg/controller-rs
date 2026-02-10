@@ -258,7 +258,8 @@ impl Controller {
     }
 
     pub fn disconnect(&mut self) -> Result<(), ControllerError> {
-        self.storage.clear().map_err(ControllerError::from)
+        crate::storage::clear_controller_storage(&mut self.storage, &self.address, &self.chain_id)
+            .map_err(ControllerError::from)
     }
 
     pub fn contract(&self) -> &abigen::controller::Controller<Self> {
@@ -601,7 +602,10 @@ impl_account!(Controller, |account: &Controller, context| {
     // For session-based executions we can sign non-interactively; for owner-based executions
     // interactivity depends on the signer type and target.
     if let SignerInteractivityContext::Execution { calls } = context {
-        if account.session_account(&Policy::from_calls(calls)).is_some() {
+        if account
+            .session_account(&Policy::from_calls(calls))
+            .is_some()
+        {
             return false;
         }
     }

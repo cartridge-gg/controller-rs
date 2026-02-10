@@ -176,15 +176,11 @@ impl CartridgeAccount {
         set_panic_hook();
 
         // Policies are stored in localStorage outside of `account_sdk`'s StorageBackend abstraction.
-        // Clear them explicitly to avoid stale policy state after disconnect.
-        // Best-effort: controller disconnect will also clear the "@cartridge/*" namespace.
-        let _ = PolicyStorage::clear_all();
+        // Clear only this controller's policies to support multiple controllers in the same origin.
+        let mut controller = self.controller.lock().await;
+        let _ = PolicyStorage::clear_for_controller(&controller.address, &controller.chain_id);
 
-        self.controller
-            .lock()
-            .await
-            .disconnect()
-            .map_err(JsControllerError::from)
+        controller.disconnect().map_err(JsControllerError::from)
     }
 
     #[wasm_bindgen(js_name = registerSession)]
