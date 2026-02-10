@@ -4,7 +4,8 @@
   "description": "Wasm bindings for Cartridge Controller and Session Account",
   "repository": {
     "type": "git",
-    "url": "https://github.com/cartridge-gg/controller-rs"
+    "url": "https://github.com/cartridge-gg/controller-rs",
+    "directory": "account-wasm"
   },
   "license": "MIT",
   "type": "module",
