@@ -579,13 +579,34 @@ impl Controller {
 }
 
 impl_account!(Controller, |account: &Controller, context| {
-    if let SignerInteractivityContext::Execution { calls } = context {
-        account
-            .session_account(&Policy::from_calls(calls))
-            .is_none()
-    } else {
-        true
+    fn signer_is_interactive(signer: &crate::signers::Signer) -> bool {
+        match signer {
+            crate::signers::Signer::Starknet(_) => false,
+            #[cfg(feature = "webauthn")]
+            crate::signers::Signer::Webauthn(_) => cfg!(target_arch = "wasm32"),
+            #[cfg(feature = "webauthn")]
+            crate::signers::Signer::Webauthns(_) => cfg!(target_arch = "wasm32"),
+            crate::signers::Signer::Eip191(_) => cfg!(target_arch = "wasm32"),
+        }
     }
+
+    fn owner_is_interactive(owner: &crate::signers::Owner) -> bool {
+        match owner {
+            crate::signers::Owner::Signer(signer) => signer_is_interactive(signer),
+            // An external account owner cannot sign here; allow estimation to skip validation.
+            crate::signers::Owner::Account(_) => true,
+        }
+    }
+
+    // For session-based executions we can sign non-interactively; for owner-based executions
+    // interactivity depends on the signer type and target.
+    if let SignerInteractivityContext::Execution { calls } = context {
+        if account.session_account(&Policy::from_calls(calls)).is_some() {
+            return false;
+        }
+    }
+
+    owner_is_interactive(&account.owner)
 });
 
 #[cfg_attr(not(target_arch = "wasm32"), async_trait)]

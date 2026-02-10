@@ -7,6 +7,8 @@ use crate::types::policy::Policy;
 
 type Result<T> = std::result::Result<T, JsError>;
 
+const POLICY_STORAGE_PREFIX: &str = "@cartridge/policies/";
+
 #[derive(Serialize, Deserialize)]
 pub struct StoredPolicies {
     policies: Vec<Policy>,
@@ -41,6 +43,34 @@ impl PolicyStorage {
                     storage
                         .set_item(&self.storage_key, &json)
                         .map_err(|_| JsError::new("Failed to store policies"))?;
+                }
+            }
+        }
+        Ok(())
+    }
+
+    /// Clears all policy entries from `window.localStorage` (all addresses/app_ids/chains).
+    pub fn clear_all() -> Result<()> {
+        if let Some(window) = window() {
+            if let Ok(Some(storage)) = window.local_storage() {
+                let length = storage
+                    .length()
+                    .map_err(|_| JsError::new("Failed to get localStorage length"))?;
+
+                // Collect keys first; removing while iterating by index can skip entries.
+                let mut keys = Vec::new();
+                for i in 0..length {
+                    if let Ok(Some(key)) = storage.key(i) {
+                        keys.push(key);
+                    }
+                }
+
+                for key in keys {
+                    if key.starts_with(POLICY_STORAGE_PREFIX) {
+                        storage
+                            .remove_item(&key)
+                            .map_err(|_| JsError::new("Failed to remove policy from localStorage"))?;
+                    }
                 }
             }
         }

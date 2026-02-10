@@ -83,11 +83,22 @@ impl StorageBackend for FileSystemBackend {
     }
 
     fn clear(&mut self) -> Result<(), StorageError> {
-        if self.base_path.exists() {
-            fs::remove_dir_all(&self.base_path).map_err(|e| {
-                StorageError::OperationFailed(format!("Failed to remove directory: {e}"))
-            })?;
+        // Clear only Cartridge's namespace within the storage directory.
+        // All keys used by this SDK are stored under "@cartridge/...".
+        let cartridge_root = self.base_path.join("@cartridge");
+        if cartridge_root.exists() {
+            if cartridge_root.is_file() {
+                fs::remove_file(&cartridge_root).map_err(|e| {
+                    StorageError::OperationFailed(format!("Failed to remove file: {e}"))
+                })?;
+            } else {
+                fs::remove_dir_all(&cartridge_root).map_err(|e| {
+                    StorageError::OperationFailed(format!("Failed to remove directory: {e}"))
+                })?;
+            }
         }
+
+        // Ensure the base path exists after clearing.
         self.ensure_path_exists(self.base_path.clone())?;
         Ok(())
     }

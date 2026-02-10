@@ -175,6 +175,11 @@ impl CartridgeAccount {
     pub async fn disconnect(&self) -> std::result::Result<(), JsControllerError> {
         set_panic_hook();
 
+        // Policies are stored in localStorage outside of `account_sdk`'s StorageBackend abstraction.
+        // Clear them explicitly to avoid stale policy state after disconnect.
+        // Best-effort: controller disconnect will also clear the "@cartridge/*" namespace.
+        let _ = PolicyStorage::clear_all();
+
         self.controller
             .lock()
             .await
