@@ -7,7 +7,6 @@
     "url": "https://github.com/cartridge-gg/controller-rs",
     "directory": "account-wasm"
   },
-  "license": "MIT",
   "type": "module",
   "main": "./pkg-controller/account_wasm.js",
   "module": "./pkg-controller/account_wasm.js",
