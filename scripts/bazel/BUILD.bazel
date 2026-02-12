@@ -1,0 +1,10 @@
+package(default_visibility = ["//visibility:public"])
+
+exports_files([
+    "build_wasm.sh",
+    "lint.sh",
+    "package_wasm.sh",
+    "rust_build.sh",
+    "rust_coverage.sh",
+    "rust_test.sh",
+])

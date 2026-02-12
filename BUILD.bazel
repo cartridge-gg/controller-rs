@@ -1,0 +1,30 @@
+package(default_visibility = ["//visibility:public"])
+
+sh_binary(
+    name = "lint",
+    srcs = ["//scripts/bazel:lint.sh"],
+    args = ["--check-only"],
+)
+
+sh_binary(
+    name = "lint_fix",
+    srcs = ["//scripts/bazel:lint.sh"],
+)
+
+sh_binary(
+    name = "rust_lint",
+    srcs = ["//scripts/bazel:lint.sh"],
+    args = ["--check-only", "--rust"],
+)
+
+sh_binary(
+    name = "cairo_lint",
+    srcs = ["//scripts/bazel:lint.sh"],
+    args = ["--check-only", "--cairo"],
+)
+
+sh_binary(
+    name = "prettier_lint",
+    srcs = ["//scripts/bazel:lint.sh"],
+    args = ["--check-only", "--prettier"],
+)

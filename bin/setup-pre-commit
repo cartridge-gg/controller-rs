@@ -37,6 +37,13 @@ chmod +x .githooks/*
 # Install required tooling
 echo "Checking for required tooling..."
 
+# Check for bazelisk
+if ! command -v bazelisk &> /dev/null; then
+    echo "⚠ bazelisk not found - install it to run Bazel-based hooks"
+else
+    echo "✓ bazelisk is already installed"
+fi
+
 # Check for rustfmt
 if ! command -v rustfmt &> /dev/null; then
     echo "Installing rustfmt..."
