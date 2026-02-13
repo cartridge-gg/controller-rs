@@ -5,8 +5,6 @@ use web_sys::window;
 #[derive(Debug, Clone, Default)]
 pub struct LocalStorage;
 
-const CARTRIDGE_STORAGE_PREFIX: &str = "@cartridge/";
-
 #[cfg_attr(not(target_arch = "wasm32"), async_trait)]
 #[cfg_attr(target_arch = "wasm32", async_trait)]
 impl StorageBackend for LocalStorage {
@@ -44,27 +42,10 @@ impl StorageBackend for LocalStorage {
     }
 
     fn clear(&mut self) -> Result<(), StorageError> {
-        // Never clear the entire origin localStorage. Only clear Cartridge's namespace.
         let local_storage = Self::local_storage()?;
-        let length = local_storage
-            .length()
-            .map_err(|_| StorageError::OperationFailed("getting localStorage length".into()))?;
-
-        // Collect keys up front; mutating localStorage while iterating by index is error-prone.
-        let mut keys = Vec::new();
-        for i in 0..length {
-            if let Ok(Some(key)) = local_storage.key(i) {
-                keys.push(key);
-            }
-        }
-
-        for key in keys {
-            if key.starts_with(CARTRIDGE_STORAGE_PREFIX) {
-                local_storage.remove_item(&key).map_err(|_| {
-                    StorageError::OperationFailed("removing item from localStorage".into())
-                })?;
-            }
-        }
+        local_storage
+            .clear()
+            .map_err(|_| StorageError::OperationFailed("clearing localStorage".into()))?;
         Ok(())
     }
 
