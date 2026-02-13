@@ -362,95 +362,11 @@ pub type Storage = localstorage::LocalStorage;
 #[cfg(all(not(target_arch = "wasm32"), feature = "filestorage"))]
 pub type Storage = filestorage::FileSystemBackend;
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-struct StoredMultiChainMetadata {
-    username: String,
-    chains: Vec<StoredChainInfo>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-struct StoredChainInfo {
-    chain_id: Felt,
-    address: Felt,
-}
-
-/// Clears only the storage entries associated with a specific address.
-///
-/// This is intentionally scoped to the given `address` so multiple controllers (addresses)
-/// can coexist in the same storage backend, while disconnect clears all chains for the address.
+/// Clears all persisted storage entries for the backend implementation.
+/// This is used by disconnect and intentionally performs a full clear in the active storage context.
 pub(crate) fn clear_controller_storage(
     storage: &mut impl StorageBackend,
-    address: &Felt,
+    _address: &Felt,
 ) -> Result<(), StorageError> {
-    let mut first_err: Option<StorageError> = None;
-
-    let mut record = |res: Result<(), StorageError>| {
-        if let Err(e) = res {
-            if first_err.is_none() {
-                first_err = Some(e);
-            }
-        }
-    };
-
-    // Remove all chain-scoped keys for this address by prefix (across all chain_ids).
-    match storage.keys() {
-        Ok(keys) => {
-            let account_prefix = format!("@cartridge/account/0x{address:x}/");
-            let session_prefix = format!("@cartridge/session/0x{address:x}/");
-            let deployment_prefix = format!("@cartridge/deployment/0x{address:x}/");
-            let admin_prefix = format!("@cartridge/admin/0x{address:x}/");
-
-            for key in keys {
-                if key.starts_with(&account_prefix)
-                    || key.starts_with(&session_prefix)
-                    || key.starts_with(&deployment_prefix)
-                    || key.starts_with(&admin_prefix)
-                {
-                    record(storage.remove(&key));
-                }
-            }
-        }
-        Err(e) => record(Err(e)),
-    }
-
-    // Remove "active" only if it points to this address.
-    match storage.get(&selectors::Selectors::active()) {
-        Ok(Some(StorageValue::Active(active))) if &active.address == address => {
-            record(storage.remove(&selectors::Selectors::active()));
-        }
-        Ok(_) => {}
-        Err(e) => record(Err(e)),
-    }
-
-    // If a multi-chain config exists, remove just this address from it.
-    // This keeps other controllers intact and avoids noisy load warnings.
-    let config_key = selectors::Selectors::multi_chain_config();
-    match storage.get(&config_key) {
-        Ok(Some(StorageValue::String(config_json))) => {
-            if let Ok(mut config) = serde_json::from_str::<StoredMultiChainMetadata>(&config_json) {
-                let before = config.chains.len();
-                config.chains.retain(|c| c.address != *address);
-
-                if config.chains.len() != before {
-                    if config.chains.is_empty() {
-                        record(storage.remove(&config_key));
-                    } else {
-                        match serde_json::to_string(&config) {
-                            Ok(updated_json) => record(
-                                storage.set(&config_key, &StorageValue::String(updated_json)),
-                            ),
-                            Err(e) => record(Err(StorageError::Serialization(e))),
-                        }
-                    }
-                }
-            }
-        }
-        Ok(_) => {}
-        Err(e) => record(Err(e)),
-    }
-
-    if let Some(e) = first_err {
-        return Err(e);
-    }
-    Ok(())
+    storage.clear()
 }
