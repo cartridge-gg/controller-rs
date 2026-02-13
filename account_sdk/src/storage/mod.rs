@@ -399,12 +399,17 @@ pub(crate) fn clear_controller_storage(
             let session_prefix = format!("@cartridge/session/0x{address:x}/");
             let deployment_prefix = format!("@cartridge/deployment/0x{address:x}/");
             let admin_prefix = format!("@cartridge/admin/0x{address:x}/");
+            let policy_prefix = format!("@cartridge/policies/0x{address:x}/");
 
             for key in keys {
-                if key.starts_with(&account_prefix)
+                if key == "@cartridge/features"
+                    || key.starts_with(&account_prefix)
                     || key.starts_with(&session_prefix)
                     || key.starts_with(&deployment_prefix)
                     || key.starts_with(&admin_prefix)
+                    || key.starts_with(&policy_prefix)
+                    || (key.starts_with("@cartridge/http://") || key.starts_with("@cartridge/https://"))
+                        && key.ends_with("/active")
                 {
                     record(storage.remove(&key));
                 }

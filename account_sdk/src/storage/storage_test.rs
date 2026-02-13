@@ -79,6 +79,30 @@ mod tests {
             .unwrap();
         storage
             .set(
+                "@cartridge/policies/0x111/0x1",
+                &StorageValue::String("policies_a_chain_a".to_string()),
+            )
+            .unwrap();
+        storage
+            .set(
+                "@cartridge/policies/0x222/0x3",
+                &StorageValue::String("policies_b_chain_b".to_string()),
+            )
+            .unwrap();
+        storage
+            .set(
+                "@cartridge/features",
+                &StorageValue::String("features".to_string()),
+            )
+            .unwrap();
+        storage
+            .set(
+                "@cartridge/https://x.cartridge.gg/active",
+                &StorageValue::String("active-domain".to_string()),
+            )
+            .unwrap();
+        storage
+            .set(
                 &Selectors::session(&address_a, &chain_a2),
                 &StorageValue::String("session_a2".to_string()),
             )
@@ -173,6 +197,18 @@ mod tests {
             .get(&Selectors::deployment(&address_a, &chain_a2))
             .unwrap()
             .is_none());
+        assert!(storage
+            .get("@cartridge/policies/0x111/0x1")
+            .unwrap()
+            .is_none());
+        assert!(storage
+            .get("@cartridge/features")
+            .unwrap()
+            .is_none());
+        assert!(storage
+            .get("@cartridge/https://x.cartridge.gg/active")
+            .unwrap()
+            .is_none());
 
         // B's entries remain.
         assert!(storage
@@ -185,6 +221,10 @@ mod tests {
             .is_some());
         assert!(storage
             .get(&Selectors::deployment(&address_b, &chain_b))
+            .unwrap()
+            .is_some());
+        assert!(storage
+            .get("@cartridge/policies/0x222/0x3")
             .unwrap()
             .is_some());
 
