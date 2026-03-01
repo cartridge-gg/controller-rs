@@ -8,33 +8,53 @@ on:
 
 env:
   CARGO_TERM_COLOR: always
-  RUST_VERSION: 1.88.0
-  VCPKG_ROOT: "${{ github.workspace }}/vcpkg"
+  RUST_VERSION: 1.92.0
 
 jobs:
   ensure-wasm:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
       - uses: actions-rust-lang/setup-rust-toolchain@v1
         with:
           toolchain: ${{ env.RUST_VERSION }}
           target: wasm32-unknown-unknown
+
       - name: Install wasm-pack
         run: cargo install --locked wasm-pack
+
+      - name: Install wasm-opt
+        run: npm install -g wasm-opt
+
+      - uses: bazelbuild/setup-bazelisk@v3
+
+      - name: Cache Bazel
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/bazel
+            ~/.cache/bazelisk
+          key: ${{ runner.os }}-bazel-${{ hashFiles('MODULE.bazel', 'Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-bazel-
+
       - name: Build account-wasm
-        working-directory: account-wasm
-        run: ./build.sh
+        run: bazelisk run --config=ci //account-wasm:build_wasm
 
   ensure-windows:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions-rust-lang/setup-rust-toolchain@v1
-        with:
-          toolchain: ${{ env.RUST_VERSION }}
-          target: x86_64-pc-windows-msvc
-      - run: cargo build --target x86_64-pc-windows-msvc -p account_sdk
+
+      - uses: bazelbuild/setup-bazelisk@v3
+
+      - name: Build account_sdk
+        run: bazelisk run --config=ci //account_sdk:build
 
   lint:
     name: Code Quality (mirrors pre-commit hooks)
@@ -42,19 +62,28 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # Setup Rust with required components
+      - uses: bazelbuild/setup-bazelisk@v3
+
+      - name: Cache Bazel
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/bazel
+            ~/.cache/bazelisk
+          key: ${{ runner.os }}-bazel-${{ hashFiles('MODULE.bazel', 'Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-bazel-
+
       - uses: actions-rust-lang/setup-rust-toolchain@v1
         with:
           toolchain: ${{ env.RUST_VERSION }}
           components: rustfmt, clippy
 
-      # Setup Scarb for Cairo formatting
       - name: Setup Scarb
         uses: software-mansion/setup-scarb@v1
         with:
           scarb-version: "2.9.4"
 
-      # Setup Node.js and prettier for documentation formatting
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
@@ -63,10 +92,5 @@ jobs:
       - name: Install prettier
         run: npm install -g prettier
 
-      # Make scripts executable
-      - name: Make scripts executable
-        run: chmod +x bin/*
-
-      # Run all linting checks (mirrors the pre-commit hooks exactly)
       - name: Run all linting checks
-        run: make lint-check
+        run: bazelisk run --config=ci //:lint
