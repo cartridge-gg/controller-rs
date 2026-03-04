@@ -271,7 +271,7 @@ async fn test_controller_storage() {
     use crate::controller::Controller;
     use crate::signers::Signer;
     use crate::storage::filestorage::FileSystemBackend;
-    use crate::storage::Storage;
+    use crate::storage::{ControllerMetadata, Storage, StorageBackend};
     use crate::tests::ensure_txn;
 
     // Setup temporary directory for file storage
@@ -300,7 +300,7 @@ async fn test_controller_storage() {
     // Create a new controller instance with explicit storage
     // This ensures storage writes go to our temp directory, not wherever
     // CARTRIDGE_STORAGE_PATH might be pointing due to other parallel tests
-    let controller = Controller::new(
+    let mut controller = Controller::new(
         username.clone(),
         deployed.class_hash,
         deployed.rpc_url.clone(),
@@ -311,9 +311,22 @@ async fn test_controller_storage() {
     .await
     .unwrap();
 
-    // Verify that the controller was stored
+    // Controller::new() should NOT persist to storage — callers are responsible
     let storage_file = storage_path.join("@cartridge/active");
-    assert!(storage_file.exists(), "Storage file was not created");
+    assert!(!storage_file.exists(), "Storage file should not exist after Controller::new()");
+
+    // Explicitly persist (as WASM callers do after successful auth)
+    controller
+        .storage
+        .set_controller(
+            &controller.chain_id,
+            controller.address,
+            ControllerMetadata::from(&controller),
+        )
+        .unwrap();
+
+    // Now verify that the controller was stored
+    assert!(storage_file.exists(), "Storage file was not created after explicit set_controller");
 
     // Initialize a new controller from storage using explicit storage path
     let loaded_controller = Controller::from_storage_with_backend(storage)
@@ -595,5 +608,87 @@ async fn test_is_session_expired_states() {
     assert!(
         controller.is_session_expired(),
         "Expired session should be detected as expired"
+    );
+}
+
+#[tokio::test]
+async fn test_controller_new_does_not_persist_to_storage() {
+    use crate::storage::{selectors::Selectors, StorageBackend};
+
+    let runner = KatanaRunner::load();
+    let signer = Signer::new_starknet_random();
+
+    // Deploy first to ensure the runner/proxy is ready
+    let deployed = runner
+        .deploy_controller(
+            "persist_check".to_string(),
+            Owner::Signer(signer.clone()),
+            Version::LATEST,
+        )
+        .await;
+
+    // Now create a new controller (simulating a login attempt that may fail)
+    let controller = Controller::new(
+        "persist_check2".to_string(),
+        CONTROLLERS[&Version::LATEST].hash,
+        deployed.rpc_url.clone(),
+        Owner::Signer(signer),
+        felt!("0xdeadbeef"),
+        None,
+    )
+    .await
+    .unwrap();
+
+    // Controller::new() should NOT write to storage.
+    // This prevents stale data when login fails (e.g., user cancels WebAuthn).
+    let active = controller.storage.get(&Selectors::active()).unwrap();
+    assert!(
+        active.is_none(),
+        "Controller::new() should not persist to storage"
+    );
+
+    let account = controller
+        .storage
+        .get(&Selectors::account(
+            &controller.address,
+            &controller.chain_id,
+        ))
+        .unwrap();
+    assert!(
+        account.is_none(),
+        "Controller::new() should not persist account metadata to storage"
+    );
+}
+
+#[tokio::test]
+async fn test_controller_new_headless_does_not_persist_to_storage() {
+    use crate::storage::{selectors::Selectors, StorageBackend};
+
+    let runner = KatanaRunner::load();
+    let signer = Signer::new_starknet_random();
+
+    // Deploy first to ensure the runner/proxy is ready
+    let _deployed = runner
+        .deploy_controller(
+            "headless_check".to_string(),
+            Owner::Signer(signer.clone()),
+            Version::LATEST,
+        )
+        .await;
+
+    let controller = Controller::new_headless(
+        "headless_check2".to_string(),
+        CONTROLLERS[&Version::LATEST].hash,
+        runner.rpc_url.clone(),
+        Owner::Signer(signer),
+    )
+    .await
+    .unwrap();
+
+    // new_headless() should NOT write to storage either.
+    let active = controller.storage.get(&Selectors::active()).unwrap();
+    assert!(
+        active.is_none(),
+        "Controller::new_headless() should not persist to storage"
     );
 }

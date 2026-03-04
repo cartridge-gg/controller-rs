@@ -102,12 +102,6 @@ impl Controller {
         ));
         controller.contract = Some(contract);
 
-        // Persist controller metadata immediately to prevent data loss
-        controller
-            .storage
-            .set_controller(&chain_id, address, ControllerMetadata::from(&controller))
-            .map_err(ControllerError::StorageError)?;
-
         // Clears the stored session if it's been revoked
         controller.clear_invalid_session();
 
@@ -165,11 +159,6 @@ impl Controller {
             controller.clone(),
         ));
         controller.contract = Some(contract);
-
-        controller
-            .storage
-            .set_controller(&chain_id, address, ControllerMetadata::from(&controller))
-            .expect("Should store controller");
 
         // Clears the stored session if it's been revoked in a fire-and-forget style when the controller is created (with fromStorage for example).
         // Doing this eagerly prevents having to thread mutability/async through callers that only need an initialized controller.
