@@ -313,7 +313,10 @@ async fn test_controller_storage() {
 
     // Controller::new() should NOT persist to storage — callers are responsible
     let storage_file = storage_path.join("@cartridge/active");
-    assert!(!storage_file.exists(), "Storage file should not exist after Controller::new()");
+    assert!(
+        !storage_file.exists(),
+        "Storage file should not exist after Controller::new()"
+    );
 
     // Explicitly persist (as WASM callers do after successful auth)
     controller
@@ -326,7 +329,10 @@ async fn test_controller_storage() {
         .unwrap();
 
     // Now verify that the controller was stored
-    assert!(storage_file.exists(), "Storage file was not created after explicit set_controller");
+    assert!(
+        storage_file.exists(),
+        "Storage file was not created after explicit set_controller"
+    );
 
     // Initialize a new controller from storage using explicit storage path
     let loaded_controller = Controller::from_storage_with_backend(storage)
