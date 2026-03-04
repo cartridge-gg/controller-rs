@@ -10,7 +10,7 @@ use account_sdk::controller::{Controller, DEFAULT_SESSION_EXPIRATION};
 use account_sdk::errors::ControllerError;
 use account_sdk::session::RevokableSession;
 use account_sdk::storage::selectors::Selectors;
-use account_sdk::storage::StorageBackend;
+use account_sdk::storage::{ControllerMetadata, StorageBackend};
 
 use account_sdk::transaction_waiter::TransactionWaiter;
 use cainome::cairo_serde::NonZero;
@@ -92,7 +92,7 @@ impl CartridgeAccount {
         let rpc_url = Url::parse(&rpc_url)?;
         let username = username.to_lowercase();
 
-        let controller = Controller::new(
+        let mut controller = Controller::new(
             username.clone(),
             class_hash.try_into()?,
             rpc_url,
@@ -102,6 +102,15 @@ impl CartridgeAccount {
         )
         .await
         .map_err(|e| JsError::new(&e.to_string()))?;
+
+        controller
+            .storage
+            .set_controller(
+                &controller.chain_id,
+                controller.address,
+                ControllerMetadata::from(&controller),
+            )
+            .expect("Should store controller");
 
         Ok(CartridgeAccountWithMeta::new(controller, cartridge_api_url))
     }
@@ -144,7 +153,7 @@ impl CartridgeAccount {
         let address =
             account_sdk::factory::compute_account_address(class_hash_felt, owner.clone(), salt);
 
-        let controller = Controller::new(
+        let mut controller = Controller::new(
             username.clone(),
             class_hash_felt,
             rpc_url,
@@ -154,6 +163,15 @@ impl CartridgeAccount {
         )
         .await
         .map_err(|e| JsError::new(&e.to_string()))?;
+
+        controller
+            .storage
+            .set_controller(
+                &controller.chain_id,
+                controller.address,
+                ControllerMetadata::from(&controller),
+            )
+            .expect("Should store controller");
 
         Ok(CartridgeAccountWithMeta::new(controller, cartridge_api_url))
     }
