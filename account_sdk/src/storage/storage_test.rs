@@ -6,7 +6,8 @@ mod tests {
     use crate::storage::inmemory::InMemoryBackend;
     use crate::storage::selectors::Selectors;
     use crate::storage::{
-        clear_controller_storage, ActiveMetadata, StorageBackend, StorageError, StorageValue,
+        clear_controller_storage, clear_namespaced_storage, ActiveMetadata, StorageBackend,
+        StorageError, StorageValue, CARTRIDGE_STORAGE_PREFIX,
     };
     use crate::tests::runners::katana::KatanaRunner;
     use serde_json::json;
@@ -43,7 +44,40 @@ mod tests {
     }
 
     #[test]
-    fn test_clear_controller_storage_removes_everything() {
+    fn test_clear_namespaced_storage_removes_all_cartridge_keys_only() {
+        let mut storage = InMemoryBackend::new();
+
+        storage
+            .set(
+                "@cartridge/active",
+                &StorageValue::String("controller".to_string()),
+            )
+            .unwrap();
+        storage
+            .set(
+                "@cartridge/policies/0x111/0x1",
+                &StorageValue::String("policy".to_string()),
+            )
+            .unwrap();
+        storage
+            .set(
+                "app/non-cartridge",
+                &StorageValue::String("keep".to_string()),
+            )
+            .unwrap();
+
+        clear_namespaced_storage(&mut storage, CARTRIDGE_STORAGE_PREFIX).unwrap();
+
+        assert!(storage.get("@cartridge/active").unwrap().is_none());
+        assert!(storage
+            .get("@cartridge/policies/0x111/0x1")
+            .unwrap()
+            .is_none());
+        assert!(storage.get("app/non-cartridge").unwrap().is_some());
+    }
+
+    #[test]
+    fn test_clear_controller_storage_is_scoped_and_updates_multi_chain_config() {
         let mut storage = InMemoryBackend::new();
 
         let address_a = felt!("0x111");
@@ -113,6 +147,12 @@ mod tests {
                 &StorageValue::String("deployment_a2".to_string()),
             )
             .unwrap();
+        storage
+            .set(
+                &Selectors::admin(&address_a, "https://x.cartridge.gg"),
+                &StorageValue::String("admin_a".to_string()),
+            )
+            .unwrap();
 
         storage
             .set(
@@ -130,6 +170,12 @@ mod tests {
             .set(
                 &Selectors::deployment(&address_b, &chain_b),
                 &StorageValue::String("deployment_b".to_string()),
+            )
+            .unwrap();
+        storage
+            .set(
+                &Selectors::admin(&address_b, "https://x.cartridge.gg"),
+                &StorageValue::String("admin_b".to_string()),
             )
             .unwrap();
 
@@ -172,17 +218,86 @@ mod tests {
 
         clear_controller_storage(&mut storage, &address_a).unwrap();
 
-        // All stored data is removed.
-        assert_eq!(storage.keys().unwrap().len(), 0);
+        // A's entries are removed across all chains.
+        assert!(storage
+            .get(&Selectors::account(&address_a, &chain_a))
+            .unwrap()
+            .is_none());
+        assert!(storage
+            .get(&Selectors::session(&address_a, &chain_a))
+            .unwrap()
+            .is_none());
+        assert!(storage
+            .get(&Selectors::deployment(&address_a, &chain_a))
+            .unwrap()
+            .is_none());
+        assert!(storage
+            .get(&Selectors::account(&address_a, &chain_a2))
+            .unwrap()
+            .is_none());
+        assert!(storage
+            .get(&Selectors::session(&address_a, &chain_a2))
+            .unwrap()
+            .is_none());
+        assert!(storage
+            .get(&Selectors::deployment(&address_a, &chain_a2))
+            .unwrap()
+            .is_none());
+        assert!(storage
+            .get(&Selectors::admin(&address_a, "https://x.cartridge.gg"))
+            .unwrap()
+            .is_none());
 
-        match storage.get(&Selectors::active()).unwrap() {
-            None => {}
-            other => panic!("unexpected active storage value: {other:?}"),
+        // B's entries remain.
+        assert!(storage
+            .get(&Selectors::account(&address_b, &chain_b))
+            .unwrap()
+            .is_some());
+        assert!(storage
+            .get(&Selectors::session(&address_b, &chain_b))
+            .unwrap()
+            .is_some());
+        assert!(storage
+            .get(&Selectors::deployment(&address_b, &chain_b))
+            .unwrap()
+            .is_some());
+        assert!(storage
+            .get(&Selectors::admin(&address_b, "https://x.cartridge.gg"))
+            .unwrap()
+            .is_some());
+
+        // Global Cartridge metadata remains; disconnect should not log other controllers out.
+        assert!(storage.get("@cartridge/features").unwrap().is_some());
+        assert!(storage
+            .get("@cartridge/https://x.cartridge.gg/active")
+            .unwrap()
+            .is_some());
+        assert!(storage
+            .get("@cartridge/policies/0x111/0x1")
+            .unwrap()
+            .is_some());
+        assert!(storage
+            .get("@cartridge/policies/0x222/0x3")
+            .unwrap()
+            .is_some());
+
+        // Active is removed because it pointed at A.
+        assert!(storage.get(&Selectors::active()).unwrap().is_none());
+
+        // Multi-chain config no longer includes A.
+        match storage.get(&Selectors::multi_chain_config()).unwrap() {
+            Some(StorageValue::String(cfg_json)) => {
+                let cfg: MultiChainMetadata = serde_json::from_str(&cfg_json).unwrap();
+                assert_eq!(cfg.chains.len(), 1);
+                assert_eq!(cfg.chains[0].address, address_b);
+                assert_eq!(cfg.chains[0].chain_id, chain_b);
+            }
+            other => panic!("unexpected multi-chain config storage value: {other:?}"),
         }
     }
 
     #[test]
-    fn test_clear_controller_storage_does_clear_everything_even_for_other_controller() {
+    fn test_clear_controller_storage_does_not_remove_other_active_controller() {
         let mut storage = InMemoryBackend::new();
 
         let address_a = felt!("0x111");
@@ -210,7 +325,7 @@ mod tests {
             )
             .unwrap();
 
-        // Active points at B, but full clear removes all keys anyway.
+        // Active points at B, so clearing A should not change it.
         storage
             .set(
                 &Selectors::active(),
@@ -223,6 +338,22 @@ mod tests {
 
         clear_controller_storage(&mut storage, &address_a).unwrap();
 
-        assert_eq!(storage.keys().unwrap().len(), 0);
+        // A's entries are removed across all chains.
+        assert!(storage
+            .get(&Selectors::account(&address_a, &chain_a))
+            .unwrap()
+            .is_none());
+        assert!(storage
+            .get(&Selectors::account(&address_a, &chain_a2))
+            .unwrap()
+            .is_none());
+
+        match storage.get(&Selectors::active()).unwrap() {
+            Some(StorageValue::Active(active)) => {
+                assert_eq!(active.address, address_b);
+                assert_eq!(active.chain_id, chain_b);
+            }
+            other => panic!("unexpected active storage value: {other:?}"),
+        }
     }
 }
