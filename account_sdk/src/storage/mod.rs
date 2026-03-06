@@ -289,6 +289,7 @@ pub enum StorageValue {
     String(String),
 }
 
+#[cfg(any(target_arch = "wasm32", test))]
 pub(crate) const CARTRIDGE_STORAGE_PREFIX: &str = "@cartridge/";
 
 #[async_trait]
@@ -376,6 +377,7 @@ struct StoredChainInfo {
     address: Felt,
 }
 
+#[cfg(any(target_arch = "wasm32", test))]
 pub(crate) fn clear_namespaced_storage(
     storage: &mut impl StorageBackend,
     prefix: &str,
