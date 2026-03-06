@@ -1,4 +1,6 @@
-use crate::storage::{StorageBackend, StorageError, StorageValue};
+use crate::storage::{
+    clear_namespaced_storage, StorageBackend, StorageError, StorageValue, CARTRIDGE_STORAGE_PREFIX,
+};
 use async_trait::async_trait;
 use web_sys::window;
 
@@ -42,11 +44,7 @@ impl StorageBackend for LocalStorage {
     }
 
     fn clear(&mut self) -> Result<(), StorageError> {
-        let local_storage = Self::local_storage()?;
-        local_storage
-            .clear()
-            .map_err(|_| StorageError::OperationFailed("clearing localStorage".into()))?;
-        Ok(())
+        clear_namespaced_storage(self, CARTRIDGE_STORAGE_PREFIX)
     }
 
     fn keys(&self) -> Result<Vec<String>, StorageError> {

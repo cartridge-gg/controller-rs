@@ -289,6 +289,8 @@ pub enum StorageValue {
     String(String),
 }
 
+pub(crate) const CARTRIDGE_STORAGE_PREFIX: &str = "@cartridge/";
+
 #[async_trait]
 pub trait StorageBackend: Send + Sync {
     fn set(&mut self, key: &str, value: &StorageValue) -> Result<(), StorageError>;
@@ -361,6 +363,21 @@ pub type Storage = localstorage::LocalStorage;
 
 #[cfg(all(not(target_arch = "wasm32"), feature = "filestorage"))]
 pub type Storage = filestorage::FileSystemBackend;
+
+pub(crate) fn clear_namespaced_storage(
+    storage: &mut impl StorageBackend,
+    prefix: &str,
+) -> Result<(), StorageError> {
+    let keys = storage.keys()?;
+
+    for key in keys {
+        if key.starts_with(prefix) {
+            storage.remove(&key)?;
+        }
+    }
+
+    Ok(())
+}
 
 /// Clears all persisted storage entries for the backend implementation.
 /// This is used by disconnect and intentionally performs a full clear in the active storage context.

@@ -6,7 +6,8 @@ mod tests {
     use crate::storage::inmemory::InMemoryBackend;
     use crate::storage::selectors::Selectors;
     use crate::storage::{
-        clear_controller_storage, ActiveMetadata, StorageBackend, StorageError, StorageValue,
+        clear_controller_storage, clear_namespaced_storage, ActiveMetadata, StorageBackend,
+        StorageError, StorageValue, CARTRIDGE_STORAGE_PREFIX,
     };
     use crate::tests::runners::katana::KatanaRunner;
     use serde_json::json;
@@ -40,6 +41,39 @@ mod tests {
         // test storage.controller to make sure it returns Serialization error
         let result = controller.storage.controller();
         assert!(matches!(result, Err(StorageError::Serialization(_))));
+    }
+
+    #[test]
+    fn test_clear_namespaced_storage_removes_all_cartridge_keys_only() {
+        let mut storage = InMemoryBackend::new();
+
+        storage
+            .set(
+                "@cartridge/active",
+                &StorageValue::String("controller".to_string()),
+            )
+            .unwrap();
+        storage
+            .set(
+                "@cartridge/policies/0x111/0x1",
+                &StorageValue::String("policy".to_string()),
+            )
+            .unwrap();
+        storage
+            .set(
+                "app/non-cartridge",
+                &StorageValue::String("keep".to_string()),
+            )
+            .unwrap();
+
+        clear_namespaced_storage(&mut storage, CARTRIDGE_STORAGE_PREFIX).unwrap();
+
+        assert!(storage.get("@cartridge/active").unwrap().is_none());
+        assert!(storage
+            .get("@cartridge/policies/0x111/0x1")
+            .unwrap()
+            .is_none());
+        assert!(storage.get("app/non-cartridge").unwrap().is_some());
     }
 
     #[test]
