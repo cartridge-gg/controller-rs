@@ -34,6 +34,21 @@ impl From<account_sdk::storage::Credentials> for Credentials {
     }
 }
 
+impl TryFrom<Credentials> for account_sdk::storage::Credentials {
+    type Error = EncodingError;
+
+    fn try_from(value: Credentials) -> Result<Self, Self::Error> {
+        Ok(Self {
+            authorization: value
+                .authorization
+                .into_iter()
+                .map(TryInto::try_into)
+                .collect::<Result<Vec<_>, _>>()?,
+            private_key: value.private_key.try_into()?,
+        })
+    }
+}
+
 #[allow(non_snake_case)]
 #[derive(Tsify, Serialize, Deserialize, Debug, Clone)]
 #[tsify(into_wasm_abi, from_wasm_abi)]

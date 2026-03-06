@@ -34,6 +34,7 @@ use crate::storage::PolicyStorage;
 use crate::sync::WasmMutex;
 use crate::types::call::JsCall;
 use crate::types::estimate::JsFeeEstimate;
+use crate::types::import::{ImportedControllerMetadata, ImportedSessionMetadata};
 use crate::types::outside_execution::JsSignedOutsideExecution;
 use crate::types::owner::Owner;
 use crate::types::policy::{get_approve_selector, CallPolicy, Policy, TypedDataPolicy};
@@ -187,6 +188,84 @@ impl CartridgeAccount {
             .map_err(|e| JsError::new(&e.to_string()))?;
 
         Ok(controller.map(|c| CartridgeAccountWithMeta::new(c, cartridge_api_url)))
+    }
+
+    #[wasm_bindgen(js_name = exportMetadata)]
+    pub async fn export_metadata(
+        &self,
+    ) -> std::result::Result<ImportedControllerMetadata, JsControllerError> {
+        set_panic_hook();
+
+        let controller = self.controller.lock().await;
+        Ok(ImportedControllerMetadata::from(&*controller))
+    }
+
+    #[wasm_bindgen(js_name = exportAuthorizedSession)]
+    pub async fn export_authorized_session(
+        &self,
+        app_id: Option<String>,
+    ) -> std::result::Result<Option<ImportedSessionMetadata>, JsControllerError> {
+        set_panic_hook();
+
+        let controller = self.controller.lock().await;
+        let mut exported = controller
+            .authorized_session()
+            .map(ImportedSessionMetadata::from);
+
+        if let (Some(app_id), Some(exported)) = (app_id, exported.as_mut()) {
+            let policy_storage =
+                PolicyStorage::new_with_app_id(&controller.address, &app_id, &controller.chain_id);
+
+            if let Some(policies) = policy_storage.get_policies()? {
+                exported.app_id = Some(app_id);
+                exported.policies = Some(policies);
+            }
+        }
+
+        Ok(exported)
+    }
+
+    #[wasm_bindgen(js_name = importSession)]
+    pub async fn import_session(
+        &self,
+        imported_session: ImportedSessionMetadata,
+    ) -> std::result::Result<(), JsControllerError> {
+        set_panic_hook();
+
+        match (&imported_session.app_id, &imported_session.policies) {
+            (Some(_), Some(_)) | (None, None) => {}
+            _ => {
+                return Err(JsControllerError {
+                    code: ErrorCode::EncodingError,
+                    message: "Imported session must include both appId and policies or neither"
+                        .to_string(),
+                    data: None,
+                });
+            }
+        }
+
+        let session_metadata: account_sdk::storage::SessionMetadata =
+            imported_session.clone().try_into()?;
+
+        let (address, chain_id) = {
+            let mut controller = self.controller.lock().await;
+            let address = controller.address;
+            let chain_id = controller.chain_id;
+
+            controller
+                .storage
+                .set_session(&Selectors::session(&address, &chain_id), session_metadata)
+                .map_err(|e| JsControllerError::from(ControllerError::StorageError(e)))?;
+
+            (address, chain_id)
+        };
+
+        if let (Some(app_id), Some(policies)) = (imported_session.app_id, imported_session.policies)
+        {
+            PolicyStorage::new_with_app_id(&address, &app_id, &chain_id).store(policies)?;
+        }
+
+        Ok(())
     }
 
     #[wasm_bindgen(js_name = disconnect)]
