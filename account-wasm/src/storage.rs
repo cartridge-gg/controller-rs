@@ -157,6 +157,10 @@ impl PolicyStorage {
         Ok(None)
     }
 
+    pub fn get_policies(&self) -> Result<Option<Vec<Policy>>> {
+        Ok(self.get()?.map(|stored| stored.policies))
+    }
+
     pub fn is_requested(&self, policies: &[Policy]) -> Result<bool> {
         Ok(self
             .get()?

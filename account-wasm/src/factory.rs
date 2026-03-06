@@ -16,8 +16,9 @@ use url::Url;
 use wasm_bindgen::prelude::*;
 
 use crate::account::{CartridgeAccount, CartridgeAccountWithMeta};
-use crate::errors::JsControllerError;
+use crate::errors::{ErrorCode, JsControllerError};
 use crate::set_panic_hook;
+use crate::types::import::ImportedControllerMetadata;
 use crate::types::owner::Owner;
 use crate::types::session::AuthorizedSession;
 use crate::types::signer::try_find_webauthn_signer_in_signer_signature;
@@ -36,6 +37,59 @@ impl ControllerFactory {
         set_panic_hook();
 
         CartridgeAccount::from_storage(cartridge_api_url).await
+    }
+
+    #[allow(clippy::new_ret_no_self)]
+    #[wasm_bindgen(js_name = fromMetadata)]
+    pub async fn from_metadata(
+        metadata: ImportedControllerMetadata,
+        cartridge_api_url: String,
+    ) -> std::result::Result<CartridgeAccountWithMeta, JsControllerError> {
+        set_panic_hook();
+
+        let ImportedControllerMetadata {
+            username,
+            class_hash,
+            rpc_url,
+            owner,
+            address,
+            chain_id,
+            ..
+        } = metadata;
+        let expected_chain_id: Felt = chain_id.try_into()?;
+
+        let mut controller = Controller::new(
+            username,
+            class_hash.try_into()?,
+            Url::parse(&rpc_url)?,
+            owner.try_into_sdk_owner()?,
+            address.try_into()?,
+            None,
+        )
+        .await
+        .map_err(JsControllerError::from)?;
+
+        if controller.chain_id != expected_chain_id {
+            return Err(JsControllerError {
+                code: ErrorCode::InvalidChainId,
+                message: format!(
+                    "Imported controller chain ID mismatch: expected {expected_chain_id:#x}, got {:#x}",
+                    controller.chain_id
+                ),
+                data: None,
+            });
+        }
+
+        controller
+            .storage
+            .set_controller(
+                &controller.chain_id,
+                controller.address,
+                ControllerMetadata::from(&controller),
+            )
+            .map_err(|e| JsControllerError::from(ControllerError::StorageError(e)))?;
+
+        Ok(CartridgeAccountWithMeta::new(controller, cartridge_api_url))
     }
 
     /// Login to an existing controller account.
