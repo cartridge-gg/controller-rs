@@ -3,6 +3,7 @@ use std::fmt;
 use account_sdk::{
     errors::ControllerError, provider::ExecuteFromOutsideError, signers::DeviceError,
 };
+use js_sys::{Error as NativeJsError, Reflect};
 use serde::Serialize;
 use starknet::{accounts::AccountError, core::types::StarknetError, providers::ProviderError};
 use starknet_types_core::felt::FromStrError;
@@ -16,6 +17,56 @@ pub struct JsControllerError {
     pub code: ErrorCode,
     pub message: String,
     pub data: Option<String>,
+}
+
+#[derive(Debug)]
+pub struct WasmControllerError(JsValue);
+
+pub type WasmResult<T> = std::result::Result<T, WasmControllerError>;
+
+impl JsControllerError {
+    fn into_native_error(self) -> JsValue {
+        let error_value = JsValue::from(NativeJsError::new(&self.message));
+
+        Reflect::set(
+            &error_value,
+            &JsValue::from_str("name"),
+            &JsValue::from_str("JsControllerError"),
+        )
+        .expect("setting error name should succeed");
+        Reflect::set(
+            &error_value,
+            &JsValue::from_str("code"),
+            &JsValue::from_f64(self.code.clone() as u32 as f64),
+        )
+        .expect("setting error code should succeed");
+
+        if let Some(data) = self.data {
+            Reflect::set(
+                &error_value,
+                &JsValue::from_str("data"),
+                &JsValue::from_str(&data),
+            )
+            .expect("setting error data should succeed");
+        }
+
+        error_value
+    }
+}
+
+impl<T> From<T> for WasmControllerError
+where
+    JsControllerError: From<T>,
+{
+    fn from(error: T) -> Self {
+        Self(JsControllerError::from(error).into_native_error())
+    }
+}
+
+impl From<WasmControllerError> for JsValue {
+    fn from(error: WasmControllerError) -> Self {
+        error.0
+    }
 }
 
 impl From<JsError> for JsControllerError {
@@ -559,9 +610,17 @@ impl From<StarknetError> for JsControllerError {
             ),
         };
 
+        let message = if message == "Unexpected error" {
+            data.as_deref()
+                .map(normalize_message)
+                .unwrap_or_else(|| message.to_string())
+        } else {
+            message.to_string()
+        };
+
         JsControllerError {
             code,
-            message: message.to_string(),
+            message,
             data,
         }
     }
@@ -640,6 +699,22 @@ impl fmt::Display for JsControllerError {
 
 impl std::error::Error for JsControllerError {}
 
+fn normalize_message(message: &str) -> String {
+    let trimmed = message.trim();
+    if trimmed.is_empty() {
+        return "Unexpected error".to_string();
+    }
+
+    let mut chars = trimmed.chars();
+    let Some(first) = chars.next() else {
+        return "Unexpected error".to_string();
+    };
+
+    let mut normalized = first.to_uppercase().collect::<String>();
+    normalized.push_str(chars.as_str());
+    normalized
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -660,7 +735,7 @@ mod tests {
         let js_error = JsControllerError::from(generic_error);
 
         assert!(matches!(js_error.code, ErrorCode::StarknetUnexpectedError));
-        assert_eq!(js_error.message, "Unexpected error");
+        assert_eq!(js_error.message, "Some other error");
     }
 
     #[test]
@@ -693,7 +768,7 @@ mod tests {
         let js_error = JsControllerError::from(generic_error);
 
         assert!(matches!(js_error.code, ErrorCode::StarknetUnexpectedError));
-        assert_eq!(js_error.message, "Unexpected error");
+        assert_eq!(js_error.message, "Some other error");
     }
 
     #[test]
@@ -709,7 +784,10 @@ mod tests {
 
         // Should not panic and should have proper error code
         assert!(matches!(js_error.code, ErrorCode::StarknetUnexpectedError));
-        assert_eq!(js_error.message, "Unexpected error");
+        assert_eq!(
+            js_error.message,
+            "Error with \"quotes\" and 'apostrophes' and \n newlines"
+        );
         // Data should be present even with complex strings
         assert!(js_error.data.is_some());
     }
@@ -759,6 +837,20 @@ mod tests {
                 js_error.code
             );
         }
+    }
+
+    #[test]
+    fn test_unexpected_error_message_is_capitalized() {
+        let js_error = JsControllerError::from(StarknetError::UnexpectedError(
+            "checking account deployment".to_string(),
+        ));
+
+        assert!(matches!(js_error.code, ErrorCode::StarknetUnexpectedError));
+        assert_eq!(js_error.message, "Checking account deployment");
+        assert_eq!(
+            js_error.data.as_deref(),
+            Some("checking account deployment")
+        );
     }
 
     #[test]

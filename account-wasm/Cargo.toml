@@ -29,6 +29,7 @@ coset.workspace = true
 futures.workspace = true
 getrandom = { version = "0.2", features = ["js"] }
 hex = "0.4.3"
+js-sys = "0.3"
 num-traits.workspace = true
 rand = { version = "0.8", features = ["getrandom"] }
 serde = { workspace = true, features = ["derive"] }

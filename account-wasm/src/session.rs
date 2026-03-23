@@ -16,7 +16,7 @@ use std::result::Result;
 use url::Url;
 use wasm_bindgen::prelude::*;
 
-use crate::errors::JsControllerError;
+use crate::errors::WasmResult;
 use crate::set_panic_hook;
 use crate::sync::WasmMutex;
 use crate::types::call::JsCall;
@@ -35,7 +35,7 @@ impl CartridgeSessionAccount {
         chain_id: JsFelt,
         session_authorization: Vec<JsFelt>,
         session: Session,
-    ) -> Result<CartridgeSessionAccount, JsControllerError> {
+    ) -> WasmResult<CartridgeSessionAccount> {
         set_panic_hook();
 
         let rpc_url = Url::parse(&rpc_url)?;
@@ -83,7 +83,7 @@ impl CartridgeSessionAccount {
         owner_guid: JsFelt,
         chain_id: JsFelt,
         session: Session,
-    ) -> Result<CartridgeSessionAccount, JsControllerError> {
+    ) -> WasmResult<CartridgeSessionAccount> {
         set_panic_hook();
 
         let rpc_url = Url::parse(&rpc_url)?;
@@ -118,7 +118,7 @@ impl CartridgeSessionAccount {
         )))
     }
 
-    pub async fn sign(&self, hash: JsFelt, calls: Vec<JsCall>) -> Result<Felts, JsControllerError> {
+    pub async fn sign(&self, hash: JsFelt, calls: Vec<JsCall>) -> WasmResult<Felts> {
         set_panic_hook();
 
         let hash = hash.try_into()?;
@@ -137,7 +137,7 @@ impl CartridgeSessionAccount {
         Ok(Felts(res.into_iter().map(Into::into).collect()))
     }
 
-    pub async fn execute(&self, calls: Vec<JsCall>) -> Result<JsValue, JsControllerError> {
+    pub async fn execute(&self, calls: Vec<JsCall>) -> WasmResult<JsValue> {
         set_panic_hook();
 
         let calls = calls
@@ -152,10 +152,7 @@ impl CartridgeSessionAccount {
     }
 
     #[wasm_bindgen(js_name = executeFromOutside)]
-    pub async fn execute_from_outside(
-        &self,
-        calls: Vec<JsCall>,
-    ) -> Result<JsValue, JsControllerError> {
+    pub async fn execute_from_outside(&self, calls: Vec<JsCall>) -> WasmResult<JsValue> {
         set_panic_hook();
 
         let caller = OutsideExecutionCaller::Any;

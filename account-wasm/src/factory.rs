@@ -16,7 +16,7 @@ use url::Url;
 use wasm_bindgen::prelude::*;
 
 use crate::account::{CartridgeAccount, CartridgeAccountWithMeta};
-use crate::errors::{ErrorCode, JsControllerError};
+use crate::errors::{ErrorCode, JsControllerError, WasmResult};
 use crate::set_panic_hook;
 use crate::types::import::ImportedControllerMetadata;
 use crate::types::owner::Owner;
@@ -44,7 +44,7 @@ impl ControllerFactory {
     pub async fn from_metadata(
         metadata: ImportedControllerMetadata,
         cartridge_api_url: String,
-    ) -> std::result::Result<CartridgeAccountWithMeta, JsControllerError> {
+    ) -> WasmResult<CartridgeAccountWithMeta> {
         set_panic_hook();
 
         let ImportedControllerMetadata {
@@ -77,7 +77,8 @@ impl ControllerFactory {
                     controller.chain_id
                 ),
                 data: None,
-            });
+            }
+            .into());
         }
 
         controller

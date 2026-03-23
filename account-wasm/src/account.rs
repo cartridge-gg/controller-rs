@@ -28,7 +28,7 @@ use starknet_types_core::felt::Felt;
 use url::Url;
 use wasm_bindgen::prelude::*;
 
-use crate::errors::{ErrorCode, JsControllerError};
+use crate::errors::{ErrorCode, JsControllerError, WasmResult};
 use crate::set_panic_hook;
 use crate::storage::PolicyStorage;
 use crate::sync::WasmMutex;
@@ -191,9 +191,7 @@ impl CartridgeAccount {
     }
 
     #[wasm_bindgen(js_name = exportMetadata)]
-    pub async fn export_metadata(
-        &self,
-    ) -> std::result::Result<ImportedControllerMetadata, JsControllerError> {
+    pub async fn export_metadata(&self) -> WasmResult<ImportedControllerMetadata> {
         set_panic_hook();
 
         let controller = self.controller.lock().await;
@@ -204,7 +202,7 @@ impl CartridgeAccount {
     pub async fn export_authorized_session(
         &self,
         app_id: Option<String>,
-    ) -> std::result::Result<Option<ImportedSessionMetadata>, JsControllerError> {
+    ) -> WasmResult<Option<ImportedSessionMetadata>> {
         set_panic_hook();
 
         let controller = self.controller.lock().await;
@@ -229,7 +227,7 @@ impl CartridgeAccount {
     pub async fn import_session(
         &self,
         imported_session: ImportedSessionMetadata,
-    ) -> std::result::Result<(), JsControllerError> {
+    ) -> WasmResult<()> {
         set_panic_hook();
 
         match (&imported_session.app_id, &imported_session.policies) {
@@ -240,7 +238,8 @@ impl CartridgeAccount {
                     message: "Imported session must include both appId and policies or neither"
                         .to_string(),
                     data: None,
-                });
+                }
+                .into());
             }
         }
 
@@ -269,7 +268,7 @@ impl CartridgeAccount {
     }
 
     #[wasm_bindgen(js_name = disconnect)]
-    pub async fn disconnect(&self) -> std::result::Result<(), JsControllerError> {
+    pub async fn disconnect(&self) -> WasmResult<()> {
         set_panic_hook();
 
         // Policies are stored in localStorage outside of `account_sdk`'s StorageBackend abstraction.
@@ -277,7 +276,9 @@ impl CartridgeAccount {
         let mut controller = self.controller.lock().await;
         let _ = PolicyStorage::clear_for_address(&controller.address);
 
-        controller.disconnect().map_err(JsControllerError::from)
+        controller.disconnect().map_err(JsControllerError::from)?;
+
+        Ok(())
     }
 
     #[wasm_bindgen(js_name = registerSession)]
@@ -288,7 +289,7 @@ impl CartridgeAccount {
         expires_at: u64,
         public_key: JsFelt,
         max_fee: Option<JsFeeEstimate>,
-    ) -> std::result::Result<JsValue, JsControllerError> {
+    ) -> WasmResult<JsValue> {
         set_panic_hook();
 
         let methods = policies
@@ -347,7 +348,7 @@ impl CartridgeAccount {
         policies: Vec<Policy>,
         expires_at: u64,
         public_key: JsFelt,
-    ) -> std::result::Result<JsValue, JsControllerError> {
+    ) -> WasmResult<JsValue> {
         set_panic_hook();
 
         let methods = policies
@@ -365,10 +366,7 @@ impl CartridgeAccount {
     }
 
     #[wasm_bindgen(js_name = upgrade)]
-    pub async fn upgrade(
-        &self,
-        new_class_hash: JsFelt,
-    ) -> std::result::Result<JsCall, JsControllerError> {
+    pub async fn upgrade(&self, new_class_hash: JsFelt) -> WasmResult<JsCall> {
         set_panic_hook();
 
         let felt: Felt = new_class_hash.try_into()?;
@@ -381,10 +379,7 @@ impl CartridgeAccount {
     }
 
     #[wasm_bindgen(js_name = register)]
-    pub async fn register(
-        &self,
-        register: JsRegister,
-    ) -> std::result::Result<JsRegisterResponse, JsControllerError> {
+    pub async fn register(&self, register: JsRegister) -> WasmResult<JsRegisterResponse> {
         set_panic_hook();
 
         let register: account_sdk::graphql::registration::register::RegisterInput = register.into();
@@ -405,7 +400,7 @@ impl CartridgeAccount {
         policies: Vec<Policy>,
         expires_at: u64,
         authorize_user_execution: Option<bool>,
-    ) -> std::result::Result<Option<AuthorizedSession>, JsControllerError> {
+    ) -> WasmResult<Option<AuthorizedSession>> {
         set_panic_hook();
 
         let authorize_user_execution = authorize_user_execution.unwrap_or(false);
@@ -417,7 +412,8 @@ impl CartridgeAccount {
                 return Err(JsControllerError::from(ControllerError::ForbiddenEntrypoint(
                     "increaseAllowance and increase_allowance are not allowed in session policies"
                         .to_string(),
-                )));
+                ))
+                .into());
             }
         }
 
@@ -484,9 +480,10 @@ impl CartridgeAccount {
                                     ControllerError::ApproveExecutionRequired {
                                         fee_estimate: Box::new(fee_estimate),
                                     },
-                                ));
+                                )
+                                .into());
                             }
-                            other => return Err(JsControllerError::from(other)),
+                            other => return Err(JsControllerError::from(other).into()),
                         },
                     }
                 }
@@ -522,7 +519,7 @@ impl CartridgeAccount {
                     .remove(&Selectors::session(&address, &chain_id))
                     .map_err(|e| JsControllerError::from(ControllerError::StorageError(e)))?;
 
-                return Err(JsControllerError::from(e));
+                return Err(JsControllerError::from(e).into());
             }
 
             let session_metadata = AuthorizedSession {
@@ -560,11 +557,7 @@ impl CartridgeAccount {
     }
 
     #[wasm_bindgen(js_name = skipSession)]
-    pub async fn skip_session(
-        &self,
-        app_id: String,
-        policies: Vec<Policy>,
-    ) -> std::result::Result<(), JsControllerError> {
+    pub async fn skip_session(&self, app_id: String, policies: Vec<Policy>) -> WasmResult<()> {
         set_panic_hook();
 
         // Convert policies to have authorization explicitly set to false
@@ -601,7 +594,7 @@ impl CartridgeAccount {
         owner: Option<Signer>,
         signer_input: Option<JsAddSignerInput>,
         rp_id: Option<String>,
-    ) -> std::result::Result<(), JsControllerError> {
+    ) -> WasmResult<()> {
         set_panic_hook();
 
         let controller = self.controller.lock().await;
@@ -620,11 +613,12 @@ impl CartridgeAccount {
             self.handle_passkey_creation(rp_id).await?
         } else {
             if owner.is_none() || signer_input.is_none() {
-                return Err(JsControllerError::from(
-                    ControllerError::InvalidResponseData(
+                return Err(
+                    JsControllerError::from(ControllerError::InvalidResponseData(
                         "Owner and signer input are required".to_string(),
-                    ),
-                ));
+                    ))
+                    .into(),
+                );
             }
             (
                 owner.clone().unwrap().try_into()?,
@@ -650,10 +644,7 @@ impl CartridgeAccount {
     }
 
     #[wasm_bindgen(js_name = removeOwner)]
-    pub async fn remove_owner(
-        &mut self,
-        signer: JsRemoveSignerInput,
-    ) -> std::result::Result<(), JsControllerError> {
+    pub async fn remove_owner(&mut self, signer: JsRemoveSignerInput) -> WasmResult<()> {
         set_panic_hook();
 
         let mut controller = self.controller.lock().await;
@@ -698,10 +689,7 @@ impl CartridgeAccount {
     }
 
     #[wasm_bindgen(js_name = createPasskeySigner)]
-    pub async fn create_passkey_signer(
-        &self,
-        rp_id: String,
-    ) -> std::result::Result<JsAddSignerInput, JsControllerError> {
+    pub async fn create_passkey_signer(&self, rp_id: String) -> WasmResult<JsAddSignerInput> {
         set_panic_hook();
 
         let mut controller = self.controller.lock().await;
@@ -712,10 +700,7 @@ impl CartridgeAccount {
     }
 
     #[wasm_bindgen(js_name = estimateInvokeFee)]
-    pub async fn estimate_invoke_fee(
-        &self,
-        calls: Vec<JsCall>,
-    ) -> std::result::Result<JsFeeEstimate, JsControllerError> {
+    pub async fn estimate_invoke_fee(&self, calls: Vec<JsCall>) -> WasmResult<JsFeeEstimate> {
         set_panic_hook();
 
         let calls = calls
@@ -739,7 +724,7 @@ impl CartridgeAccount {
         calls: Vec<JsCall>,
         max_fee: Option<JsFeeEstimate>,
         fee_source: Option<JsFeeSource>,
-    ) -> std::result::Result<JsValue, JsControllerError> {
+    ) -> WasmResult<JsValue> {
         set_panic_hook();
 
         let calls = calls
@@ -769,7 +754,7 @@ impl CartridgeAccount {
         &self,
         calls: Vec<JsCall>,
         fee_source: Option<JsFeeSource>,
-    ) -> std::result::Result<JsValue, JsControllerError> {
+    ) -> WasmResult<JsValue> {
         set_panic_hook();
 
         let calls = calls
@@ -794,7 +779,7 @@ impl CartridgeAccount {
         &self,
         calls: Vec<JsCall>,
         fee_source: Option<JsFeeSource>,
-    ) -> std::result::Result<JsValue, JsControllerError> {
+    ) -> WasmResult<JsValue> {
         set_panic_hook();
 
         let calls = calls
@@ -820,7 +805,7 @@ impl CartridgeAccount {
         app_id: String,
         calls: Vec<JsCall>,
         fee_source: Option<JsFeeSource>,
-    ) -> std::result::Result<JsValue, JsControllerError> {
+    ) -> WasmResult<JsValue> {
         set_panic_hook();
 
         // Convert calls to internal format
@@ -856,12 +841,14 @@ impl CartridgeAccount {
                         // The expired session has policies that would authorize these calls
                         return Err(JsControllerError::from(
                             ControllerError::SessionRefreshRequired,
-                        ));
+                        )
+                        .into());
                     } else {
                         // The expired session doesn't authorize these calls
                         return Err(JsControllerError::from(
                             ControllerError::ManualExecutionRequired,
-                        ));
+                        )
+                        .into());
                     }
                 } else {
                     // Session exists and is not expired - check if policies authorize execution
@@ -871,15 +858,16 @@ impl CartridgeAccount {
                         // Session is valid but policies don't authorize these calls
                         return Err(JsControllerError::from(
                             ControllerError::ManualExecutionRequired,
-                        ));
+                        )
+                        .into());
                     }
                 }
             }
             None => {
                 // No session exists
-                return Err(JsControllerError::from(
-                    ControllerError::ManualExecutionRequired,
-                ));
+                return Err(
+                    JsControllerError::from(ControllerError::ManualExecutionRequired).into(),
+                );
             }
         }
 
@@ -909,7 +897,7 @@ impl CartridgeAccount {
                         .await?;
                     Ok(to_value(&result)?)
                 }
-                other => Err(JsControllerError::from(other)),
+                other => Err(JsControllerError::from(other).into()),
             },
         }
     }
@@ -919,7 +907,7 @@ impl CartridgeAccount {
         &self,
         policies: Vec<Policy>,
         public_key: Option<JsFelt>,
-    ) -> std::result::Result<Option<AuthorizedSession>, JsControllerError> {
+    ) -> WasmResult<Option<AuthorizedSession>> {
         set_panic_hook();
 
         let policies = policies
@@ -943,7 +931,7 @@ impl CartridgeAccount {
         &self,
         app_id: String,
         policies: Vec<Policy>,
-    ) -> std::result::Result<bool, JsControllerError> {
+    ) -> WasmResult<bool> {
         set_panic_hook();
 
         let controller_guard = self.controller.lock().await;
@@ -1068,7 +1056,7 @@ impl CartridgeAccount {
     }
 
     #[wasm_bindgen(js_name = getNonce)]
-    pub async fn get_nonce(&self) -> std::result::Result<JsValue, JsControllerError> {
+    pub async fn get_nonce(&self) -> WasmResult<JsValue> {
         set_panic_hook();
 
         let nonce = self
@@ -1204,7 +1192,7 @@ impl CartridgeAccount {
     pub async fn sign_execute_from_outside(
         &self,
         calls: Vec<JsCall>,
-    ) -> std::result::Result<JsSignedOutsideExecution, JsControllerError> {
+    ) -> WasmResult<JsSignedOutsideExecution> {
         set_panic_hook();
 
         let calls = calls

@@ -6,7 +6,7 @@ use url::Url;
 use wasm_bindgen::prelude::*;
 
 use crate::account::{CartridgeAccount, CartridgeAccountWithMeta};
-use crate::errors::JsControllerError;
+use crate::errors::{JsControllerError, WasmResult};
 use crate::set_panic_hook;
 use crate::sync::WasmMutex;
 use crate::types::owner::Owner;
@@ -132,10 +132,7 @@ impl MultiChainAccount {
 
     /// Adds a new chain configuration
     #[wasm_bindgen(js_name = addChain)]
-    pub async fn add_chain(
-        &self,
-        config: JsChainConfig,
-    ) -> std::result::Result<(), JsControllerError> {
+    pub async fn add_chain(&self, config: JsChainConfig) -> WasmResult<()> {
         let chain_config: ChainConfig = config.try_into().map_err(|e: JsError| {
             JsControllerError::from(ControllerError::InvalidResponseData(format!(
                 "Invalid chain config: {e:?}"
@@ -147,30 +144,28 @@ impl MultiChainAccount {
             .await
             .add_chain(chain_config)
             .await
-            .map_err(JsControllerError::from)
+            .map_err(JsControllerError::from)?;
+
+        Ok(())
     }
 
     /// Removes a chain configuration
     #[wasm_bindgen(js_name = removeChain)]
-    pub async fn remove_chain(
-        &self,
-        chain_id: JsFelt,
-    ) -> std::result::Result<(), JsControllerError> {
+    pub async fn remove_chain(&self, chain_id: JsFelt) -> WasmResult<()> {
         let chain_id_felt: Felt = chain_id.try_into()?;
 
         self.multi_controller
             .lock()
             .await
             .remove_chain(chain_id_felt)
-            .map_err(JsControllerError::from)
+            .map_err(JsControllerError::from)?;
+
+        Ok(())
     }
 
     /// Gets an account instance for a specific chain
     #[wasm_bindgen(js_name = controller)]
-    pub async fn controller(
-        &self,
-        chain_id: JsFelt,
-    ) -> std::result::Result<CartridgeAccount, JsControllerError> {
+    pub async fn controller(&self, chain_id: JsFelt) -> WasmResult<CartridgeAccount> {
         let chain_id_felt: Felt = chain_id.try_into()?;
 
         // Get the controller for this chain
