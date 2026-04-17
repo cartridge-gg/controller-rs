@@ -18,7 +18,9 @@ use cainome::cairo_serde::Zeroable;
 use chrono::Utc;
 use serde_wasm_bindgen::to_value;
 use starknet::accounts::ConnectedAccount;
-use starknet::core::types::{BlockId, BlockTag, Call, FeeEstimate, FunctionCall, TypedData, U256};
+use starknet::core::types::{
+    BlockId, BlockTag, Call, FeeEstimate, FunctionCall, TransactionFinalityStatus, TypedData, U256,
+};
 use starknet::signers::SigningKey;
 
 use starknet::core::utils::parse_cairo_short_string;
@@ -312,6 +314,7 @@ impl CartridgeAccount {
 
         TransactionWaiter::new(res.transaction_hash, controller.provider())
             .with_timeout(std::time::Duration::from_secs(DEFAULT_TIMEOUT))
+            .with_finality(TransactionFinalityStatus::AcceptedOnL2)
             .wait()
             .await
             .map_err(Into::<ControllerError>::into)?;
@@ -631,6 +634,7 @@ impl CartridgeAccount {
 
         TransactionWaiter::new(tx_result.transaction_hash, controller.provider())
             .with_timeout(std::time::Duration::from_secs(DEFAULT_TIMEOUT))
+            .with_finality(TransactionFinalityStatus::AcceptedOnL2)
             .wait()
             .await
             .map_err(Into::<ControllerError>::into)?;
@@ -664,6 +668,7 @@ impl CartridgeAccount {
 
         TransactionWaiter::new(tx_result.transaction_hash, controller.provider())
             .with_timeout(std::time::Duration::from_secs(DEFAULT_TIMEOUT))
+            .with_finality(TransactionFinalityStatus::AcceptedOnL2)
             .wait()
             .await
             .map_err(Into::<ControllerError>::into)?;
