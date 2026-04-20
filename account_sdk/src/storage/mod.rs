@@ -289,6 +289,9 @@ pub enum StorageValue {
     String(String),
 }
 
+#[cfg(any(target_arch = "wasm32", test))]
+pub(crate) const CARTRIDGE_STORAGE_PREFIX: &str = "@cartridge/";
+
 #[async_trait]
 pub trait StorageBackend: Send + Sync {
     fn set(&mut self, key: &str, value: &StorageValue) -> Result<(), StorageError>;
@@ -362,11 +365,108 @@ pub type Storage = localstorage::LocalStorage;
 #[cfg(all(not(target_arch = "wasm32"), feature = "filestorage"))]
 pub type Storage = filestorage::FileSystemBackend;
 
-/// Clears all persisted storage entries for the backend implementation.
-/// This is used by disconnect and intentionally performs a full clear in the active storage context.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct StoredMultiChainMetadata {
+    username: String,
+    chains: Vec<StoredChainInfo>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct StoredChainInfo {
+    chain_id: Felt,
+    address: Felt,
+}
+
+#[cfg(any(target_arch = "wasm32", test))]
+pub(crate) fn clear_namespaced_storage(
+    storage: &mut impl StorageBackend,
+    prefix: &str,
+) -> Result<(), StorageError> {
+    let keys = storage.keys()?;
+
+    for key in keys {
+        if key.starts_with(prefix) {
+            storage.remove(&key)?;
+        }
+    }
+
+    Ok(())
+}
+
+/// Clears only the persisted controller entries associated with `address`.
+///
+/// This keeps other logged-in controllers intact while removing all chain-scoped data for the
+/// disconnected address and updating any active/multi-chain metadata that points at it.
 pub(crate) fn clear_controller_storage(
     storage: &mut impl StorageBackend,
-    _address: &Felt,
+    address: &Felt,
 ) -> Result<(), StorageError> {
-    storage.clear()
+    let mut first_err: Option<StorageError> = None;
+
+    let mut record = |res: Result<(), StorageError>| {
+        if let Err(e) = res {
+            if first_err.is_none() {
+                first_err = Some(e);
+            }
+        }
+    };
+
+    match storage.keys() {
+        Ok(keys) => {
+            let account_prefix = format!("@cartridge/account/0x{address:x}/");
+            let session_prefix = format!("@cartridge/session/0x{address:x}/");
+            let deployment_prefix = format!("@cartridge/deployment/0x{address:x}/");
+            let admin_prefix = format!("@cartridge/admin/0x{address:x}/");
+
+            for key in keys {
+                if key.starts_with(&account_prefix)
+                    || key.starts_with(&session_prefix)
+                    || key.starts_with(&deployment_prefix)
+                    || key.starts_with(&admin_prefix)
+                {
+                    record(storage.remove(&key));
+                }
+            }
+        }
+        Err(e) => record(Err(e)),
+    }
+
+    match storage.get(&selectors::Selectors::active()) {
+        Ok(Some(StorageValue::Active(active))) if &active.address == address => {
+            record(storage.remove(&selectors::Selectors::active()));
+        }
+        Ok(_) => {}
+        Err(e) => record(Err(e)),
+    }
+
+    let config_key = selectors::Selectors::multi_chain_config();
+    match storage.get(&config_key) {
+        Ok(Some(StorageValue::String(config_json))) => {
+            if let Ok(mut config) = serde_json::from_str::<StoredMultiChainMetadata>(&config_json) {
+                let before = config.chains.len();
+                config.chains.retain(|chain| chain.address != *address);
+
+                if config.chains.len() != before {
+                    if config.chains.is_empty() {
+                        record(storage.remove(&config_key));
+                    } else {
+                        match serde_json::to_string(&config) {
+                            Ok(updated_json) => record(
+                                storage.set(&config_key, &StorageValue::String(updated_json)),
+                            ),
+                            Err(e) => record(Err(StorageError::Serialization(e))),
+                        }
+                    }
+                }
+            }
+        }
+        Ok(_) => {}
+        Err(e) => record(Err(e)),
+    }
+
+    if let Some(e) = first_err {
+        return Err(e);
+    }
+
+    Ok(())
 }
