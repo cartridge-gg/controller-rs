@@ -1,3 +1,4 @@
+pub mod controller;
 pub mod login;
 pub mod owner;
 pub mod registration;

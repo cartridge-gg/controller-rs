@@ -1,0 +1,16 @@
+query FetchController($username: String!, $chainId: String!) {
+  controller(username: $username, chainId: $chainId) {
+    address
+    signers {
+      metadata {
+        __typename
+        ... on PasswordCredentials {
+          password {
+            publicKey
+            encryptedPrivateKey
+          }
+        }
+      }
+    }
+  }
+}

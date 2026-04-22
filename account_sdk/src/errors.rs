@@ -66,6 +66,9 @@ pub enum ControllerError {
     CoseError(#[from] coset::CoseError),
 
     #[error(transparent)]
+    CryptoError(#[from] crate::crypto::CryptoError),
+
+    #[error(transparent)]
     Api(#[from] api::GraphQLErrors),
 
     #[error(transparent)]

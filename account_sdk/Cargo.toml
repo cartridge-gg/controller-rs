@@ -39,13 +39,17 @@ once_cell.workspace = true
 chrono = { workspace = true }
 nom = "7.1"
 
+# Crypto deps (password-based key decryption)
+aes-gcm = "0.10"
+pbkdf2 = { version = "0.12", features = ["simple"] }
+base64 = { workspace = true }
+sha2 = { workspace = true }
+
 # Webauthn deps
-base64 = { workspace = true, optional = true }
 base64urlsafedata = { workspace = true, optional = true }
 coset = { workspace = true, optional = true }
 p256 = { workspace = true, optional = true }
 serde_cbor_2 = { version = "0.12.0-dev", optional = true }
-sha2 = { workspace = true, optional = true }
 
 # Filestorage deps
 dirs = { version = "5", optional = true }
@@ -124,12 +128,10 @@ primitive-types = { workspace = true, features = ["serde"] }
 [features]
 bench = []
 webauthn = [
-    "base64",
     "base64urlsafedata",
     "coset",
     "p256",
     "serde_cbor_2",
-    "sha2",
     "webauthn-authenticator-rs",
     "webauthn-rs-core",
     "webauthn-rs-proto",

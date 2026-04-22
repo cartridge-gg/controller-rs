@@ -309,6 +309,11 @@ impl From<ControllerError> for JsControllerError {
                     .unwrap(),
                 ),
             },
+            ControllerError::CryptoError(e) => JsControllerError {
+                code: ErrorCode::StarknetUnexpectedError,
+                message: format!("Crypto error: {e}"),
+                data: None,
+            },
         }
     }
 }
