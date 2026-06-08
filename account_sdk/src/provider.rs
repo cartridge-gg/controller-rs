@@ -22,6 +22,18 @@ use url::Url;
 use crate::account::outside_execution::OutsideExecution;
 use crate::constants::VALIDATION_GAS;
 use crate::execute_from_outside::FeeSource;
+use crate::rate_limit::{is_provider_rate_limited, retry_with_policy, RetryPolicy};
+
+macro_rules! retry_provider {
+    ($self:expr, $operation:expr) => {
+        retry_with_policy(
+            $self.retry_policy,
+            || async { $operation.await },
+            is_provider_rate_limited,
+        )
+        .await
+    };
+}
 
 #[cfg(test)]
 #[path = "provider_test.rs"]
@@ -44,6 +56,7 @@ pub trait CartridgeProvider: Provider + Clone {
 pub struct CartridgeJsonRpcProvider {
     inner: JsonRpcClient<HttpTransport>,
     rpc_url: Url,
+    retry_policy: RetryPolicy,
 }
 
 impl Clone for CartridgeJsonRpcProvider {
@@ -51,15 +64,21 @@ impl Clone for CartridgeJsonRpcProvider {
         Self {
             inner: JsonRpcClient::new(HttpTransport::new(self.rpc_url.clone())),
             rpc_url: self.rpc_url.clone(),
+            retry_policy: self.retry_policy,
         }
     }
 }
 
 impl CartridgeJsonRpcProvider {
     pub fn new(rpc_url: Url) -> Self {
+        Self::new_with_retry_policy(rpc_url, RetryPolicy::default())
+    }
+
+    pub fn new_with_retry_policy(rpc_url: Url, retry_policy: RetryPolicy) -> Self {
         Self {
             inner: JsonRpcClient::new(HttpTransport::new(rpc_url.clone())),
             rpc_url,
+            retry_policy,
         }
     }
 }
@@ -74,34 +93,45 @@ impl CartridgeProvider for CartridgeJsonRpcProvider {
         signature: Vec<Felt>,
         fee_source: Option<FeeSource>,
     ) -> Result<ExecuteFromOutsideResponse, ExecuteFromOutsideError> {
-        let request = JsonRpcRequest {
-            id: 1,
-            jsonrpc: "2.0",
-            method: "cartridge_addExecuteOutsideTransaction",
-            params: OutsideExecutionParams {
-                address,
-                outside_execution,
-                signature,
-                fee_source,
-            },
-        };
-
         let client = Client::new();
-        let response = client
-            .post(self.rpc_url.as_str())
-            .header("Content-Type", "application/json")
-            .json(&request)
-            .send()
-            .await?;
+        retry_with_policy(
+            self.retry_policy,
+            || async {
+                let request = JsonRpcRequest {
+                    id: 1,
+                    jsonrpc: "2.0",
+                    method: "cartridge_addExecuteOutsideTransaction",
+                    params: OutsideExecutionParams {
+                        address,
+                        outside_execution: outside_execution.clone(),
+                        signature: signature.clone(),
+                        fee_source,
+                    },
+                };
 
-        let json_response: Value = response.json().await?;
-        let json_rpc_response: JsonRpcResponse<ExecuteFromOutsideResponse> =
-            serde_json::from_value(json_response)?;
+                let response = client
+                    .post(self.rpc_url.as_str())
+                    .header("Content-Type", "application/json")
+                    .json(&request)
+                    .send()
+                    .await?;
 
-        match json_rpc_response {
-            JsonRpcResponse::Success { result, .. } => Ok(result),
-            JsonRpcResponse::Error { error, .. } => Err(error.into()),
-        }
+                if response.status() == reqwest::StatusCode::TOO_MANY_REQUESTS {
+                    return Err(ExecuteFromOutsideError::RateLimitExceeded);
+                }
+
+                let json_response: Value = response.json().await?;
+                let json_rpc_response: JsonRpcResponse<ExecuteFromOutsideResponse> =
+                    serde_json::from_value(json_response)?;
+
+                match json_rpc_response {
+                    JsonRpcResponse::Success { result, .. } => Ok(result),
+                    JsonRpcResponse::Error { error, .. } => Err(error.into()),
+                }
+            },
+            is_execute_from_outside_rate_limited,
+        )
+        .await
     }
 }
 
@@ -109,7 +139,7 @@ impl CartridgeProvider for CartridgeJsonRpcProvider {
 #[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
 impl Provider for CartridgeJsonRpcProvider {
     async fn spec_version(&self) -> Result<String, ProviderError> {
-        self.inner.spec_version().await
+        retry_provider!(self, self.inner.spec_version())
     }
 
     async fn get_block_with_tx_hashes<B>(
@@ -119,7 +149,7 @@ impl Provider for CartridgeJsonRpcProvider {
     where
         B: AsRef<BlockId> + Send + Sync,
     {
-        self.inner.get_block_with_tx_hashes(block_id).await
+        retry_provider!(self, self.inner.get_block_with_tx_hashes(&block_id))
     }
 
     async fn get_block_with_txs<B>(
@@ -129,7 +159,7 @@ impl Provider for CartridgeJsonRpcProvider {
     where
         B: AsRef<BlockId> + Send + Sync,
     {
-        self.inner.get_block_with_txs(block_id).await
+        retry_provider!(self, self.inner.get_block_with_txs(&block_id))
     }
 
     async fn get_block_with_receipts<B>(
@@ -139,7 +169,7 @@ impl Provider for CartridgeJsonRpcProvider {
     where
         B: AsRef<BlockId> + Send + Sync,
     {
-        self.inner.get_block_with_receipts(block_id).await
+        retry_provider!(self, self.inner.get_block_with_receipts(&block_id))
     }
 
     async fn get_state_update<B>(
@@ -149,7 +179,7 @@ impl Provider for CartridgeJsonRpcProvider {
     where
         B: AsRef<BlockId> + Send + Sync,
     {
-        self.inner.get_state_update(block_id).await
+        retry_provider!(self, self.inner.get_state_update(&block_id))
     }
 
     async fn get_storage_at<A, K, B>(
@@ -163,9 +193,11 @@ impl Provider for CartridgeJsonRpcProvider {
         K: AsRef<Felt> + Send + Sync,
         B: AsRef<BlockId> + Send + Sync,
     {
-        self.inner
-            .get_storage_at(contract_address, key, block_id)
-            .await
+        retry_provider!(
+            self,
+            self.inner
+                .get_storage_at(&contract_address, &key, &block_id)
+        )
     }
 
     async fn get_transaction_status<H>(
@@ -175,7 +207,7 @@ impl Provider for CartridgeJsonRpcProvider {
     where
         H: AsRef<Felt> + Send + Sync,
     {
-        self.inner.get_transaction_status(transaction_hash).await
+        retry_provider!(self, self.inner.get_transaction_status(&transaction_hash))
     }
 
     async fn get_transaction_by_hash<H>(
@@ -185,7 +217,7 @@ impl Provider for CartridgeJsonRpcProvider {
     where
         H: AsRef<Felt> + Send + Sync,
     {
-        self.inner.get_transaction_by_hash(transaction_hash).await
+        retry_provider!(self, self.inner.get_transaction_by_hash(&transaction_hash))
     }
 
     async fn get_transaction_by_block_id_and_index<B>(
@@ -196,9 +228,11 @@ impl Provider for CartridgeJsonRpcProvider {
     where
         B: AsRef<BlockId> + Send + Sync,
     {
-        self.inner
-            .get_transaction_by_block_id_and_index(block_id, index)
-            .await
+        retry_provider!(
+            self,
+            self.inner
+                .get_transaction_by_block_id_and_index(&block_id, index)
+        )
     }
 
     async fn get_transaction_receipt<H>(
@@ -208,7 +242,7 @@ impl Provider for CartridgeJsonRpcProvider {
     where
         H: AsRef<Felt> + Send + Sync,
     {
-        self.inner.get_transaction_receipt(transaction_hash).await
+        retry_provider!(self, self.inner.get_transaction_receipt(&transaction_hash))
     }
 
     async fn get_class<B, H>(
@@ -220,7 +254,7 @@ impl Provider for CartridgeJsonRpcProvider {
         B: AsRef<BlockId> + Send + Sync,
         H: AsRef<Felt> + Send + Sync,
     {
-        self.inner.get_class(block_id, class_hash).await
+        retry_provider!(self, self.inner.get_class(&block_id, &class_hash))
     }
 
     async fn get_class_hash_at<B, A>(
@@ -232,9 +266,10 @@ impl Provider for CartridgeJsonRpcProvider {
         B: AsRef<BlockId> + Send + Sync,
         A: AsRef<Felt> + Send + Sync,
     {
-        self.inner
-            .get_class_hash_at(block_id, contract_address)
-            .await
+        retry_provider!(
+            self,
+            self.inner.get_class_hash_at(&block_id, &contract_address)
+        )
     }
 
     async fn get_class_at<B, A>(
@@ -246,14 +281,14 @@ impl Provider for CartridgeJsonRpcProvider {
         B: AsRef<BlockId> + Send + Sync,
         A: AsRef<Felt> + Send + Sync,
     {
-        self.inner.get_class_at(block_id, contract_address).await
+        retry_provider!(self, self.inner.get_class_at(&block_id, &contract_address))
     }
 
     async fn get_block_transaction_count<B>(&self, block_id: B) -> Result<u64, ProviderError>
     where
         B: AsRef<BlockId> + Send + Sync,
     {
-        self.inner.get_block_transaction_count(block_id).await
+        retry_provider!(self, self.inner.get_block_transaction_count(&block_id))
     }
 
     async fn call<R, B>(&self, request: R, block_id: B) -> Result<Vec<Felt>, ProviderError>
@@ -261,7 +296,7 @@ impl Provider for CartridgeJsonRpcProvider {
         R: AsRef<FunctionCall> + Send + Sync,
         B: AsRef<BlockId> + Send + Sync,
     {
-        self.inner.call(request, block_id).await
+        retry_provider!(self, self.inner.call(&request, &block_id))
     }
 
     async fn estimate_fee<R, S, B>(
@@ -275,10 +310,11 @@ impl Provider for CartridgeJsonRpcProvider {
         S: AsRef<[SimulationFlagForEstimateFee]> + Send + Sync,
         B: AsRef<BlockId> + Send + Sync,
     {
-        let mut estimates = self
-            .inner
-            .estimate_fee(request, &simulation_flags, block_id)
-            .await?;
+        let mut estimates = retry_provider!(
+            self,
+            self.inner
+                .estimate_fee(&request, &simulation_flags, &block_id)
+        )?;
 
         // Add VALIDATION_GAS if skip validate is enabled
         if simulation_flags
@@ -303,23 +339,23 @@ impl Provider for CartridgeJsonRpcProvider {
         M: AsRef<MsgFromL1> + Send + Sync,
         B: AsRef<BlockId> + Send + Sync,
     {
-        self.inner.estimate_message_fee(message, block_id).await
+        retry_provider!(self, self.inner.estimate_message_fee(&message, &block_id))
     }
 
     async fn block_number(&self) -> Result<u64, ProviderError> {
-        self.inner.block_number().await
+        retry_provider!(self, self.inner.block_number())
     }
 
     async fn block_hash_and_number(&self) -> Result<BlockHashAndNumber, ProviderError> {
-        self.inner.block_hash_and_number().await
+        retry_provider!(self, self.inner.block_hash_and_number())
     }
 
     async fn chain_id(&self) -> Result<Felt, ProviderError> {
-        self.inner.chain_id().await
+        retry_provider!(self, self.inner.chain_id())
     }
 
     async fn syncing(&self) -> Result<SyncStatusType, ProviderError> {
-        self.inner.syncing().await
+        retry_provider!(self, self.inner.syncing())
     }
 
     async fn get_events(
@@ -328,9 +364,11 @@ impl Provider for CartridgeJsonRpcProvider {
         continuation_token: Option<String>,
         chunk_size: u64,
     ) -> Result<EventsPage, ProviderError> {
-        self.inner
-            .get_events(filter, continuation_token, chunk_size)
-            .await
+        retry_provider!(
+            self,
+            self.inner
+                .get_events(filter.clone(), continuation_token.clone(), chunk_size)
+        )
     }
 
     async fn get_nonce<B, A>(&self, block_id: B, contract_address: A) -> Result<Felt, ProviderError>
@@ -338,7 +376,7 @@ impl Provider for CartridgeJsonRpcProvider {
         B: AsRef<BlockId> + Send + Sync,
         A: AsRef<Felt> + Send + Sync,
     {
-        self.inner.get_nonce(block_id, contract_address).await
+        retry_provider!(self, self.inner.get_nonce(&block_id, &contract_address))
     }
 
     async fn add_invoke_transaction<I>(
@@ -382,7 +420,7 @@ impl Provider for CartridgeJsonRpcProvider {
     where
         H: AsRef<Felt> + Send + Sync,
     {
-        self.inner.trace_transaction(transaction_hash).await
+        retry_provider!(self, self.inner.trace_transaction(&transaction_hash))
     }
 
     async fn simulate_transactions<B, T, S>(
@@ -396,10 +434,11 @@ impl Provider for CartridgeJsonRpcProvider {
         T: AsRef<[BroadcastedTransaction]> + Send + Sync,
         S: AsRef<[SimulationFlag]> + Send + Sync,
     {
-        let mut simuations = self
-            .inner
-            .simulate_transactions(block_id, transactions, &simulation_flags)
-            .await?;
+        let mut simuations = retry_provider!(
+            self,
+            self.inner
+                .simulate_transactions(&block_id, &transactions, &simulation_flags)
+        )?;
 
         // Add VALIDATION_GAS if skip validate is enabled
         if simulation_flags
@@ -425,7 +464,7 @@ impl Provider for CartridgeJsonRpcProvider {
     where
         B: AsRef<ConfirmedBlockId> + Send + Sync,
     {
-        self.inner.trace_block_transactions(block_id).await
+        retry_provider!(self, self.inner.trace_block_transactions(&block_id))
     }
 
     async fn batch_requests<R>(
@@ -435,14 +474,14 @@ impl Provider for CartridgeJsonRpcProvider {
     where
         R: AsRef<[ProviderRequestData]> + Send + Sync,
     {
-        self.inner.batch_requests(requests).await
+        retry_provider!(self, self.inner.batch_requests(&requests))
     }
 
     async fn get_messages_status(
         &self,
         transaction_hash: Hash256,
     ) -> Result<Vec<starknet::core::types::MessageStatus>, ProviderError> {
-        self.inner.get_messages_status(transaction_hash).await
+        retry_provider!(self, self.inner.get_messages_status(transaction_hash))
     }
 
     async fn get_storage_proof<B, H, A, K>(
@@ -458,14 +497,15 @@ impl Provider for CartridgeJsonRpcProvider {
         A: AsRef<[Felt]> + Send + Sync,
         K: AsRef<[starknet::core::types::ContractStorageKeys]> + Send + Sync,
     {
-        self.inner
-            .get_storage_proof(
-                block_id,
-                class_hashes,
-                contract_addresses,
-                contracts_storage_keys,
+        retry_provider!(
+            self,
+            self.inner.get_storage_proof(
+                &block_id,
+                &class_hashes,
+                &contract_addresses,
+                &contracts_storage_keys,
             )
-            .await
+        )
     }
 }
 
@@ -570,6 +610,14 @@ impl From<reqwest::Error> for ExecuteFromOutsideError {
         ExecuteFromOutsideError::ProviderError(
             JsonRpcClientError::<reqwest::Error>::TransportError(error).into(),
         )
+    }
+}
+
+pub fn is_execute_from_outside_rate_limited(error: &ExecuteFromOutsideError) -> bool {
+    match error {
+        ExecuteFromOutsideError::RateLimitExceeded => true,
+        ExecuteFromOutsideError::ProviderError(error) => is_provider_rate_limited(error),
+        _ => false,
     }
 }
 

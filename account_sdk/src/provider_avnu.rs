@@ -6,7 +6,10 @@ use starknet::core::types::{Call, Felt};
 use starknet::providers::jsonrpc::JsonRpcResponse;
 use url::Url;
 
-use crate::provider::{ExecuteFromOutsideError, ExecuteFromOutsideResponse};
+use crate::provider::{
+    is_execute_from_outside_rate_limited, ExecuteFromOutsideError, ExecuteFromOutsideResponse,
+};
+use crate::rate_limit::{retry_with_policy, RetryPolicy};
 
 /// JSON-RPC request for AVNU paymaster API
 #[derive(Debug, Serialize)]
@@ -27,6 +30,7 @@ pub struct AvnuPaymasterProvider {
     paymaster_url: Url,
     client: Client,
     api_key: Option<String>,
+    retry_policy: RetryPolicy,
 }
 
 impl AvnuPaymasterProvider {
@@ -35,6 +39,7 @@ impl AvnuPaymasterProvider {
             paymaster_url,
             client: Client::new(),
             api_key: None,
+            retry_policy: RetryPolicy::default(),
         }
     }
 
@@ -44,7 +49,13 @@ impl AvnuPaymasterProvider {
             paymaster_url,
             client: Client::new(),
             api_key: Some(api_key),
+            retry_policy: RetryPolicy::default(),
         }
+    }
+
+    pub fn with_retry_policy(mut self, retry_policy: RetryPolicy) -> Self {
+        self.retry_policy = retry_policy;
+        self
     }
 
     /// Execute a direct transaction through the AVNU paymaster.
@@ -62,43 +73,55 @@ impl AvnuPaymasterProvider {
         &self,
         request: ExecuteRawRequest,
     ) -> Result<ExecuteRawResponse, ExecuteFromOutsideError> {
-        let rpc_request = AvnuJsonRpcRequest {
-            id: 1,
-            jsonrpc: "2.0",
-            method: "paymaster_executeDirectTransaction",
-            params: request,
-        };
+        retry_with_policy(
+            self.retry_policy,
+            || async {
+                let rpc_request = AvnuJsonRpcRequest {
+                    id: 1,
+                    jsonrpc: "2.0",
+                    method: "paymaster_executeDirectTransaction",
+                    params: request.clone(),
+                };
 
-        let mut req = self
-            .client
-            .post(self.paymaster_url.as_str())
-            .header("Content-Type", "application/json");
+                let mut req = self
+                    .client
+                    .post(self.paymaster_url.as_str())
+                    .header("Content-Type", "application/json");
 
-        // Add API key header if present (required for sponsored transactions)
-        if let Some(api_key) = &self.api_key {
-            req = req.header("x-paymaster-api-key", api_key);
-        }
+                // Add API key header if present (required for sponsored transactions)
+                if let Some(api_key) = &self.api_key {
+                    req = req.header("x-paymaster-api-key", api_key);
+                }
 
-        let response = req.json(&rpc_request).send().await?;
+                let response = req.json(&rpc_request).send().await?;
 
-        let json_rpc_response: JsonRpcResponse<ExecuteRawResponse> = response.json().await?;
+                if response.status() == reqwest::StatusCode::TOO_MANY_REQUESTS {
+                    return Err(ExecuteFromOutsideError::RateLimitExceeded);
+                }
 
-        match json_rpc_response {
-            JsonRpcResponse::Success { result, .. } => Ok(result),
-            JsonRpcResponse::Error { error, .. } => Err(error.into()),
-        }
+                let json_rpc_response: JsonRpcResponse<ExecuteRawResponse> =
+                    response.json().await?;
+
+                match json_rpc_response {
+                    JsonRpcResponse::Success { result, .. } => Ok(result),
+                    JsonRpcResponse::Error { error, .. } => Err(error.into()),
+                }
+            },
+            is_execute_from_outside_rate_limited,
+        )
+        .await
     }
 }
 
 /// Request for paymaster_executeDirectTransaction
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ExecuteRawRequest {
     pub transaction: ExecuteRawTransactionParams,
     pub parameters: ExecutionParameters,
 }
 
 /// Transaction parameters for direct execute
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum ExecuteRawTransactionParams {
     #[serde(rename = "invoke")]
@@ -107,7 +130,7 @@ pub enum ExecuteRawTransactionParams {
 
 /// Parameters for a direct invoke transaction
 #[serde_as]
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DirectInvokeParams {
     #[serde_as(as = "UfeHex")]
     pub user_address: Felt,
@@ -115,7 +138,7 @@ pub struct DirectInvokeParams {
 }
 
 /// Execution parameters
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "version")]
 pub enum ExecutionParameters {
     #[serde(rename = "0x1")]
@@ -128,7 +151,7 @@ pub enum ExecutionParameters {
 
 /// Fee mode for the transaction
 #[serde_as]
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "mode", rename_all = "snake_case")]
 pub enum FeeMode {
     Default {
@@ -155,7 +178,7 @@ pub enum TipPriority {
 }
 
 /// Time bounds for the transaction
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TimeBounds {
     pub execute_after: u64,
     pub execute_before: u64,

@@ -15,6 +15,7 @@ pub mod multi_chain;
 pub mod owner;
 pub mod provider;
 pub mod provider_avnu;
+pub mod rate_limit;
 pub mod session;
 pub mod signers;
 pub mod storage;

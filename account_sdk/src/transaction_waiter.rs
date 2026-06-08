@@ -8,6 +8,7 @@ use starknet::core::types::{
 use starknet::providers::{Provider, ProviderError};
 
 use crate::errors::ControllerError;
+use crate::rate_limit::is_provider_rate_limited;
 
 #[derive(Debug, thiserror::Error)]
 pub enum TransactionWaitingError {
@@ -211,6 +212,8 @@ where
                 },
 
                 Err(ProviderError::StarknetError(StarknetError::TransactionHashNotFound)) => {}
+
+                Err(e) if is_provider_rate_limited(&e) => {}
 
                 Err(e) => {
                     return Err(TransactionWaitingError::Provider(e));

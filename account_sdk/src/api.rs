@@ -3,9 +3,13 @@ use std::fmt::{self};
 use graphql_client::Response;
 use reqwest::RequestBuilder;
 use serde::{de::DeserializeOwned, Serialize};
+use starknet::providers::ProviderError;
 use url::Url;
 
 use crate::errors::ControllerError;
+use crate::rate_limit::{
+    is_provider_rate_limited, is_reqwest_rate_limited, retry_with_policy, RetryPolicy,
+};
 
 #[derive(Debug)]
 pub struct Client {
@@ -15,15 +19,10 @@ pub struct Client {
 
 impl Client {
     pub fn new(base_url: String) -> Self {
-        let mut client_builder = reqwest::Client::builder();
         #[cfg(not(target_arch = "wasm32"))]
-        {
-            client_builder = client_builder.cookie_store(true);
-        }
+        let client_builder = reqwest::Client::builder().cookie_store(true);
         #[cfg(target_arch = "wasm32")]
-        {
-            client_builder = client_builder;
-        }
+        let client_builder = reqwest::Client::builder();
 
         Self {
             client: client_builder.build().expect("Failed to build client"),
@@ -38,7 +37,18 @@ impl Client {
     {
         let path = "/query";
 
-        let response = self.post(path).json(body).send().await?;
+        let response = retry_with_policy(
+            RetryPolicy::default(),
+            || async {
+                let response = self.post(path).json(body).send().await?;
+                if response.status() == reqwest::StatusCode::TOO_MANY_REQUESTS {
+                    return Err(ControllerError::ProviderError(ProviderError::RateLimited));
+                }
+                Ok(response)
+            },
+            is_controller_rate_limited,
+        )
+        .await?;
 
         let res: Response<R> = response.json().await?;
         if let Some(errors) = res.errors {
@@ -72,6 +82,17 @@ impl Client {
         let mut url = self.base_url.clone();
         url.path_segments_mut().unwrap().extend(path.split('/'));
         url
+    }
+}
+
+fn is_controller_rate_limited(error: &ControllerError) -> bool {
+    match error {
+        ControllerError::ProviderError(error) => is_provider_rate_limited(error),
+        ControllerError::ReqwestError(error) => is_reqwest_rate_limited(error),
+        _ => error
+            .to_string()
+            .to_ascii_lowercase()
+            .contains("rate limit"),
     }
 }
 

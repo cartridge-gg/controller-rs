@@ -21,7 +21,7 @@ jobs:
           toolchain: ${{ env.RUST_VERSION }}
           target: wasm32-unknown-unknown
       - name: Install wasm-pack
-        run: cargo install --locked wasm-pack
+        run: cargo install --locked wasm-pack --version 0.14.0
       - name: Build account-wasm
         working-directory: account-wasm
         run: ./build.sh
