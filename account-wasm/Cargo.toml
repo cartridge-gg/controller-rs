@@ -19,6 +19,7 @@ incremental = false
 
 [dependencies]
 alloy-signer.workspace = true
+ruint.workspace = true
 wee_alloc = { version = "0.4.5", optional = true }
 account_sdk = { workspace = true, features = ["webauthn"] }
 async-trait.workspace = true
