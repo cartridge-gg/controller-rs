@@ -1,0 +1,23 @@
+package(default_visibility = ["//visibility:public"])
+
+sh_binary(
+    name = "build_wasm",
+    srcs = ["//scripts/bazel:build_wasm.sh"],
+)
+
+sh_binary(
+    name = "package_wasm",
+    srcs = ["//scripts/bazel:package_wasm.sh"],
+)
+
+sh_binary(
+    name = "pkg_controller_tar",
+    srcs = ["//scripts/bazel:package_wasm.sh"],
+    args = ["--controller"],
+)
+
+sh_binary(
+    name = "pkg_session_tar",
+    srcs = ["//scripts/bazel:package_wasm.sh"],
+    args = ["--session"],
+)

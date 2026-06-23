@@ -1,110 +1,28 @@
 #!/usr/bin/env bash
 
-# Exit immediately if a command exits with a non-zero status
-set -e
+set -euo pipefail
 
-# Colors for output
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-BLUE='\033[0;34m'
-NC='\033[0m' # No Color
-
-# Default values
 CHECK_ONLY=false
-FILES_SPECIFIED=false
-SPECIFIC_FILES=""
 
-# Function to show usage
-show_usage() {
-    echo "Usage: $0 [OPTIONS] [FILES...]"
-    echo ""
-    echo "Options:"
-    echo "  --check-only    Check formatting without applying changes"
-    echo "  --help          Show this help message"
-    echo ""
-    echo "Examples:"
-    echo "  $0                      # Format all documentation files"
-    echo "  $0 --check-only         # Check all documentation files"
-    echo "  $0 README.md docs/*.md  # Format specific files"
-}
-
-# Parse command line arguments
 while [[ $# -gt 0 ]]; do
-    case $1 in
+    case "$1" in
         --check-only)
             CHECK_ONLY=true
-            shift
             ;;
         --help)
-            show_usage
+            echo "Usage: bin/prettier-lint [--check-only]"
             exit 0
             ;;
-        -*)
-            echo -e "${RED}Unknown option: $1${NC}"
-            show_usage
+        *)
+            echo "Unknown option: $1"
             exit 1
             ;;
-        *)
-            FILES_SPECIFIED=true
-            SPECIFIC_FILES="$SPECIFIC_FILES $1"
-            shift
-            ;;
     esac
-done
+    shift
+ done
 
-# Check if prettier is available
-if ! command -v prettier &> /dev/null; then
-    echo -e "${RED}Error: prettier is not installed or not in PATH${NC}"
-    echo "Please install prettier with: npm install -g prettier"
-    exit 1
+if [ "$CHECK_ONLY" = true ]; then
+    exec bazelisk run //:prettier_lint
 fi
 
-echo -e "${BLUE}Running prettier linting...${NC}"
-
-EXIT_CODE=0
-
-# Function to run prettier
-run_prettier() {
-    if [ "$FILES_SPECIFIED" = true ]; then
-        # Format specific files
-        DOC_FILES=$(echo "$SPECIFIC_FILES" | tr ' ' '\n' | grep -E '\.(md|yml|yaml|json)$' | grep -v CLAUDE.md || true)
-        if [ -n "$DOC_FILES" ]; then
-            if [ "$CHECK_ONLY" = true ]; then
-                echo -e "${BLUE}Checking formatting of specific files...${NC}"
-                echo "$DOC_FILES" | xargs prettier --check
-            else
-                echo -e "${BLUE}Formatting specific files...${NC}"
-                echo "$DOC_FILES" | xargs prettier --write
-            fi
-        else
-            echo -e "${YELLOW}No supported documentation files specified.${NC}"
-            echo "Supported extensions: .md, .yml, .yaml, .json"
-            return 0
-        fi
-    else
-        # Format all files
-        if [ "$CHECK_ONLY" = true ]; then
-            echo -e "${BLUE}Checking formatting of all documentation files...${NC}"
-            prettier --check "**/*.{md,yml,yaml,json}" --ignore-path .prettierignore
-        else
-            echo -e "${BLUE}Formatting all documentation files...${NC}"
-            prettier --write "**/*.{md,yml,yaml,json}" --ignore-path .prettierignore
-        fi
-    fi
-}
-
-# Run prettier
-if ! run_prettier; then
-    echo -e "${RED}prettier failed${NC}"
-    EXIT_CODE=1
-fi
-
-# Summary
-if [ $EXIT_CODE -eq 0 ]; then
-    echo -e "${GREEN}✅ All prettier linting checks passed!${NC}"
-else
-    echo -e "${RED}❌ Some prettier linting checks failed.${NC}"
-fi
-
-exit $EXIT_CODE
+exec bazelisk run //:lint_fix -- --prettier
