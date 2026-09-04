@@ -8,7 +8,8 @@ on:
 
 env:
   CARGO_TERM_COLOR: always
-  RUST_VERSION: 1.88.0
+  RUST_VERSION: "1.92"
+  WASM_PACK_VERSION: 0.13.1
   VCPKG_ROOT: "${{ github.workspace }}/vcpkg"
 
 jobs:
@@ -21,7 +22,7 @@ jobs:
           toolchain: ${{ env.RUST_VERSION }}
           target: wasm32-unknown-unknown
       - name: Install wasm-pack
-        run: cargo install --locked wasm-pack
+        run: cargo install --locked wasm-pack --version ${{ env.WASM_PACK_VERSION }}
       - name: Build account-wasm
         working-directory: account-wasm
         run: ./build.sh

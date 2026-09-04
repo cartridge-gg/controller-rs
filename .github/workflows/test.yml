@@ -13,7 +13,7 @@ concurrency:
 
 env:
   CARGO_TERM_COLOR: always
-  RUST_VERSION: 1.88.0
+  RUST_VERSION: "1.92"
 
 jobs:
   check-changes:
@@ -46,7 +46,7 @@ jobs:
           apt-get install -y build-essential gcc libssl-dev pkg-config
       - uses: actions-rust-lang/setup-rust-toolchain@v1
         with:
-          toolchain: nightly
+          toolchain: ${{ env.RUST_VERSION }}
           components: llvm-tools-preview
       - uses: Swatinem/rust-cache@v2
         if: needs.check-changes.outputs.rust == 'true'
