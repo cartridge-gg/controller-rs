@@ -97,6 +97,9 @@ pub enum ControllerError {
 
     #[error("Approve execution requires user authorization. Fee estimate: {fee_estimate:?}")]
     ApproveExecutionRequired { fee_estimate: Box<FeeEstimate> },
+
+    #[error("Invalid gas multiplier {value}: must be a finite value in [{min}, {max}]")]
+    InvalidGasMultiplier { value: f64, min: f64, max: f64 },
 }
 
 impl From<ExecuteFromOutsideError> for ControllerError {

@@ -12,6 +12,7 @@ use crate::account::session::policy::Policy;
 use crate::controller::Controller;
 use crate::errors::ControllerError;
 use crate::execute_from_outside::FeeSource;
+use crate::gas::GasMultiplier;
 use crate::graphql::run_query;
 use crate::graphql::session::revoke_sessions::RevokeSessionInput;
 use crate::graphql::session::{
@@ -288,10 +289,27 @@ impl Controller {
         Some(session_account)
     }
 
+    /// Attempts session execution using the default self-funded gas multiplier.
+    ///
+    /// This preserves the historical signature; use
+    /// [`Controller::try_session_execute_with_gas_multiplier`] to configure the
+    /// multiplier.
     pub async fn try_session_execute(
         &mut self,
         calls: Vec<Call>,
         fee_source: Option<FeeSource>,
+    ) -> Result<InvokeTransactionResult, ControllerError> {
+        self.try_session_execute_with_gas_multiplier(calls, fee_source, None)
+            .await
+    }
+
+    /// Attempts session execution, optionally overriding the gas multiplier used
+    /// for the self-funded fallback when the paymaster is unsupported.
+    pub async fn try_session_execute_with_gas_multiplier(
+        &mut self,
+        calls: Vec<Call>,
+        fee_source: Option<FeeSource>,
+        gas_multiplier: Option<GasMultiplier>,
     ) -> Result<InvokeTransactionResult, ControllerError> {
         let policies = Policy::from_calls(&calls);
 
@@ -315,7 +333,8 @@ impl Controller {
             Ok(result) => Ok(result),
             Err(err) if is_paymaster_not_supported(&err) => {
                 let estimate = self.estimate_invoke_fee(calls.clone()).await?;
-                self.execute(calls, Some(estimate), fee_source).await
+                self.execute_with_gas_multiplier(calls, Some(estimate), fee_source, gas_multiplier)
+                    .await
             }
             Err(err) => Err(err),
         }

@@ -8,6 +8,7 @@ use account_sdk::account::session::hash::Session;
 use account_sdk::account::session::policy::Policy as SdkPolicy;
 use account_sdk::controller::{Controller, DEFAULT_SESSION_EXPIRATION};
 use account_sdk::errors::ControllerError;
+use account_sdk::gas::GasMultiplier;
 use account_sdk::session::RevokableSession;
 use account_sdk::storage::selectors::Selectors;
 use account_sdk::storage::{ControllerMetadata, StorageBackend};
@@ -729,6 +730,7 @@ impl CartridgeAccount {
         calls: Vec<JsCall>,
         max_fee: Option<JsFeeEstimate>,
         fee_source: Option<JsFeeSource>,
+        gas_multiplier: Option<f64>,
     ) -> WasmResult<JsValue> {
         set_panic_hook();
 
@@ -737,16 +739,22 @@ impl CartridgeAccount {
             .map(TryFrom::try_from)
             .collect::<std::result::Result<Vec<_>, _>>()?;
 
+        let gas_multiplier = gas_multiplier
+            .map(GasMultiplier::new)
+            .transpose()
+            .map_err(JsControllerError::from)?;
+
         let mut controller = self.controller.lock().await;
         ensure_wildcard_session_if_expired(&mut controller)
             .await
             .map_err(JsControllerError::from)?;
 
         let result = controller
-            .execute(
+            .execute_with_gas_multiplier(
                 calls,
                 max_fee.map(Into::into),
                 fee_source.map(|fs| fs.try_into()).transpose()?,
+                gas_multiplier,
             )
             .await
             .map_err(JsControllerError::from)?;
@@ -810,6 +818,7 @@ impl CartridgeAccount {
         app_id: String,
         calls: Vec<JsCall>,
         fee_source: Option<JsFeeSource>,
+        gas_multiplier: Option<f64>,
     ) -> WasmResult<JsValue> {
         set_panic_hook();
 
@@ -818,6 +827,13 @@ impl CartridgeAccount {
             .into_iter()
             .map(TryInto::try_into)
             .collect::<std::result::Result<Vec<_>, _>>()?;
+
+        // Validate the optional self-funded gas multiplier up front so an
+        // invalid value fails fast before any network calls.
+        let gas_multiplier = gas_multiplier
+            .map(GasMultiplier::new)
+            .transpose()
+            .map_err(JsControllerError::from)?;
 
         // Extract policies from calls
         let policies = SdkPolicy::from_calls(&calls);
@@ -894,10 +910,11 @@ impl CartridgeAccount {
                     // Fallback to user pays flow when the paymaster path is unavailable
                     let estimate = controller.estimate_invoke_fee(calls.clone()).await?;
                     let result = controller
-                        .execute(
+                        .execute_with_gas_multiplier(
                             calls,
                             Some(estimate),
                             fee_source.map(|fs| fs.try_into()).transpose()?,
+                            gas_multiplier,
                         )
                         .await?;
                     Ok(to_value(&result)?)

@@ -9,6 +9,7 @@ pub mod controller;
 pub mod errors;
 pub mod execute_from_outside;
 pub mod factory;
+pub mod gas;
 pub mod graphql;
 pub mod hash;
 pub mod multi_chain;
