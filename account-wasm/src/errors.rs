@@ -158,6 +158,7 @@ pub enum ErrorCode {
     ForbiddenEntrypoint = 144,
     GasAmountTooHigh = 145,
     ApproveExecutionRequired = 146,
+    InvalidGasMultiplier = 147,
 }
 
 impl From<ControllerError> for JsControllerError {
@@ -308,6 +309,13 @@ impl From<ControllerError> for JsControllerError {
                     }))
                     .unwrap(),
                 ),
+            },
+            ControllerError::InvalidGasMultiplier { value, min, max } => JsControllerError {
+                code: ErrorCode::InvalidGasMultiplier,
+                message: format!(
+                    "Invalid gas multiplier {value}: must be a finite value in [{min}, {max}]"
+                ),
+                data: None,
             },
         }
     }

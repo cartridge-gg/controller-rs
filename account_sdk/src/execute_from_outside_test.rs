@@ -205,6 +205,69 @@ async fn test_paymaster_fallback() {
 }
 
 #[tokio::test]
+async fn test_paymaster_fallback_with_configured_gas_multiplier() {
+    use crate::execute_from_outside::FeeSource;
+    use crate::gas::GasMultiplier;
+    use crate::tests::runners::cartridge::CartridgeProxy;
+
+    struct ResetPaymasterFailures;
+
+    impl Drop for ResetPaymasterFailures {
+        fn drop(&mut self) {
+            CartridgeProxy::force_paymaster_failures(0);
+        }
+    }
+
+    let signer = Signer::new_starknet_random();
+    let runner = KatanaRunner::load();
+    let mut controller = runner
+        .deploy_controller(
+            "test_paymaster_multiplier".to_owned(),
+            Owner::Signer(signer),
+            Version::LATEST,
+        )
+        .await;
+
+    controller
+        .create_session(
+            vec![Policy::new_call(*FEE_TOKEN_ADDRESS, selector!("transfer"))],
+            u64::MAX,
+        )
+        .await
+        .unwrap();
+
+    let recipient = ContractAddress(felt!("0x18301130"));
+    let amount = U256 { low: 10, high: 0 };
+    let tx = {
+        let erc20 = Erc20::new(*FEE_TOKEN_ADDRESS, &controller);
+        erc20.transfer_getcall(&recipient, &amount)
+    };
+
+    let _reset_paymaster_failures = ResetPaymasterFailures;
+    CartridgeProxy::force_paymaster_failures(1);
+
+    // A configured (higher) multiplier should still succeed on the self-funded
+    // fallback; the extra headroom only raises gas-amount resource bounds.
+    let result = controller
+        .try_session_execute_with_gas_multiplier(
+            vec![tx.clone()],
+            Some(FeeSource::Paymaster),
+            Some(GasMultiplier::new(3.0).unwrap()),
+        )
+        .await
+        .expect("fallback execution should succeed with configured multiplier");
+
+    TransactionWaiter::new(result.transaction_hash, runner.client())
+        .wait()
+        .await
+        .unwrap();
+
+    let erc20 = Erc20::new(*FEE_TOKEN_ADDRESS, &controller);
+    let fallback_balance = erc20.balanceOf(&recipient).call().await.unwrap();
+    assert_eq!(fallback_balance, amount);
+}
+
+#[tokio::test]
 async fn test_session_registration_failure_recovery() {
     use chrono::Utc;
 

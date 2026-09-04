@@ -5,6 +5,7 @@ use crate::constants::STRK_CONTRACT_ADDRESS;
 use crate::errors::ControllerError;
 use crate::execute_from_outside::FeeSource;
 use crate::factory::ControllerFactory;
+use crate::gas::GasMultiplier;
 use crate::graphql::registration::register::register::{SessionInput, SignerInput};
 use crate::graphql::registration::register::RegisterInput;
 use crate::provider::CartridgeJsonRpcProvider;
@@ -340,25 +341,47 @@ impl Controller {
         }
     }
 
+    /// Executes `calls` using the default self-funded gas multiplier.
+    ///
+    /// This preserves the historical signature; use
+    /// [`Controller::execute_with_gas_multiplier`] to configure the multiplier.
     pub async fn execute(
         &mut self,
         calls: Vec<Call>,
         max_fee: Option<FeeEstimate>,
         fee_source: Option<FeeSource>,
     ) -> Result<InvokeTransactionResult, ControllerError> {
+        self.execute_with_gas_multiplier(calls, max_fee, fee_source, None)
+            .await
+    }
+
+    /// Executes `calls`, optionally overriding the self-funded gas multiplier.
+    ///
+    /// `gas_multiplier` of `None` uses the default headroom. It only affects
+    /// self-funded (non-paymaster) execution where `max_fee` is `Some`.
+    pub async fn execute_with_gas_multiplier(
+        &mut self,
+        calls: Vec<Call>,
+        max_fee: Option<FeeEstimate>,
+        fee_source: Option<FeeSource>,
+        gas_multiplier: Option<GasMultiplier>,
+    ) -> Result<InvokeTransactionResult, ControllerError> {
         if max_fee.is_none() {
             return self.execute_from_outside_v3(calls, fee_source).await;
         }
 
-        let gas_estimate_multiplier = 1.5;
+        // Self-funded transactions reserve gas *amount* headroom on top of the
+        // estimate. The multiplier defaults to the historical 1.5x and is
+        // applied to each gas amount exactly once here.
+        let gas_multiplier = gas_multiplier.unwrap_or_default();
         let max_fee = max_fee.unwrap();
         let mut retry_count = 0;
         let max_retries = 1;
 
         // Compute resource bounds for all gas types
-        let l1_gas = ((max_fee.l1_gas_consumed as f64) * gas_estimate_multiplier) as u64;
-        let l2_gas = ((max_fee.l2_gas_consumed as f64) * gas_estimate_multiplier) as u64;
-        let l1_data_gas = ((max_fee.l1_data_gas_consumed as f64) * gas_estimate_multiplier) as u64;
+        let l1_gas = gas_multiplier.apply(max_fee.l1_gas_consumed);
+        let l2_gas = gas_multiplier.apply(max_fee.l2_gas_consumed);
+        let l1_data_gas = gas_multiplier.apply(max_fee.l1_data_gas_consumed);
 
         loop {
             let nonce = self.get_nonce().await?;
