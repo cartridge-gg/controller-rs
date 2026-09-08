@@ -12,7 +12,7 @@ use crate::account::session::policy::Policy;
 use crate::controller::Controller;
 use crate::errors::ControllerError;
 use crate::execute_from_outside::FeeSource;
-use crate::gas::GasMultiplier;
+use crate::gas::{with_gas_price_headroom, GasMultiplier};
 use crate::graphql::run_query;
 use crate::graphql::session::revoke_sessions::RevokeSessionInput;
 use crate::graphql::session::{
@@ -28,6 +28,10 @@ use crate::storage::{
 #[cfg(all(test, not(target_arch = "wasm32")))]
 #[path = "session_test.rs"]
 mod session_test;
+
+#[cfg(all(test, not(target_arch = "wasm32")))]
+#[path = "session_execution_test.rs"]
+mod session_execution_test;
 
 impl Controller {
     pub async fn create_session(
@@ -333,6 +337,10 @@ impl Controller {
             Ok(result) => Ok(result),
             Err(err) if is_paymaster_not_supported(&err) => {
                 let estimate = self.estimate_invoke_fee(calls.clone()).await?;
+                // estimate_fee returns raw RPC prices; builder multipliers only
+                // apply when preparing a transaction. This path bypasses the
+                // keychain UI that normally supplies price-buffered max fees.
+                let estimate = with_gas_price_headroom(estimate);
                 self.execute_with_gas_multiplier(calls, Some(estimate), fee_source, gas_multiplier)
                     .await
             }

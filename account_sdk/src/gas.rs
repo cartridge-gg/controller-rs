@@ -3,8 +3,21 @@
 //! For self-funded (non-paymaster) transactions, the controller inflates the
 //! estimated gas *amount* by this multiplier so estimate-to-execution drift
 //! doesn't run the transaction out of resources.
+//! The automatic session fallback also buffers gas prices independently.
 
 use crate::errors::ControllerError;
+use starknet::core::types::FeeEstimate;
+
+/// Add the same 50% gas-price headroom as the keychain confirmation flow to a
+/// raw RPC estimate. Only the automatic self-funded fallback calls this: an
+/// explicitly supplied max fee may already be buffered and must be respected.
+pub(crate) fn with_gas_price_headroom(mut estimate: FeeEstimate) -> FeeEstimate {
+    let add_headroom = |price: u128| price.saturating_add(price / 2);
+    estimate.l1_gas_price = add_headroom(estimate.l1_gas_price);
+    estimate.l2_gas_price = add_headroom(estimate.l2_gas_price);
+    estimate.l1_data_gas_price = add_headroom(estimate.l1_data_gas_price);
+    estimate
+}
 
 /// Default multiplier: the historical 1.5x headroom. Also the minimum, since a
 /// lower value would reduce headroom below the safe baseline.
@@ -57,6 +70,44 @@ impl Default for GasMultiplier {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn price_headroom_preserves_gas_amounts_and_raw_overall_fee() {
+        let estimate = with_gas_price_headroom(FeeEstimate {
+            l1_gas_consumed: 10,
+            l1_gas_price: 96_966_059_925_918,
+            l2_gas_consumed: 20,
+            l2_gas_price: 101,
+            l1_data_gas_consumed: 30,
+            l1_data_gas_price: 134_488_580_849,
+            overall_fee: 1_000,
+        });
+
+        assert_eq!(estimate.l1_gas_price, 145_449_089_888_877);
+        assert_eq!(estimate.l2_gas_price, 151);
+        assert_eq!(estimate.l1_data_gas_price, 201_732_871_273);
+        assert_eq!(estimate.l1_gas_consumed, 10);
+        assert_eq!(estimate.l2_gas_consumed, 20);
+        assert_eq!(estimate.l1_data_gas_consumed, 30);
+        assert_eq!(estimate.overall_fee, 1_000);
+    }
+
+    #[test]
+    fn price_headroom_handles_zero_and_u128_limits() {
+        let estimate = with_gas_price_headroom(FeeEstimate {
+            l1_gas_consumed: 0,
+            l1_gas_price: 0,
+            l2_gas_consumed: 0,
+            l2_gas_price: u128::MAX,
+            l1_data_gas_consumed: 0,
+            l1_data_gas_price: u128::MAX / 2,
+            overall_fee: 0,
+        });
+
+        assert_eq!(estimate.l1_gas_price, 0);
+        assert_eq!(estimate.l2_gas_price, u128::MAX);
+        assert_eq!(estimate.l1_data_gas_price, u128::MAX / 2 + u128::MAX / 4);
+    }
 
     #[test]
     fn default_is_historical_headroom() {
