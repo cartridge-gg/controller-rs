@@ -34,7 +34,12 @@ jobs:
       - name: Test browser session execution
         env:
           CHROME: ${{ steps.chrome.outputs.chrome-path }}
-        run: wasm-pack test --headless --chrome --chromedriver '${{ steps.chrome.outputs.chromedriver-path }}' account-wasm --features controller_account browser_session
+          CHROMEDRIVER: ${{ steps.chrome.outputs.chromedriver-path }}
+          CARGO_TARGET_WASM32_UNKNOWN_UNKNOWN_RUNNER: wasm-bindgen-test-runner
+        run: |
+          wasm_bindgen_version=$(cargo metadata --format-version=1 | jq -r '.packages[] | select(.name == "wasm-bindgen") | .version')
+          cargo install wasm-bindgen-cli --version "$wasm_bindgen_version" --locked
+          cargo test -p account-wasm --target wasm32-unknown-unknown --features controller_account --lib browser_session
 
   ensure-windows:
     runs-on: windows-latest
