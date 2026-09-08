@@ -892,36 +892,16 @@ impl CartridgeAccount {
             }
         }
 
-        // Now execute with valid session
-        // Try paymaster first (execute_from_outside_v3)
-        match controller
-            .execute_from_outside_v3(
-                calls.clone(),
-                fee_source
-                    .as_ref()
-                    .map(|fs| fs.clone().try_into())
-                    .transpose()?,
+        // Keep app-specific authorization above; share fallback eligibility and
+        // price headroom with native clients so the execution paths cannot drift.
+        let result = controller
+            .try_session_execute_with_gas_multiplier(
+                calls,
+                fee_source.map(|fs| fs.try_into()).transpose()?,
+                gas_multiplier,
             )
-            .await
-        {
-            Ok(result) => Ok(to_value(&result)?),
-            Err(e) => match e {
-                ControllerError::PaymasterNotSupported => {
-                    // Fallback to user pays flow when the paymaster path is unavailable
-                    let estimate = controller.estimate_invoke_fee(calls.clone()).await?;
-                    let result = controller
-                        .execute_with_gas_multiplier(
-                            calls,
-                            Some(estimate),
-                            fee_source.map(|fs| fs.try_into()).transpose()?,
-                            gas_multiplier,
-                        )
-                        .await?;
-                    Ok(to_value(&result)?)
-                }
-                other => Err(JsControllerError::from(other).into()),
-            },
-        }
+            .await?;
+        Ok(to_value(&result)?)
     }
 
     #[wasm_bindgen(js_name = isRegisteredSessionAuthorized)]
@@ -1421,6 +1401,336 @@ mod tests {
     use account_sdk::errors::ControllerError;
     use starknet::core::types::Call;
     use starknet::macros::felt;
+
+    #[cfg(target_arch = "wasm32")]
+    mod browser_session {
+        use super::*;
+        use serde_json::Value;
+        use wasm_bindgen_test::*;
+
+        wasm_bindgen_test_configure!(run_in_browser);
+
+        // Mock only the network: execute the real WASM entry points, local
+        // policy storage, signing and transaction serialization in a browser.
+        #[wasm_bindgen(inline_js = r#"
+            let originalFetch;
+            let requests;
+            export function installRpc(errorCode) {
+                originalFetch = globalThis.fetch;
+                requests = [];
+                globalThis.fetch = async (input, init) => {
+                    const httpRequest = new Request(input, init);
+                    const request = JSON.parse(await httpRequest.text());
+                    requests.push(request);
+                    const response = {jsonrpc: '2.0', id: request.id};
+                    switch (request.method) {
+                        case 'starknet_chainId': response.result = '0x534e5f5345504f4c4941'; break;
+                        case 'starknet_getNonce': response.result = '0x1'; break;
+                        case 'starknet_getBlockWithTxs':
+                            response.result = {
+                                block_number: 1, timestamp: 1, sequencer_address: '0x1',
+                                l1_gas_price: {price_in_fri: '0x1', price_in_wei: '0x1'},
+                                l2_gas_price: {price_in_fri: '0x1', price_in_wei: '0x1'},
+                                l1_data_gas_price: {price_in_fri: '0x1', price_in_wei: '0x1'},
+                                l1_da_mode: 'BLOB', starknet_version: '0.14.0', transactions: []
+                            }; break;
+                        case 'starknet_call':
+                            response.result = ['0xffffffffffffffffffffffffffffffff', '0x0']; break;
+                        case 'cartridge_addExecuteOutsideTransaction':
+                            if (errorCode === 0) response.result = {transaction_hash: '0x123'};
+                            else response.error = {code: errorCode, message: 'paymaster test error'};
+                            break;
+                        case 'starknet_estimateFee':
+                            response.result = [{
+                                l1_gas_consumed: 10, l1_gas_price: 96966059925918,
+                                l2_gas_consumed: 20, l2_gas_price: 100,
+                                l1_data_gas_consumed: 30, l1_data_gas_price: 134488580849,
+                                overall_fee: 973695256686650
+                            }].map(estimate => Object.fromEntries(Object.entries(estimate)
+                                .map(([key, value]) => [key, '0x' + BigInt(value).toString(16)])));
+                            break;
+                        case 'starknet_addInvokeTransaction': {
+                            const bounds = request.params.invoke_transaction.resource_bounds;
+                            const sufficient = [
+                                ['l1_gas', 97728921905943n],
+                                ['l1_data_gas', 135546644105n], ['l2_gas', 101n]
+                            ].every(([resource, price]) => BigInt(bounds[resource].max_price_per_unit) >= price);
+                            if (sufficient) response.result = {transaction_hash: '0x456'};
+                            else response.error = {code: 55, message: 'Account validation failed',
+                                data: 'Resource bounds were not satisfied'};
+                            break;
+                        }
+                        default: throw new Error('unexpected RPC method: ' + request.method);
+                    }
+                    const result = new Response(JSON.stringify(response), {
+                        headers: {'content-type': 'application/json'}
+                    });
+                    Object.defineProperty(result, 'url', {value: httpRequest.url});
+                    return result;
+                };
+            }
+            export function recordedRequests() { return JSON.stringify(requests); }
+            export function restoreRpc() { globalThis.fetch = originalFetch; }
+        "#)]
+        extern "C" {
+            fn installRpc(error_code: i32);
+            fn recordedRequests() -> String;
+            fn restoreRpc();
+        }
+
+        struct Rpc;
+
+        impl Drop for Rpc {
+            fn drop(&mut self) {
+                restoreRpc();
+            }
+        }
+
+        fn requests() -> Vec<Value> {
+            serde_json::from_str(&recordedRequests()).unwrap()
+        }
+
+        fn bounds() -> Value {
+            requests()
+                .into_iter()
+                .find(|request| request["method"] == "starknet_addInvokeTransaction")
+                .expect("self-funded submission")["params"]["invoke_transaction"]["resource_bounds"]
+                .clone()
+        }
+
+        fn hex(value: &Value) -> u128 {
+            u128::from_str_radix(value.as_str().unwrap().trim_start_matches("0x"), 16).unwrap()
+        }
+
+        fn assert_no_self_funding() {
+            assert!(!requests().iter().any(|request| matches!(
+                request["method"].as_str(),
+                Some("starknet_estimateFee" | "starknet_addInvokeTransaction")
+            )));
+        }
+
+        async fn account(error_code: i32, expires_at: u64) -> (Rpc, CartridgeAccount, Vec<JsCall>) {
+            installRpc(error_code);
+            let rpc = Rpc;
+            let mut controller = Controller::new(
+                "browserpricingtest".into(),
+                felt!("0x1"),
+                Url::parse("http://session-rpc.test").unwrap(),
+                account_sdk::signers::Owner::Signer(
+                    account_sdk::signers::Signer::new_starknet_random(),
+                ),
+                felt!("0x9876"),
+                None,
+            )
+            .await
+            .unwrap();
+            let calls = vec![JsCall {
+                contract_address: felt!("0x1234").into(),
+                entrypoint: "transfer".into(),
+                calldata: vec![],
+            }];
+            let sdk_calls = calls
+                .clone()
+                .into_iter()
+                .map(TryInto::try_into)
+                .collect::<std::result::Result<Vec<Call>, _>>()
+                .unwrap();
+            let policies = SdkPolicy::from_calls(&sdk_calls);
+            controller
+                .create_session(policies.clone(), expires_at)
+                .await
+                .unwrap();
+            PolicyStorage::new_with_app_id(
+                &controller.address,
+                "pricing-test",
+                &controller.chain_id,
+            )
+            .store(policies.into_iter().map(Into::into).collect())
+            .unwrap();
+            (
+                rpc,
+                CartridgeAccount {
+                    controller: WasmMutex::new(controller),
+                    cartridge_api_url: String::new(),
+                },
+                calls,
+            )
+        }
+
+        #[wasm_bindgen_test]
+        async fn fallback_tolerates_price_drift_for_both_rpc_errors_and_amount_multipliers() {
+            for error_code in [-32003, -32004] {
+                for multiplier in [None, Some(10.0)] {
+                    let (_rpc, account, calls) = account(error_code, u64::MAX).await;
+                    account
+                        .try_session_execute("pricing-test".into(), calls, None, multiplier)
+                        .await
+                        .unwrap();
+                    let bounds = bounds();
+                    for (resource, price, amount) in [
+                        ("l1_gas", 145_449_089_888_877, 10),
+                        ("l2_gas", 150, 20),
+                        ("l1_data_gas", 201_732_871_273, 30),
+                    ] {
+                        assert_eq!(hex(&bounds[resource]["max_price_per_unit"]), price);
+                        assert_eq!(
+                            hex(&bounds[resource]["max_amount"]),
+                            (amount as f64 * multiplier.unwrap_or(1.5)) as u128
+                        );
+                    }
+                }
+            }
+        }
+
+        #[wasm_bindgen_test]
+        async fn sponsored_session_and_default_execute_do_not_self_fund() {
+            for multiplier in [None, Some(10.0)] {
+                let (_rpc, account, calls) = account(0, u64::MAX).await;
+                account
+                    .try_session_execute("pricing-test".into(), calls.clone(), None, multiplier)
+                    .await
+                    .unwrap();
+                account
+                    .execute(calls, None, None, multiplier)
+                    .await
+                    .unwrap();
+                assert_no_self_funding();
+                assert_eq!(
+                    requests()
+                        .iter()
+                        .filter(
+                            |request| request["method"] == "cartridge_addExecuteOutsideTransaction"
+                        )
+                        .count(),
+                    2
+                );
+            }
+        }
+
+        #[wasm_bindgen_test]
+        async fn confirmation_prices_are_not_buffered_twice() {
+            let (_rpc, account, calls) = account(0, u64::MAX).await;
+            let estimate = JsFeeEstimate {
+                l1_gas_consumed: 10,
+                l1_gas_price: 145_449_089_888_877,
+                l2_gas_consumed: 20,
+                l2_gas_price: 150,
+                l1_data_gas_consumed: 30,
+                l1_data_gas_price: 201_732_871_273,
+                overall_fee: 973_695_256_686_650,
+            };
+            account
+                .execute(calls, Some(estimate.clone()), None, None)
+                .await
+                .unwrap();
+            let bounds = bounds();
+            for (resource, price, amount) in [
+                ("l1_gas", estimate.l1_gas_price, 15),
+                ("l2_gas", estimate.l2_gas_price, 30),
+                ("l1_data_gas", estimate.l1_data_gas_price, 45),
+            ] {
+                assert_eq!(hex(&bounds[resource]["max_price_per_unit"]), price);
+                assert_eq!(hex(&bounds[resource]["max_amount"]), amount);
+            }
+            assert!(!requests()
+                .iter()
+                .any(|request| request["method"] == "starknet_estimateFee"));
+        }
+
+        #[wasm_bindgen_test]
+        async fn unbuffered_prices_reproduce_the_reported_rejection() {
+            let (_rpc, account, calls) = account(0, u64::MAX).await;
+            let estimate = JsFeeEstimate {
+                l1_gas_consumed: 10,
+                l1_gas_price: 96_966_059_925_918,
+                l2_gas_consumed: 20,
+                l2_gas_price: 100,
+                l1_data_gas_consumed: 30,
+                l1_data_gas_price: 134_488_580_849,
+                overall_fee: 973_695_256_686_650,
+            };
+            assert!(account
+                .execute(calls, Some(estimate.clone()), None, None)
+                .await
+                .is_err());
+            let bounds = bounds();
+            assert_eq!(
+                hex(&bounds["l1_gas"]["max_price_per_unit"]),
+                estimate.l1_gas_price
+            );
+            assert_eq!(
+                hex(&bounds["l1_data_gas"]["max_price_per_unit"]),
+                estimate.l1_data_gas_price
+            );
+        }
+
+        #[wasm_bindgen_test]
+        async fn rate_limit_does_not_fall_back_to_user_funds() {
+            let (_rpc, account, calls) = account(-32005, u64::MAX).await;
+            let error: JsValue = account
+                .try_session_execute("pricing-test".into(), calls, None, None)
+                .await
+                .unwrap_err()
+                .into();
+            assert_eq!(
+                js_sys::Reflect::get(&error, &"code".into())
+                    .unwrap()
+                    .as_f64(),
+                Some(ErrorCode::PaymasterRateLimitExceeded as u32 as f64)
+            );
+            assert_no_self_funding();
+        }
+
+        #[wasm_bindgen_test]
+        async fn session_and_app_authorization_still_gate_execution() {
+            for (app_id, expires_at, missing_session, expected) in [
+                (
+                    "another-app",
+                    u64::MAX,
+                    false,
+                    ErrorCode::ManualExecutionRequired,
+                ),
+                ("pricing-test", 1, false, ErrorCode::SessionRefreshRequired),
+                (
+                    "pricing-test",
+                    u64::MAX,
+                    true,
+                    ErrorCode::ManualExecutionRequired,
+                ),
+            ] {
+                let (_rpc, account, calls) = account(-32003, expires_at).await;
+                if missing_session {
+                    let mut controller = account.controller.lock().await;
+                    let key = controller.session_key();
+                    controller.storage.remove(&key).unwrap();
+                }
+                let before = requests().len();
+                let error: JsValue = account
+                    .try_session_execute(app_id.into(), calls, None, None)
+                    .await
+                    .unwrap_err()
+                    .into();
+                assert_eq!(
+                    js_sys::Reflect::get(&error, &"code".into())
+                        .unwrap()
+                        .as_f64(),
+                    Some(expected as u32 as f64)
+                );
+                assert_eq!(requests().len(), before);
+            }
+        }
+
+        #[wasm_bindgen_test]
+        async fn invalid_amount_multiplier_fails_before_network() {
+            let (_rpc, account, calls) = account(0, u64::MAX).await;
+            let before = requests().len();
+            assert!(account
+                .try_session_execute("pricing-test".into(), calls, None, Some(0.5))
+                .await
+                .is_err());
+            assert_eq!(requests().len(), before);
+        }
+    }
 
     #[test]
     fn test_paymaster_error_codes() {

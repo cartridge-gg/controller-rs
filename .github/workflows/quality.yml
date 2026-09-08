@@ -26,6 +26,24 @@ jobs:
       - name: Build account-wasm
         working-directory: account-wasm
         run: ./build.sh
+      - name: Set up Chrome for WASM regression tests
+        id: chrome
+        uses: browser-actions/setup-chrome@v1
+        with:
+          install-chromedriver: true
+      - name: Test browser session execution
+        env:
+          # build.sh overrides setup-rust-toolchain's -D warnings for WASM too.
+          RUSTFLAGS: ""
+          CHROME: ${{ steps.chrome.outputs.chrome-path }}
+          CHROMEDRIVER: ${{ steps.chrome.outputs.chromedriver-path }}
+          CARGO_TARGET_WASM32_UNKNOWN_UNKNOWN_RUNNER: wasm-bindgen-test-runner
+          WASM_BINDGEN_TEST_WEBDRIVER_JSON: ${{ runner.temp }}/session-webdriver.json
+        run: |
+          wasm_bindgen_version=$(cargo metadata --format-version=1 | jq -r '.packages[] | select(.name == "wasm-bindgen") | .version')
+          cargo install wasm-bindgen-cli --version "$wasm_bindgen_version" --locked
+          jq -n --arg binary "$CHROME" '{"goog:chromeOptions": {binary: $binary}}' > "$WASM_BINDGEN_TEST_WEBDRIVER_JSON"
+          cargo test -p account-wasm --target wasm32-unknown-unknown --features controller_account --lib browser_session
 
   ensure-windows:
     runs-on: windows-latest
