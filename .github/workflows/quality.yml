@@ -33,6 +33,8 @@ jobs:
           install-chromedriver: true
       - name: Test browser session execution
         env:
+          # build.sh overrides setup-rust-toolchain's -D warnings for WASM too.
+          RUSTFLAGS: ""
           CHROME: ${{ steps.chrome.outputs.chrome-path }}
           CHROMEDRIVER: ${{ steps.chrome.outputs.chromedriver-path }}
           CARGO_TARGET_WASM32_UNKNOWN_UNKNOWN_RUNNER: wasm-bindgen-test-runner
