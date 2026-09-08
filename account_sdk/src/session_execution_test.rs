@@ -10,8 +10,29 @@ use url::Url;
 
 use crate::account::session::policy::Policy;
 use crate::controller::Controller;
+use crate::errors::ControllerError;
 use crate::gas::GasMultiplier;
+use crate::provider::ExecuteFromOutsideError;
 use crate::signers::{Owner, Signer};
+
+#[test]
+fn only_unsupported_paymaster_errors_allow_self_funding() {
+    for error in [
+        ControllerError::PaymasterNotSupported,
+        ControllerError::PaymasterError(ExecuteFromOutsideError::ExecuteFromOutsideNotSupported(
+            "outside execution unavailable".into(),
+        )),
+    ] {
+        assert!(super::is_paymaster_not_supported(&error));
+    }
+    for error in [
+        ControllerError::PaymasterError(ExecuteFromOutsideError::RateLimitExceeded),
+        ControllerError::PaymasterError(ExecuteFromOutsideError::InvalidCaller),
+        ControllerError::InvalidResponseData("paymaster not supported".into()),
+    ] {
+        assert!(!super::is_paymaster_not_supported(&error));
+    }
+}
 
 // Exercise the real session fallback and transaction serialization without a
 // live chain. The RPC rejects prices below the values observed at submission,
